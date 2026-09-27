@@ -1,5 +1,5 @@
 # COMPREHENSIVE CROSS-SYSTEM ANALYSIS & PRODUCTION PYTHON AGENT BLUEPRINT
-## Verified Architectural Critique of Claude Code, Codex, OpenCode, Pi, and T3 Code — Grounded in Source Code & State-of-the-Art Research
+## Verified Architectural Critique of Claude Code, Codex, OpenCode, and Pi — Grounded in Source Code & State-of-the-Art Research
 
 > **Methodology & Codebase Grounding**:
 > Every critique, vulnerability, and architectural claim in this document is verified against the real local source repositories:
@@ -7,7 +7,6 @@
 > - **Codex (`codex-rs`)**: `resource/codex/codex-rs` (119-crate Rust workspace, Tokio actor threads, `bwrap`/Seatbelt, virtual stream relay)
 > - **OpenCode**: `resource/opencode/packages/core` (TypeScript / Effect-TS, SQLite WAL, Context Epochs, managed disk tool outputs)
 > - **Pi**: `resource/pi/packages/coding-agent` (Append-only JSONL Merkle DAG, autonomous cache warmer, path mutation queue)
-> - **T3 Code**: `t3code` (Multi-surface agent control surface, Event-Sourced CQRS in Effect-TS, SQLite WAL, Provider SPI, Hidden Git refs)
 > 
 > In addition, this analysis incorporates state-of-the-art research from:
 > - **Aider**: Tree-sitter Repo Maps, `.scm` AST tag queries, and Personalized PageRank (PPR) symbol ranking.
@@ -24,35 +23,34 @@
 3. [Real-Code Critique: Codex (`codex-rs`)](#3-real-code-critique-codex-codex-rs)
 4. [Real-Code Critique: OpenCode](#4-real-code-critique-opencode)
 5. [Real-Code Critique: Pi (`pi-coding-agent`)](#5-real-code-critique-pi-pi-coding-agent)
-6. [Real-Code Critique: T3 Code (`t3code` Multi-Surface Control Surface)](#6-real-code-critique-t3-code-t3code-multi-surface-control-surface)
-7. [Cross-System Comparative Matrix (13 Core Dimensions)](#7-cross-system-comparative-matrix-13-core-dimensions)
-8. [The 5 Architectural Breakthroughs to Harvest](#8-the-5-architectural-breakthroughs-to-harvest)
-9. [State-of-the-Art Industry Augmentation](#9-state-of-the-art-industry-augmentation)
-   - 9.1 Tree-sitter Repo Map with Personalized PageRank (Aider)
-   - 9.2 True Linux Kernel Sandboxing via Bubblewrap (`bwrap`)
-   - 9.3 Prompt Caching Economics & Autonomous Keepalive
-10. [Complete Python Blueprint: The Superior Agent (`Aegis`)](#10-complete-python-blueprint-the-superior-agent-aegis)
-   - 10.1 `MerkleSessionManager` — Append-Only JSONL Merkle DAG
-   - 10.2 `BubblewrapSandbox` — Sub-Millisecond Kernel Isolation & Process Reclaim
-   - 10.3 `PathMutationQueue` — Race-Free File Locking via Realpath
-   - 10.4 `ManagedOutputStore` — Head/Tail Disk Offloading
-   - 10.5 `PromptCacheWarmer` — Autonomous Economic Keepalive
-   - 10.6 `TreeSitterRepoMap` — AST Symbol Extraction & Personalized PageRank
-   - 10.7 `AgentLoop` — Double-While Loop with Length-Stop Protection & Steering
-11. [Production Python Tech Stack & Phased Roadmap](#11-production-python-tech-stack--phased-roadmap)
-12. [Empirical Agent Engineering: Benchmarks, The Sub-Agent Paradox & Frontier Evals](#12-empirical-agent-engineering-benchmarks-the-sub-agent-paradox--frontier-evals)
-   - 12.1 The Model vs. Harness Gap (Why Naive Agents Score 15% vs Claude Code's 50% on Identical LLMs)
-   - 12.2 Why Pi Is the Ideal Architectural Baseline (Pragmatic Simplicity vs Codex & OpenCode Bloat)
-   - 12.3 The "Sub-Agent Fallacy" (Why Single-Agent Determinism Outperforms Multi-Agent Swarms on Terminal Benchmarks)
-   - 12.4 Objective Evals vs. "Vibe Coding" (Building a $3–$5 Local Micro-Eval Suite on Real Repositories)
-   - 12.5 Heuristic Engineering vs. Goodhart's Law (Safe Heuristics vs Benchmark Overfitting)
-   - 12.6 Complete Python Micro-Eval Harness Implementation (`eval/micro_runner.py`)
-   - 12.7 The 5-Tier Evaluation Taxonomy: Deterministic Unit Tests vs. LLM-as-a-Judge
-   - 12.8 Fullstack & GUI Agent Evals: The 5-Stage Verification Funnel & Headless Playwright Testing
-   - 12.9 The Multi-Turn Degradation Frontier: Stress-Testing Context Drift & Surgical Edits
-   - 12.10 Model Inversion & Cross-Model Verification (The Graptile Principle)
-   - 12.11 Deconstructing SWE-bench Under the Hood: `base_commit`, `test_patch` & Benchmark Saturation
-   - 12.12 The Evaluation Infrastructure Reality: Ephemeral Sandboxing & In-House Harness Ownership
+6. [Cross-System Comparative Matrix (12 Core Dimensions)](#6-cross-system-comparative-matrix-12-core-dimensions)
+7. [The 4 Architectural Breakthroughs to Harvest](#7-the-4-architectural-breakthroughs-to-harvest)
+8. [State-of-the-Art Industry Augmentation](#8-state-of-the-art-industry-augmentation)
+   - 8.1 Tree-sitter Repo Map with Personalized PageRank (Aider)
+   - 8.2 True Linux Kernel Sandboxing via Bubblewrap (`bwrap`)
+   - 8.3 Prompt Caching Economics & Autonomous Keepalive
+9. [Complete Python Blueprint: The Superior Agent (`Aegis`)](#9-complete-python-blueprint-the-superior-agent-aegis)
+   - 9.1 `MerkleSessionManager` — Append-Only JSONL Merkle DAG
+   - 9.2 `BubblewrapSandbox` — Sub-Millisecond Kernel Isolation & Process Reclaim
+   - 9.3 `PathMutationQueue` — Race-Free File Locking via Realpath
+   - 9.4 `ManagedOutputStore` — Head/Tail Disk Offloading
+   - 9.5 `PromptCacheWarmer` — Autonomous Economic Keepalive
+   - 9.6 `TreeSitterRepoMap` — AST Symbol Extraction & Personalized PageRank
+   - 9.7 `AgentLoop` — Double-While Loop with Length-Stop Protection & Steering
+10. [Production Python Tech Stack & Phased Roadmap](#10-production-python-tech-stack--phased-roadmap)
+11. [Empirical Agent Engineering: Benchmarks, The Sub-Agent Paradox & Frontier Evals](#11-empirical-agent-engineering-benchmarks-the-sub-agent-paradox--frontier-evals)
+   - 11.1 The Model vs. Harness Gap (Why Naive Agents Score 15% vs Claude Code's 50% on Identical LLMs)
+   - 11.2 Why Pi Is the Ideal Architectural Baseline (Pragmatic Simplicity vs Codex & OpenCode Bloat)
+   - 11.3 The "Sub-Agent Fallacy" (Why Single-Agent Determinism Outperforms Multi-Agent Swarms on Terminal Benchmarks)
+   - 11.4 Objective Evals vs. "Vibe Coding" (Building a $3–$5 Local Micro-Eval Suite on Real Repositories)
+   - 11.5 Heuristic Engineering vs. Goodhart's Law (Safe Heuristics vs Benchmark Overfitting)
+   - 11.6 Complete Python Micro-Eval Harness Implementation (`eval/micro_runner.py`)
+   - 11.7 The 5-Tier Evaluation Taxonomy: Deterministic Unit Tests vs. LLM-as-a-Judge
+   - 11.8 Fullstack & GUI Agent Evals: The 5-Stage Verification Funnel & Headless Playwright Testing
+   - 11.9 The Multi-Turn Degradation Frontier: Stress-Testing Context Drift & Surgical Edits
+   - 11.10 Model Inversion & Cross-Model Verification (The Graptile Principle)
+   - 11.11 Deconstructing SWE-bench Under the Hood: `base_commit`, `test_patch` & Benchmark Saturation
+   - 11.12 The Evaluation Infrastructure Reality: Ephemeral Sandboxing & In-House Harness Ownership
 
 ---
 
@@ -66,7 +64,6 @@ Previous theoretical analyses often conflated LLM completion benchmarks with age
 | **Codex (`codex-rs`)** | High-performance Rust core, 128-stream virtual relay multiplexing, kernel Bubblewrap sandboxing | **Hyper-Complexity & Fragility**: 119 separate crates create severe maintenance friction. Hardcoded `BANNED_PREFIX_SUGGESTIONS` blocklist breaks developer shell aliases. IPC serialization overhead over Noise protocol. |
 | **OpenCode** | Effect-TS functional fibers, Context Epochs with immutable cache baselines, managed disk tool outputs | **Ecosystem & Sandbox Debt**: No native kernel sandbox (relies on user permission prompts `allow/deny/ask`). Complex generator-based Effect-TS syntax. Subagents gate behind experimental flags. |
 | **Pi** | Append-only JSONL Merkle DAGs, autonomous prompt cache warmer, canonical path mutation queue | **Host Isolation Gap & Subagent Weight**: Zero built-in OS sandboxing by default (runs raw on host unless Gondolin micro-VM is configured). Subagents spawn heavy, separate Node CLI processes. Lacks AST repo mapping. |
-| **T3 Code** | Event-Sourced CQRS (`decider.ts` pure function), SQLite WAL, hidden Git refs (`refs/t3/turns/<n>`), Multi-surface provider orchestration | **Not an Agent Harness & No Native Sandboxing**: Delegates execution entirely to child provider CLIs (Claude Code, Codex, OpenCode). Zero syscall sandboxing or AST intelligence of its own; acts strictly as an orchestration and control surface. |
 
 ---
 
@@ -229,122 +226,28 @@ async function getMutationQueueKey(filePath: string): Promise<string> {
 
 ---
 
-## 6. Real-Code Critique: T3 Code (`t3code` Multi-Surface Control Surface)
-*Source: `t3code`*
+## 6. Cross-System Comparative Matrix (12 Core Dimensions)
 
-### 6.1 The Architecture
-Unlike Claude Code, Codex, OpenCode, or Pi, T3 Code is **not a standalone terminal coding agent**. It is an **agent orchestration control surface and multi-surface conductor** that wraps third-party provider CLIs (Claude Code, Codex, Cursor, Grok, OpenCode, and Antigravity) and projects unified sessions across Web, Desktop (Electron), and Mobile (React Native) clients.
-
-The server (`apps/server`) is implemented using **Effect-TS**, **SQLite WAL**, and a strict **Event-Sourced CQRS** pattern:
-
-```
-Client WebSocket Request (Command)
-        │
-        ▼
-   [Command] ──── typed in packages/contracts ────▶ apps/server/src/decider.ts
-        │                                                     │
-        │                                              Pure Function:
-        │                                        (ReadModel, Command) → Events[]
-        │                                                     │
-        ▼                                                     ▼
- orchestration_events table              apps/server/src/projector.ts
-  (append-only SQLite WAL)                                    │
-                                                              ▼
-                                                    projection_* tables
-                                                (denormalized query views)
-                                                              │
-                                                              ▼
-                                                   WebSocket Push to Clients
-```
-
-Key verified components in `t3code`:
-
-- **Pure Decider State Machine** (`apps/server/src/decider.ts`):
-  At 2,227 lines, `decider.ts` is an entirely pure function without side effects or disk I/O. It validates commands against the active read model and outputs domain events:
-
-```typescript
-// Verified from t3code/apps/server/src/decider.ts:
-export function decide(
-  model: ReadModel,
-  command: Command
-): readonly [readonly OrchestrationEvent[], Effect.Effect<void, never, never>]
-```
-
-- **Append-Only SQLite Event Store** (`apps/server/src/db/schema.ts`):
-  Events are persisted to `orchestration_events` with optimistic concurrency control via `stream_version` and a global autoincrement `sequence` watermark:
-
-```typescript
-// Verified from t3code/apps/server/src/db/schema.ts:
-export const orchestrationEvents = sqliteTable("orchestration_events", {
-  streamId: text("stream_id").notNull(),
-  streamVersion: integer("stream_version").notNull(),
-  eventType: text("event_type").notNull(),
-  payload: text("payload", { mode: "json" }).notNull(),
-  sequence: integer("sequence").primaryKey({ autoIncrement: true }),
-  createdAt: text("created_at").notNull(),
-});
-```
-
-- **Provider SPI (Service Provider Interface)** (`apps/server/src/provider/driver.ts`):
-  T3 Code abstracts external coding agents through a unified driver contract:
-
-```typescript
-// Verified from t3code/apps/server/src/provider/driver.ts:
-export interface ProviderDriver<Config, R = never> {
-  readonly id: ProviderId;
-  readonly createInstance: (
-    config: Config,
-    session: SessionConfig
-  ) => Effect.Effect<ProviderInstance, ProviderError, R>;
-}
-```
-
-  Each `ProviderInstance` exposes three closures:
-  1. `snapshot`: Reads current provider session state.
-  2. `adapter`: Maps provider-specific JSON-RPC/ACP stdout events into T3 domain events.
-  3. `textGeneration`: Streams text completions for title generation and summarization.
-
-- **Non-Polluting Workspace Checkpointing via Hidden Git Refs** (`apps/server/src/git/checkpoint.ts`):
-  Instead of committing to the user's active branch or stashing dirty trees, T3 Code writes workspace snapshots directly to hidden Git references: `refs/t3/turns/<turn_index>` using low-level git plumbing (`git write-tree` & `git commit-tree`). Turn diffs are queried via `CheckpointDiffQuery` without ever modifying the user's `git log` or branch heads.
-
-- **Multi-Surface Architecture & Shared Contracts**:
-  `packages/contracts` defines strict Effect/Schema wire protocols shared verbatim across the Web SPA (`apps/web`), the Electron desktop runtime (`apps/desktop`), and the React Native mobile client (`apps/mobile`), with remote pairing secured via Tailscale mesh and PKCE authorization tokens.
-
-### 6.2 Verified Engineering Weaknesses
-1. **Parasitic Execution Dependency & Zero Autonomous Agency**:
-   T3 Code does not possess its own tool-calling engine, prompt compaction system, or file modification loop. It is an orchestration wrapper: if the underlying provider CLI (e.g. Claude Code or Codex) stalls, crashes, or breaks its private CLI protocol, T3 Code cannot recover autonomously.
-2. **Monolithic CQRS Boilerplate & Cognitive Indirection**:
-   With `decider.ts` spanning 2,227 lines and `projector.ts` spanning 1,100 lines, even simple feature additions require touching commands, schemas, decider branches, event tables, projector reducers, and WebSocket push handlers. This introduces severe development friction compared to direct SQLite or append-only JSONL models.
-3. **Absence of Native Syscall Sandboxing**:
-   Because T3 Code delegates tool execution to child provider CLIs or spawns host processes directly, it provides no kernel-level containerization (`bwrap`, Linux namespaces, or Seatbelt). Host vulnerability is entirely governed by whichever CLI provider is invoked.
-4. **Event Store WAL Bloat & Projection Lag**:
-   Streaming token updates and high-frequency tool outputs append thousands of rows to `orchestration_events`. Without frequent snapshot compaction, the projector must replay large event streams on cold session starts, degrading initial load performance on deep sessions.
+| Architectural Dimension | Claude Code | Codex (`codex-rs`) | OpenCode | Pi (`pi-coding-agent`) |
+|---|---|---|---|---|
+| **Primary Language** | TypeScript (Node.js) | Rust | TypeScript (Bun / Node) | TypeScript (Node / Bun) |
+| **Concurrency Model** | Async/await + Events | Tokio async actors | Effect-TS Fibers & Scopes | Native Async + Promise queues |
+| **Durable Storage** | In-memory + Flat JSON | In-memory + SQLite Graph | **SQLite WAL tables (`seq`)** | **Append-only JSONL Merkle DAG** |
+| **Branching & Rewind** | Array rewind (destructive) | Commit stack (in-memory) | Git-backed shadow tree | **DAG via `parentId` pointers** |
+| **Context Cache Strategy** | Heuristic cache breakpoints | Prefix state tracker | **Immutable Baseline Epochs** | **Autonomous Economic Warmer** |
+| **Compaction Safe Cuts** | Single-pass summary | In-memory vs Remote | Dual (proactive + 400 recovery) | **Backward Safe Cuts (no tool splits)**|
+| **Tool Concurrency** | Basic `Promise.all` | Async task spawn | Parallel `FiberSet` | **Canonical Path Mutation Queue** |
+| **Large Output Handling** | Memory slice | Memory byte truncate | **Managed Disk Files (50KB/2k)** | **Head/Tail Truncation (50KB/2k)** |
+| **Sandboxing Engine** | macOS Seatbelt only | **bwrap (Linux) / Seatbelt (Mac)**| Process-level rules (`allow/ask`) | Pluggable micro-VMs (Gondolin) |
+| **Subagent Execution** | Ephemeral child turns | ThreadManager coordination | `SessionTable.parent_id` | **Process-isolated CLI instances** |
+| **AST Codebase Map** | None (tool discovery) | None (tool discovery) | None (tool discovery) | None (tool discovery) |
+| **Terminal UI Engine** | React / Ink | Crossterm / Ratatui | Ink / Custom | **Custom Differential TUI + Sixel/Kitty**|
 
 ---
 
-## 7. Cross-System Comparative Matrix (13 Core Dimensions)
+## 7. The 4 Architectural Breakthroughs to Harvest
 
-| Architectural Dimension | Claude Code | Codex (`codex-rs`) | OpenCode | Pi (`pi-coding-agent`) | T3 Code (`t3code`) |
-|---|---|---|---|---|---|
-| **Primary Language** | TypeScript (Node.js) | Rust | TypeScript (Bun / Node) | TypeScript (Node / Bun) | TypeScript / Effect-TS |
-| **Architectural Scope** | Standalone Agent CLI | Standalone Agent Harness | Standalone Agent CLI | Standalone Agent Library | **Multi-Surface Control Plane** |
-| **Concurrency Model** | Async/await + Events | Tokio async actors | Effect-TS Fibers & Scopes | Native Async + Promise queues | Effect-TS Fibers + Decider loop |
-| **Durable Storage** | In-memory + Flat JSON | In-memory + SQLite Graph | **SQLite WAL tables (`seq`)** | **Append-only JSONL Merkle DAG** | **SQLite WAL (`orchestration_events`)** |
-| **Branching & Rewind** | Array rewind (destructive) | Commit stack (in-memory) | Git-backed shadow tree | **DAG via `parentId` pointers** | **Hidden Git refs (`refs/t3/turns/<n>`)** |
-| **Context Cache Strategy** | Heuristic cache breakpoints | Prefix state tracker | **Immutable Baseline Epochs** | **Autonomous Economic Warmer** | Provider-delegated |
-| **Compaction Safe Cuts** | Single-pass summary | In-memory vs Remote | Dual (proactive + 400 recovery) | **Backward Safe Cuts (no tool splits)**| Provider-delegated |
-| **Tool Concurrency** | Basic `Promise.all` | Async task spawn | Parallel `FiberSet` | **Canonical Path Mutation Queue** | Provider-delegated |
-| **Large Output Handling** | Memory slice | Memory byte truncate | **Managed Disk Files (50KB/2k)** | **Head/Tail Truncation (50KB/2k)** | Projection tables + chunking |
-| **Sandboxing Engine** | macOS Seatbelt only | **bwrap (Linux) / Seatbelt (Mac)**| Process-level rules (`allow/ask`) | Pluggable micro-VMs (Gondolin) | Provider-delegated (no host sandbox)|
-| **Subagent Execution** | Ephemeral child turns | ThreadManager coordination | `SessionTable.parent_id` | **Process-isolated CLI instances** | Multi-session orchestration |
-| **AST Codebase Map** | None (tool discovery) | None (tool discovery) | None (tool discovery) | None (tool discovery) | None |
-| **UI Engine** | React / Ink (Terminal) | Crossterm / Ratatui (Terminal) | Ink / Custom (Terminal) | **Custom Differential TUI + Sixel** | **Web (React/Vite) + Electron + RN** |
-
----
-
-## 8. The 5 Architectural Breakthroughs to Harvest
-
-To build an agent that fundamentally surpasses all five systems, we synthesize the single greatest breakthrough from each system into a unified architecture:
+To build an agent that fundamentally surpasses all four, we synthesize the single greatest breakthrough from each system into a unified architecture:
 
 ```
 +--------------------------------------------------------------------------+
@@ -363,10 +266,6 @@ To build an agent that fundamentally surpasses all five systems, we synthesize t
 | 4. From CLAUDE CODE: 5-Tier Onion Middleware Pipeline                    |
 |                      (Strict modular ordering of pre/post turn logic)    |
 +--------------------------------------------------------------------------+
-| 5. From T3 CODE:     Hidden Git Turn Refs & Pure Decider State Machine   |
-|                      (refs/t3/turns/<n> zero-pollution turn checkpoints  |
-|                      + deterministic CQRS read-model projections)        |
-+--------------------------------------------------------------------------+
 | + INDUSTRY SOTA:     Tree-sitter AST Repo Map with Personalized PageRank |
 |                      (Ranked global symbol index with zero exploration)  |
 +--------------------------------------------------------------------------+
@@ -374,9 +273,9 @@ To build an agent that fundamentally surpasses all five systems, we synthesize t
 
 ---
 
-## 9. State-of-the-Art Industry Augmentation
+## 8. State-of-the-Art Industry Augmentation
 
-### 9.1 Tree-sitter Repo Map with Personalized PageRank (Aider)
+### 8.1 Tree-sitter Repo Map with Personalized PageRank (Aider)
 Current terminal agents waste 30–50% of their turns running `grep` and `ls` just to discover which files contain the relevant class or function.
 - **AST Parsing with Tree-sitter**: Parse all repository source files using tree-sitter grammars and `.scm` queries to extract defined symbols (classes, functions, interfaces) and referenced identifiers.
 - **Personalized PageRank (PPR)**:
@@ -387,7 +286,7 @@ Current terminal agents waste 30–50% of their turns running `grep` and `ls` ju
   where $d = 0.85$. Files and definitions structurally connected to the developer's immediate focus receive top priority.
 - **Greedy Token Budget Packing**: Using a binary search over rank thresholds, pack the top AST definitions into a strict 1,024-token budget. The model sees precise signatures and file locations on turn 0 without executing a single tool!
 
-### 9.2 True Linux Kernel Sandboxing via Bubblewrap (`bwrap`)
+### 8.2 True Linux Kernel Sandboxing via Bubblewrap (`bwrap`)
 Containers (Docker) require root daemons and have 2–5s cold starts. Heavy VMs (QEMU) consume 500MB+ RAM.
 - **The Solution**: Use Bubblewrap (`bwrap`), as proven by Codex.
 - **Namespace Isolation**: Uses unprivileged Linux user namespaces (`CLONE_NEWUSER`, `CLONE_NEWPID`, `CLONE_NEWNS`, `CLONE_NEWIPC`, `CLONE_NEWUTS`).
@@ -399,7 +298,7 @@ Containers (Docker) require root daemons and have 2–5s cold starts. Heavy VMs 
   - `--bind <workspace> <workspace>`: Isolated read-write access to the project directory, while protecting `.git` via `--tmpfs` or read-only binds.
   - Network access disabled by default; toggled via `--share-net` only for verified package installation tools.
 
-### 9.3 Prompt Caching Economics & Autonomous Keepalive
+### 8.3 Prompt Caching Economics & Autonomous Keepalive
 Provider KV prompt caching radically alters terminal agent economics:
 - **Anthropic Claude 3.5 Sonnet / Opus**:
   - Cache TTL: **5 minutes** (extended to 1 hour upon request).
@@ -419,11 +318,11 @@ Provider KV prompt caching radically alters terminal agent economics:
 
 ---
 
-## 10. Complete Python Blueprint: The Superior Agent (`Aegis`)
+## 9. Complete Python Blueprint: The Superior Agent (`Aegis`)
 
 Here is the complete, modular, production-ready Python 3.11+ implementation architecture. All components are fully implemented without placeholder stubs.
 
-### 10.1 `MerkleSessionManager` — Append-Only JSONL Merkle DAG
+### 9.1 `MerkleSessionManager` — Append-Only JSONL Merkle DAG
 *Incorporates Pi's Merkle tree with UUIDv7 time-ordering and context redaction.*
 
 ```python
@@ -510,7 +409,7 @@ class MerkleSessionManager:
 
 ---
 
-### 10.2 `BubblewrapSandbox` — Sub-Millisecond Kernel Isolation & Process Reclaim
+### 9.2 `BubblewrapSandbox` — Sub-Millisecond Kernel Isolation & Process Reclaim
 *Incorporates Codex's `bwrap` sandboxing and Pi's recursive process tree termination.*
 
 ```python
@@ -582,7 +481,7 @@ class BubblewrapSandbox:
 
 ---
 
-### 10.3 `PathMutationQueue` — Race-Free File Locking via Realpath
+### 9.3 `PathMutationQueue` — Race-Free File Locking via Realpath
 *Incorporates Pi's canonical path file mutation queue with ENOENT handling.*
 
 ```python
@@ -625,7 +524,7 @@ class PathMutationQueue:
 
 ---
 
-### 10.4 `ManagedOutputStore` — Head/Tail Disk Offloading
+### 9.4 `ManagedOutputStore` — Head/Tail Disk Offloading
 *Incorporates OpenCode's Managed Tool Output Files (`ToolOutputStore`).*
 
 ```python
@@ -669,7 +568,7 @@ class ManagedOutputStore:
 
 ---
 
-### 10.5 `PromptCacheWarmer` — Autonomous Economic Keepalive
+### 9.5 `PromptCacheWarmer` — Autonomous Economic Keepalive
 *Incorporates Pi's economic prompt cache keepalive formula.*
 
 ```python
@@ -727,7 +626,7 @@ class PromptCacheWarmer:
 
 ---
 
-### 10.6 `TreeSitterRepoMap` — AST Symbol Extraction & Personalized PageRank
+### 9.6 `TreeSitterRepoMap` — AST Symbol Extraction & Personalized PageRank
 *Incorporates Aider's Tree-sitter Repo Map with Personalized PageRank (PPR).*
 
 ```python
@@ -804,7 +703,7 @@ class TreeSitterRepoMap:
 
 ---
 
-### 10.7 `AgentLoop` — Double-While Loop with Length-Stop Protection & Steering
+### 9.7 `AgentLoop` — Double-While Loop with Length-Stop Protection & Steering
 *Incorporates Pi's and OpenCode's dual drain loops with length-stop safety.*
 
 ```python
@@ -895,9 +794,9 @@ class AgentLoop:
 
 ---
 
-## 11. Production Python Tech Stack & Phased Roadmap
+## 10. Production Python Tech Stack & Phased Roadmap
 
-### 11.1 Recommended Python Stack
+### 10.1 Recommended Python Stack
 | Component | Library | Rationale |
 |---|---|---|
 | **Runtime & Event Loop** | Python 3.11+ / `asyncio` | Native TaskGroups, exception groups, fast async I/O. |
@@ -907,7 +806,7 @@ class AgentLoop:
 | **AST Code Parsing** | `tree-sitter` & `networkx` | Fast multi-language syntax tree parsing and Personalized PageRank symbol centrality calculation. |
 | **Tracing & Metrics** | `structlog` & `opentelemetry` | Structured JSON logs, traceparent context forwarding across tool subshells. |
 
-### 11.2 Phased Roadmap
+### 10.2 Phased Roadmap
 ```
 Phase 1: Foundation (Weeks 1-3)
 ├── Append-only JSONL Merkle DAG session manager
@@ -935,9 +834,9 @@ Phase 4: Hardening & Chaos Testing (Weeks 10-12)
 
 ---
 
-## 12. Empirical Agent Engineering: Benchmarks, The Sub-Agent Paradox & Frontier Evals
+## 11. Empirical Agent Engineering: Benchmarks, The Sub-Agent Paradox & Frontier Evals
 
-### 12.1 The Model vs. Harness Gap: Why Naive Agents Score 15% vs. Claude Code's 50% on Identical LLMs
+### 11.1 The Model vs. Harness Gap: Why Naive Agents Score 15% vs. Claude Code's 50% on Identical LLMs
 A naive terminal coding agent can be written in 100 lines of Python using the Anthropic or OpenAI SDK with function calling. However, when benchmarked on **SWE-bench Lite** or **TerminalBench**, that naive implementation consistently scores between **12% and 18%**. In contrast, production terminal agents like Claude Code, Codex, and Pi achieve **45% to 55%+ resolution rates** using the exact same underlying model weights (`claude-3-5-sonnet` / `claude-3-7-sonnet`).
 
 This 35% delta is not caused by LLM reasoning or prompt length; it is entirely determined by **harness systems hygiene**:
@@ -980,7 +879,7 @@ This 35% delta is not caused by LLM reasoning or prompt length; it is entirely d
 
 ---
 
-### 12.2 Why Pi Is the Ideal Architectural Baseline
+### 11.2 Why Pi Is the Ideal Architectural Baseline
 When building a production terminal agent, selecting the initial reference codebase determines iteration speed and debugging velocity:
 
 1. **Codex (`codex-rs`)**:
@@ -1001,7 +900,7 @@ When building a production terminal agent, selecting the initial reference codeb
 
 ---
 
-### 12.3 The "Sub-Agent Fallacy" on Terminal Benchmarks
+### 11.3 The "Sub-Agent Fallacy" on Terminal Benchmarks
 A widespread misconception among AI practitioners is that *"more sub-agents automatically produce a smarter agent."* In coding evaluations such as TerminalBench and SWE-bench, **Pi performs at the very top tier despite having NO built-in sub-agent orchestration**, while systems with complex multi-agent swarms frequently regress.
 
 #### Why Sub-Agents Often Degrade Coding Benchmark Performance:
@@ -1017,7 +916,7 @@ A single agent with **strict determinism**, **tight bash/pytest feedback loops**
 
 ---
 
-### 12.4 Objective Evals vs. "Vibe Coding": The Local Micro-Eval Strategy
+### 11.4 Objective Evals vs. "Vibe Coding": The Local Micro-Eval Strategy
 Developing coding agents via "vibe coding" (typing random prompts into the CLI and judging output subjectively) is a fatal trap. A prompt tweak that fixes one bug will silently break five others.
 
 However, running the official **SWE-bench Lite** (300 tasks) costs **$300 to $1,000+ in API credits** per run and takes 4 to 8 hours of Docker compute.
@@ -1041,7 +940,7 @@ However, running the official **SWE-bench Lite** (300 tasks) costs **$300 to $1,
 
 ---
 
-### 12.5 Heuristic Engineering vs. Goodhart's Law
+### 11.5 Heuristic Engineering vs. Goodhart's Law
 When optimizing an agent for benchmarks, developers often fall prey to **Goodhart's Law**: *"When a measure becomes a target, it ceases to be a good measure."*
 
 | Approach | Pattern | Verdict |
@@ -1053,7 +952,7 @@ When optimizing an agent for benchmarks, developers often fall prey to **Goodhar
 
 ---
 
-### 12.6 Complete Python Micro-Eval Harness Implementation (`eval/micro_runner.py`)
+### 11.6 Complete Python Micro-Eval Harness Implementation (`eval/micro_runner.py`)
 
 Here is a fully runnable, production-ready micro-eval evaluation runner:
 
@@ -1236,7 +1135,7 @@ class MicroEvalRunner:
 
 ---
 
-### 12.7 The 5-Tier Evaluation Taxonomy: Deterministic Unit Tests vs. LLM-as-a-Judge
+### 11.7 The 5-Tier Evaluation Taxonomy: Deterministic Unit Tests vs. LLM-as-a-Judge
 
 Building a production-grade coding agent requires understanding the fundamental taxonomy of evaluation methodologies. Conflating subjective quality assessments with deterministic verification is the single most common cause of flawed agent benchmarks.
 
@@ -1295,7 +1194,7 @@ Respond strictly in JSON matching the specified schema.
 
 ---
 
-### 12.8 Fullstack & GUI Agent Evals: The 5-Stage Verification Funnel & Headless Playwright Testing
+### 11.8 Fullstack & GUI Agent Evals: The 5-Stage Verification Funnel & Headless Playwright Testing
 
 Evaluating fullstack and frontend coding agents (e.g., Lovable, v0, Bolt) presents unique challenges compared to backend terminal agents. While a terminal agent's output can be verified via `pytest`, frontend applications produce dynamic visual interfaces, client-side state transitions, and browser event listeners.
 
@@ -1379,7 +1278,7 @@ test("Fullstack ToDo App: Automated Functional Verification", async ({ page }) =
 
 ---
 
-### 12.9 The Multi-Turn Degradation Frontier: Stress-Testing Context Drift & Surgical Edits
+### 11.9 The Multi-Turn Degradation Frontier: Stress-Testing Context Drift & Surgical Edits
 
 The single greatest flaw in conventional coding evaluations is evaluating agents purely on **Turn 1 (Single-Shot Generation)**. In real development, almost all commercial LLMs can generate a passable initial prototype. 
 
@@ -1451,7 +1350,7 @@ At every turn, the evaluation harness executes the targeted Playwright suite. If
 
 ---
 
-### 12.10 Model Inversion & Cross-Model Verification (The Graptile Principle)
+### 11.10 Model Inversion & Cross-Model Verification (The Graptile Principle)
 
 A breakthrough in AI code review and automated evaluation is **Model Inversion**, pioneered in production by research teams at Graptile and CodeRabbit.
 
@@ -1489,7 +1388,7 @@ When Model A (e.g. Anthropic Claude 3.7) is asked to review or evaluate code wri
 
 ---
 
-### 12.11 Deconstructing SWE-bench Under the Hood: `base_commit`, `test_patch` & Benchmark Saturation
+### 11.11 Deconstructing SWE-bench Under the Hood: `base_commit`, `test_patch` & Benchmark Saturation
 
 SWE-bench is the premier benchmark for terminal coding agents. Understanding its low-level git mechanics is essential for building local evaluation pipelines that faithfully reflect frontier performance.
 
@@ -1541,7 +1440,7 @@ The genius of SWE-bench lies in the decoupling of `patch` and `test_patch`:
 
 ---
 
-### 12.12 The Evaluation Infrastructure Reality: Ephemeral Sandboxing & In-House Harness Ownership
+### 11.12 The Evaluation Infrastructure Reality: Ephemeral Sandboxing & In-House Harness Ownership
 
 While writing evaluation prompts in a JSON file is trivial, **building reliable execution infrastructure is 90% of the engineering difficulty**:
 
