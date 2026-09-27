@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Reference cloned repositories
+resource/claude-code/
+resource/codex/
+resource/opencode/
+resource/pi/
+
