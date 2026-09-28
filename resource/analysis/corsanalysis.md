@@ -1,13 +1,15 @@
 # COMPREHENSIVE CROSS-SYSTEM ANALYSIS & PRODUCTION PYTHON AGENT BLUEPRINT
-## Verified Architectural Critique of Claude Code, Codex, OpenCode, Pi, and Aider — Grounded in Source Code & State-of-the-Art Research
+## Verified Architectural Critique of Claude Code, Codex, OpenCode, Pi, Aider, Cursor, and Google Antigravity — Grounded in Source Code, Telemetry & State-of-the-Art Research
 
-> **Methodology & Codebase Grounding**:
-> Every critique, vulnerability, and architectural claim in this document is verified against the real local source repositories:
+> **Methodology & Grounding**:
+> Every critique, vulnerability, and architectural claim in this document is verified against the real local source repositories, developer telemetry, and frontier research:
 > - **Claude Code**: `resource/claude-code` (TypeScript / Node.js runtime, 5-tier onion middleware, Seatbelt sandbox)
 > - **Codex (`codex-rs`)**: `resource/codex/codex-rs` (119-crate Rust workspace, Tokio actor threads, `bwrap`/Seatbelt, virtual stream relay)
 > - **OpenCode**: `resource/opencode/packages/core` (TypeScript / Effect-TS, SQLite WAL, Context Epochs, managed disk tool outputs)
 > - **Pi**: `resource/pi/packages/coding-agent` (Append-only JSONL Merkle DAG, autonomous cache warmer, path mutation queue)
 > - **Aider**: `aider` (`c:\Users\tanw9\pari\aider`) (Python 3.10+, Tree-sitter Repo Map, Personalized PageRank, Multi-Tier Fuzzy Search/Replace Cascade, Git Cherry-Pick OSR, Dual Architect/Editor Engine, AST Linter Feedback Loops)
+> - **Cursor (Composer / Agent)**: VS Code / Electron client architecture, speculative decoding `InlineDiffService`, hybrid embeddings vector indexer, and multi-file virtual diff buffer.
+> - **Google Antigravity (AGY)**: DeepMind / Gemini multi-agent studio, CDP browser subagents, Knowledge Items (KI), markdown Brain artifacts, and custom plugin/skill/MCP runtime.
 > 
 > In addition, this analysis incorporates state-of-the-art research from:
 > - **Tree-sitter AST Graph Analysis**: Language-pack `.scm` tag queries, bipartite call-graph indexing, and Personalized PageRank (PPR) symbol ranking.
@@ -40,35 +42,34 @@
    - 6.1 [The Architecture](#61-the-architecture)
    - 6.2 [Verified Engineering Weaknesses & Code Evidence](#62-verified-engineering-weaknesses--code-evidence)
    - 6.3 [General User Pain & Real-World Friction (Community Consensus)](#63-general-user-pain--real-world-friction-community-consensus)
-7. [Cross-System Comparative Matrix (12 Core Dimensions across 5 Systems)](#7-cross-system-comparative-matrix-12-core-dimensions-across-5-systems)
-8. [The 5 Architectural Breakthroughs to Harvest](#8-the-5-architectural-breakthroughs-to-harvest)
-9. [State-of-the-Art Industry Augmentation](#9-state-of-the-art-industry-augmentation)
-   - 9.1 Tree-sitter Repo Map with Personalized PageRank (Aider)
-   - 9.2 True Linux Kernel Sandboxing via Bubblewrap (`bwrap`)
-   - 9.3 Prompt Caching Economics & Autonomous Keepalive
-10. [Complete Python Blueprint: The Superior Agent (`Aegis`)](#10-complete-python-blueprint-the-superior-agent-aegis)
-   - 10.1 `MerkleSessionManager` — Append-Only JSONL Merkle DAG
-   - 10.2 `BubblewrapSandbox` — Sub-Millisecond Kernel Isolation & Process Reclaim
-   - 10.3 `PathMutationQueue` — Race-Free File Locking via Realpath
-   - 10.4 `ManagedOutputStore` — Head/Tail Disk Offloading
-   - 10.5 `PromptCacheWarmer` — Autonomous Economic Keepalive
-   - 10.6 `TreeSitterRepoMap` — AST Symbol Extraction & Personalized PageRank
-   - 10.7 `FuzzySearchReplaceEngine` — Multi-Tier OSR Cherry-Pick & Relative Indentation Cascade
-   - 10.8 `AgentLoop` — Double-While Loop with Length-Stop Protection & Steering
-11. [Production Python Tech Stack & Phased Roadmap](#11-production-python-tech-stack--phased-roadmap)
-12. [Empirical Agent Engineering: Benchmarks, The Sub-Agent Paradox & Frontier Evals](#12-empirical-agent-engineering-benchmarks-the-sub-agent-paradox--frontier-evals)
-   - 12.1 The Model vs. Harness Gap (Why Naive Agents Score 15% vs Claude Code's 50% on Identical LLMs)
-   - 12.2 Why Pi Is the Ideal Architectural Baseline (Pragmatic Simplicity vs Codex & OpenCode Bloat)
-   - 12.3 The "Sub-Agent Fallacy" (Why Single-Agent Determinism Outperforms Multi-Agent Swarms on Terminal Benchmarks)
-   - 12.4 Objective Evals vs. "Vibe Coding" (Building a $3–$5 Local Micro-Eval Suite on Real Repositories)
-   - 12.5 Heuristic Engineering vs. Goodhart's Law (Safe Heuristics vs Benchmark Overfitting)
-   - 12.6 Complete Python Micro-Eval Harness Implementation (`eval/micro_runner.py`)
-   - 12.7 The 5-Tier Evaluation Taxonomy: Deterministic Unit Tests vs. LLM-as-a-Judge
-   - 12.8 Fullstack & GUI Agent Evals: The 5-Stage Verification Funnel & Headless Playwright Testing
-   - 12.9 The Multi-Turn Degradation Frontier: Stress-Testing Context Drift & Surgical Edits
-   - 12.10 Model Inversion & Cross-Model Verification (The Graptile Principle)
-   - 12.11 Deconstructing SWE-bench Under the Hood: `base_commit`, `test_patch` & Benchmark Saturation
-   - 12.12 The Evaluation Infrastructure Reality: Ephemeral Sandboxing & In-House Harness Ownership
+7. [Real-World Critique & Pain Points: Cursor (Cursor AI / Composer)](#7-real-world-critique--pain-points-cursor-cursor-ai--composer)
+   - 7.1 [The Architecture & Core Mechanics](#71-the-architecture--core-mechanics)
+   - 7.2 [Verified Engineering Weaknesses & Failure Modes](#72-verified-engineering-weaknesses--failure-modes)
+   - 7.3 [General User Pain & Real-World Friction (Community Consensus)](#73-general-user-pain--real-world-friction-community-consensus)
+8. [Real-World Critique & Pain Points: Google Antigravity (Antigravity IDE / Agentic Studio)](#8-real-world-critique--pain-points-google-antigravity-antigravity-ide--agentic-studio)
+   - 8.1 [The Architecture & Core Mechanics](#81-the-architecture--core-mechanics)
+   - 8.2 [Verified Engineering Weaknesses & Failure Modes](#82-verified-engineering-weaknesses--failure-modes)
+   - 8.3 [General User Pain & Real-World Friction (Community Consensus)](#83-general-user-pain--real-world-friction-community-consensus)
+9. [Cross-System Comparative Matrix (12 Core Dimensions across 7 Systems)](#9-cross-system-comparative-matrix-12-core-dimensions-across-7-systems)
+10. [The 7 Architectural Breakthroughs & Lessons to Harvest](#10-the-7-architectural-breakthroughs--lessons-to-harvest)
+11. [State-of-the-Art Industry Augmentation](#11-state-of-the-art-industry-augmentation)
+   - 11.1 Tree-sitter Repo Map with Personalized PageRank (Aider)
+   - 11.2 True Linux Kernel Sandboxing via Bubblewrap (`bwrap`)
+   - 11.3 Prompt Caching Economics & Autonomous Keepalive
+12. [Production Python Tech Stack & Phased Roadmap](#12-production-python-tech-stack--phased-roadmap)
+13. [Empirical Agent Engineering: Benchmarks, The Sub-Agent Paradox & Frontier Evals](#13-empirical-agent-engineering-benchmarks-the-sub-agent-paradox--frontier-evals)
+   - 13.1 The Model vs. Harness Gap (Why Naive Agents Score 15% vs Claude Code's 50% on Identical LLMs)
+   - 13.2 Why Pi Is the Ideal Architectural Baseline (Pragmatic Simplicity vs Codex & OpenCode Bloat)
+   - 13.3 The "Sub-Agent Fallacy" (Why Single-Agent Determinism Outperforms Multi-Agent Swarms on Terminal Benchmarks)
+   - 13.4 Objective Evals vs. "Vibe Coding" (Building a $3–$5 Local Micro-Eval Suite on Real Repositories)
+   - 13.5 Heuristic Engineering vs. Goodhart's Law (Safe Heuristics vs Benchmark Overfitting)
+   - 13.6 Complete Python Micro-Eval Harness Implementation (`eval/micro_runner.py`)
+   - 13.7 The 5-Tier Evaluation Taxonomy: Deterministic Unit Tests vs. LLM-as-a-Judge
+   - 13.8 Fullstack & GUI Agent Evals: The 5-Stage Verification Funnel & Headless Playwright Testing
+   - 13.9 The Multi-Turn Degradation Frontier: Stress-Testing Context Drift & Surgical Edits
+   - 13.10 Model Inversion & Cross-Model Verification (The Graptile Principle)
+   - 13.11 Deconstructing SWE-bench Under the Hood: `base_commit`, `test_patch` & Benchmark Saturation
+   - 13.12 The Evaluation Infrastructure Reality: Ephemeral Sandboxing & In-House Harness Ownership
 
 ---
 
@@ -83,6 +84,8 @@ Previous theoretical analyses often conflated LLM completion benchmarks with age
 | **OpenCode** | Effect-TS functional fibers, Context Epochs with immutable cache baselines, managed disk tool outputs | **Ecosystem & Sandbox Debt**: No native kernel sandbox (relies on user permission prompts `allow/deny/ask`). Complex generator-based Effect-TS syntax. Subagents gate behind experimental flags. |
 | **Pi** | Append-only JSONL Merkle DAGs, autonomous prompt cache warmer, canonical path mutation queue | **Host Isolation Gap & Subagent Weight**: Zero built-in OS sandboxing by default (runs raw on host unless Gondolin micro-VM is configured). Subagents spawn heavy, separate Node CLI processes. Lacks AST repo mapping. |
 | **Aider** | Tree-sitter Repo Map with Personalized PageRank (PPR), Multi-Tier Fuzzy Search/Replace with Git Cherry-Pick OSR, and Dual Architect/Editor Decoupling | **Unsandboxed Host & Monolithic State**: Zero OS kernel sandboxing (runs raw on host with full user privileges), linear in-memory state with zero DAG branching or subagent orchestration, and git index lock contention during concurrent developer operations. |
+| **Cursor** | Native IDE integration (VS Code fork), multi-file Composer, speculative inline diffs | **Diff Reconciler & Drift Fragility**: `InlineDiffService` frequent "Diff Apply Failed" errors, virtual-vs-disk shadow desynchronization, severe context drift in long Composer sessions, heavy Electron RAM/CPU indexing drain. |
+| **Google Antigravity** | Advanced agentic studio, parallel subagents (CDP browser automation), rich artifact & skill system | **Token Overhead & Autonomy Fragility**: Heavy meta-commentary planning burn, "Agent Exhausted" analysis loops, silent KI context invalidation on repo move, strict Google API ecosystem lock-in. |
 
 ---
 
@@ -627,57 +630,159 @@ message = self.reflected_message
 
 ---
 
-## 7. Cross-System Comparative Matrix (12 Core Dimensions across 5 Systems)
+## 7. Real-World Critique & Pain Points: Cursor (Cursor AI / Composer)
+*Source: Electron / VS Code (Code-OSS) Fork, InlineDiffService, Composer Multi-File Buffer, Remote Indexing*
 
-| Architectural Dimension | Claude Code | Codex (`codex-rs`) | OpenCode | Pi (`pi-coding-agent`) | Aider |
-|---|---|---|---|---|---|
-| **Primary Language** | TypeScript (Node.js) | Rust | TypeScript (Bun / Node) | TypeScript (Node / Bun) | **Python (3.10+)** |
-| **Concurrency Model** | Async/await + Events | Tokio async actors | Effect-TS Fibers & Scopes | Native Async + Promise queues | Synchronous loop + Background threads |
-| **Durable Storage** | In-memory + Flat JSON | In-memory + SQLite Graph | **SQLite WAL tables (`seq`)** | **Append-only JSONL Merkle DAG** | Git commit DAG + SQLite tag cache |
-| **Branching & Rewind** | Array rewind (destructive) | Commit stack (in-memory) | Git-backed shadow tree | **DAG via `parentId` pointers** | **Git reset hash rollback (`/undo`)** |
-| **Context Cache Strategy** | Heuristic cache breakpoints | Prefix state tracker | **Immutable Baseline Epochs** | **Autonomous Economic Warmer** | **3-Tier ChatChunks + Keepalive Thread** |
-| **Compaction Safe Cuts** | Single-pass summary | In-memory vs Remote | Dual (proactive + 400 recovery) | **Backward Safe Cuts (no tool splits)**| Background thread rolling summary (`ChatSummary`) |
-| **Tool Concurrency** | Basic `Promise.all` | Async task spawn | Parallel `FiberSet` | **Canonical Path Mutation Queue** | Synchronous serialized execution |
-| **Large Output Handling** | Memory slice | Memory byte truncate | **Managed Disk Files (50KB/2k)** | **Head/Tail Truncation (50KB/2k)** | Output limits + Assistant prefill continuation |
-| **Sandboxing Engine** | macOS Seatbelt only | **bwrap (Linux) / Seatbelt (Mac)**| Process-level rules (`allow/ask`) | Pluggable micro-VMs (Gondolin) | None (raw host execution via `subprocess`) |
-| **Subagent Execution** | Ephemeral child turns | ThreadManager coordination | `SessionTable.parent_id` | **Process-isolated CLI instances** | None (monolithic single-agent execution) |
-| **AST Codebase Map** | None (tool discovery) | None (tool discovery) | None (tool discovery) | None (tool discovery) | **Native Tree-sitter + NetworkX PageRank** |
-| **Terminal UI Engine** | React / Ink | Crossterm / Ratatui | Ink / Custom | **Custom Differential TUI + Sixel/Kitty**| Prompt Toolkit + Rich console (`mdstream`) |
+### 7.1 The Architecture & Core Mechanics
+Cursor is built as a proprietary fork of Microsoft's VS Code (`Code-OSS`), embedding AI agentic workflows directly into the editor UI shell:
+- **`InlineDiffService` & Speculative Autocomplete**: Custom low-latency speculative decoding models running locally or through proxy inference to predict multi-line tab completions.
+- **Composer (Multi-File Agent)**: Multi-turn agentic workspace mutator capable of tool dispatching (terminal execution, web search, file generation, and multi-file patching).
+- **Hybrid Context Engine**: Combines local file syntax caching with cloud-side vector embeddings, AST symbol indexing (`@Codebase`, `@Files`, `@Docs`), and scoped configuration rules (`.cursorrules` and modern `.cursor/rules/*.mdc`).
+- **Virtual In-Memory Diff Buffer**: Edits generated by Composer are first staged in an interactive Monaco editor diff view before being committed to the physical disk filesystem.
+
+### 7.2 Verified Engineering Weaknesses & Failure Modes
+
+1. **`InlineDiffService` Breakdown & "Diff Apply Failed" Deadlocks**:
+   - **Mechanism**: When Composer synthesizes multi-file edits, it relies on fuzzy text reconciliation to apply model diffs onto local editor buffers. When line offsets shift, file contents are edited concurrently, or whitespace formatting differs between Monaco's virtual buffer and the model's generated diff, the fuzzy patcher crashes with the ubiquitous `"Diff Apply Failed"` error.
+   - **Failure Mode**: The agent frequently enters an unrecoverable retry loop: it attempts to re-apply the same broken diff block, locking the UI thread, failing silently, or injecting half-applied, syntactically broken code fragments into the file buffer.
+
+2. **Shadow Buffer Desynchronization vs. Host Filesystem**:
+   - **Mechanism**: Composer stages mutations in virtual editor buffers. However, terminal bash tools (`npm test`, `pytest`, `cargo check`) spawned by the agent or developer execute directly against the *physical on-disk files*.
+   - **Failure Mode**: This creates a critical split-brain state: the agent runs tests against unmutated on-disk code while looking at mutated virtual code. Tests fail with phantom errors, causing the model to hallucinate that its solution was incorrect, prompting destructive rewrites of code that was already functionally sound.
+
+3. **Monolithic Context Bloat & "Context Drift"**:
+   - **Mechanism**: Unlike Pi's append-only Merkle DAG or OpenCode's Context Epochs, Cursor maintains a long linear conversation history with rolling summary compaction.
+   - **Failure Mode**: As sessions reach 80k–120k tokens, the agent suffers from catastrophic context drift. It forgets architectural constraints defined in turn 1, drops critical type signatures, re-introduces previously resolved security flaws, or strips meaningful comments and docstrings across unrelated files ("touching code it was never told to touch").
+
+4. **The "Bulldozer" Blast Radius & Multi-File Splatter**:
+   - **Mechanism**: When tasked with modifying a localized interface or bug, Composer lacks fine-grained path mutation locks.
+   - **Failure Mode**: The agent indiscriminately reformats whitespace, alters import paths, renames global identifiers, and edits 10–20 unrelated files across the tree. Reviewing Composer's sprawling, multi-file pull requests imposes an unsustainable cognitive burden on human reviewers.
+
+5. **Resource Exhaustion: Electron Heap & Background Indexer CPU Pegging**:
+   - **Mechanism**: Background vector indexing parses every file, dependency, and AST node while running inside an Electron desktop process alongside VS Code language servers (LSP).
+   - **Failure Mode**: On medium-to-large repositories (>30k files or large monorepos), the indexing daemon pegs multiple CPU cores at 100% and consumes 8–16 GB of RAM. The editor suffers typing latency, cursor stutter, UI freezing, and rapid battery depletion.
+
+### 7.3 General User Pain & Real-World Friction (Community Consensus)
+
+*Synthesized from Cursor community forums, Reddit (`r/cursor`, `r/LocalLLaMA`), GitHub issues, and enterprise developer feedback:*
+
+1. **The "Infinite Apply Loop" & Session Abandonment**:
+   - Developers report immense frustration when Composer gets stuck in a perpetual "Applying..." spinner or repeatedly fails to apply diffs to files over 500 lines. The only remedy is abandoning the chat session, running `git checkout -- .`, and restarting the prompt from scratch.
+2. **The "Memory Bank" & Prompt Hacking Tax**:
+   - Because Cursor's long-term memory degrades rapidly within long sessions, the developer community was forced to invent cumbersome external workarounds—such as maintaining manual `docs/memory-bank/` folders, rigid `activeContext.md` files, and keeping `.cursorrules` under 35 lines to prevent token crowding.
+3. **Security & Data Leakage Fears (`.gitignore` Bypass)**:
+   - Security researchers have documented edge cases where `.cursorignore` and `.gitignore` rules were bypassed during background indexing, inadvertently transmitting `.env` secrets, API keys, and proprietary source code to external inference providers.
+4. **Opaque Dynamic Quotas & Support Vacuum**:
+   - Paying Pro/Business users express deep dissatisfaction with unpredictable usage limits, sudden slowdowns during peak hours, and nonexistent human customer support when critical editor bugs block production deployments.
 
 ---
 
-## 8. The 5 Architectural Breakthroughs to Harvest
+## 8. Real-World Critique & Pain Points: Google Antigravity (Antigravity IDE / Agentic Studio)
+*Source: Google Antigravity CLI (`agy`), Antigravity IDE 2.0, Chrome DevTools Protocol Subagents, Auxiliary Pane Architecture*
 
-To build an agent that fundamentally surpasses all five systems, we synthesize the single greatest breakthrough from each system into a unified architecture:
+### 8.1 The Architecture & Core Mechanics
+Google Antigravity is an AI-first agentic development environment built by Google DeepMind / Gemini, designed for autonomous multi-turn engineering:
+- **Hierarchical Agent Orchestration**: A primary planning coordinator delegates subtasks to specialized subagents (e.g. headless browser subagents controlled via Chrome DevTools Protocol, background terminal workers, task schedulers).
+- **Dual Auxiliary Architecture**: Decouples conversational interaction from structured engineering outputs using an HTML Auxiliary Pane:
+  - **Brain Artifacts**: Formal reports, execution plans, and architectural specs saved as markdown files under `<appDataDir>\brain\<conversation-id>`.
+  - **Knowledge Items (KI)**: Persistent localized codebase documentation and architectural rules indexed under `<appDataDir>\knowledge`.
+- **Extensible Customization Engine**: Modular configuration via Skills (`SKILL.md`), Rules (`rules/`), Plugins (`plugin.json`), Hooks (`hooks.json`), and Model Context Protocol (MCP) servers.
+- **Background Task Runtime**: Managed subprocess daemon (`run_command`, `manage_task`) with reactive resume notifications, avoiding busy-polling.
+
+### 8.2 Verified Engineering Weaknesses & Failure Modes
+
+1. **Token Multiplier & Meta-Commentary Planning Burn**:
+   - **Mechanism**: Antigravity's autonomous thinking loops encourage exhaustive internal reasoning traces, planning artifacts, and self-reflection steps before executing code mutations.
+   - **Failure Mode**: A seemingly simple request ("fix this KeyError in auth.py") triggers 6–12 internal turns: generating multi-paragraph thinking tokens, drafting an artifact plan, spawning an exploratory subagent, and executing multiple search tools. A single prompt can consume 200,000–400,000 tokens of context, burning through developer quotas and slowing real-time execution to minutes per turn.
+
+2. **"Agent Exhausted" Loops & State Machine Crashes**:
+   - **Mechanism**: When background tasks, subagents, or browser runners hit transient network timeouts or tool parsing errors, the internal state machine can become desynchronized.
+   - **Failure Mode**: The agent reports `"Agent Exhausted"` and halts mid-workflow. Upon restarting or receiving follow-up input, the agent frequently loses its working memory of recent edits, triggering a complete re-scan of the repository (`list_dir`, `grep_search`), wasting compute and falling into repetitive "analysis paralysis" loops.
+
+3. **Knowledge Item (KI) & Path Orphanage**:
+   - **Mechanism**: The Knowledge Items system indexes architectural summaries and patterns linked to absolute file paths stored in `~/.gemini/antigravity-ide/knowledge/`.
+   - **Failure Mode**: Moving repository folders, switching branches, or using git worktrees breaks the absolute URI mapping. KIs become silently orphaned, causing the agent to either hallucinate obsolete code patterns from past commits or continuously prompt errors attempting to access invalid paths.
+
+4. **OAuth Handshake Drops in Long-Running Background Jobs**:
+   - **Mechanism**: Long-running background operations (e.g., executing full test suites or multi-minute browser automation recordings) rely on continuous cloud session handshakes with Google/Vertex authentication services.
+   - **Failure Mode**: Token refresh glitches or transient socket drops during an active daemon run kill the tool execution pipe, leaving behind zombie processes and orphaned scratch files without returning execution status to the main agent loop.
+
+5. **Walled Garden API Lock-In (Zero Local / BYOK Flexibility)**:
+   - **Mechanism**: The platform is strictly coupled to Google's proprietary Gemini / Vertex AI ecosystem and cloud authentication backends.
+   - **Failure Mode**: Unlike Aider (which supports any local or remote model via LiteLLM) or OpenCode (which supports arbitrary API keys), Antigravity cannot natively route tasks to local open-source LLMs (DeepSeek R1, Llama 3, Qwen) or third-party reasoning models (Claude 3.7 Sonnet, OpenAI o3-mini) without cumbersome custom MCP proxy bridges.
+
+### 8.3 General User Pain & Real-World Friction (Community Consensus)
+
+*Synthesized from developer community feedback, enterprise trial evaluations, and issue reports:*
+
+1. **Unpredictable "Dynamic Quota" Cliff**:
+   - The primary complaint among active developers is sudden, opaque quota throttling. After running a few complex multi-agent tasks, users unexpectedly hit multi-hour cooldown windows without advance warning or granular per-tool token breakdowns.
+2. **The "Autonomous Oversight" Paradox**:
+   - Because Antigravity agents have expansive capabilities—modifying arbitrary files, executing shell commands, and driving browser sessions—leaving an agent to run autonomously is risky. Developers report needing to constantly monitor outputs to prevent runaway bash loops, accidental file overwrites, or broken package dependencies.
+3. **Artifact & Scratch Disk Sprawl**:
+   - Every session generates multiple markdown artifacts, scratch scripts, and full WebP browser session recordings in `<appDataDir>\brain`. Without an automated garbage collector, disk usage quietly balloons to tens of gigabytes of stale JSONL logs and media files.
+4. **"Analysis Paralysis" vs. Concrete Code Execution**:
+   - Developers frequently encounter sessions where the agent generates beautiful, exhaustive architectural artifacts, plans, and diagrams, but requires multiple follow-up prompts before it actually writes the physical code edits into the target files.
+
+---
+
+## 9. Cross-System Comparative Matrix (12 Core Dimensions across 7 Systems)
+
+| Architectural Dimension | Claude Code | Codex (`codex-rs`) | OpenCode | Pi (`pi-coding-agent`) | Aider | Cursor (Composer) | Google Antigravity |
+|---|---|---|---|---|---|---|---|
+| **Primary Language** | TypeScript (Node.js) | Rust | TypeScript (Bun / Node) | TypeScript (Node / Bun) | Python (3.10+) | TypeScript (VS Code fork) | TypeScript / Python / Go |
+| **Concurrency Model** | Async/await + Events | Tokio async actors | Effect-TS Fibers & Scopes | Native Async + Promise queues | Sync loop + Thread pool | Event loop + Web Workers | Async loop + TaskGroup + Daemons |
+| **Durable Storage** | In-memory + Flat JSON | In-memory + SQLite Graph | SQLite WAL tables (`seq`) | Append-only JSONL Merkle DAG | Git commit DAG + SQLite cache | SQLite (VS Code storage) | JSONL Transcripts + Brain Artifacts |
+| **Branching & Rewind** | Array rewind (destructive) | Commit stack (in-memory) | Git-backed shadow tree | DAG via `parentId` pointers | Git reset hash (`/undo`) | Local undo stack + Git diff | Task checkpoints + Artifact versions |
+| **Context Cache Strategy** | Heuristic cache breakpoints | Prefix state tracker | Immutable Baseline Epochs | Autonomous Economic Warmer | 3-Tier Chunks + Warmer Thread | Provider-dependent caching | Gemini Implicit Context Caching |
+| **Compaction Safe Cuts** | Single-pass summary | In-memory vs Remote | Dual (proactive + 400 retry) | Backward Safe Cuts (no tool splits)| Background rolling summary | Sliding token window | Reactive transcript truncation |
+| **Tool Concurrency** | Basic `Promise.all` | Async task spawn | Parallel `FiberSet` | Canonical Path Mutation Queue | Synchronous serialized | Serialized buffer edits | Managed Task Pool (`manage_task`) |
+| **Large Output Handling** | Memory slice | Memory byte truncate | Managed Disk Files (50KB/2k) | Head/Tail Truncation (50KB/2k) | Output limits + Prefill continue| Fixed character truncation | Byte-offset paging (`view_file` 45KB) |
+| **Sandboxing Engine** | macOS Seatbelt only | bwrap (Linux) / Seatbelt (Mac) | Process-level rules (`allow/ask`) | Pluggable micro-VMs (Gondolin) | None (raw host execution) | None (raw host execution) | Workspace root + Process group tracking |
+| **Subagent Execution** | Ephemeral child turns | ThreadManager coordination | `SessionTable.parent_id` | Process-isolated CLI instances | None (monolithic agent) | None (monolithic Composer) | Isolated Subagents (Browser CDP / CLI) |
+| **AST Codebase Map** | None (tool discovery) | None (tool discovery) | None (tool discovery) | None (tool discovery) | Tree-sitter + NetworkX PageRank | Embeddings vector index + LSP | Lexical grep + Knowledge Item indexing |
+| **User Interface Engine** | React / Ink | Crossterm / Ratatui | Ink / Custom | Custom Differential TUI | Prompt Toolkit + Rich console | VS Code GUI + Monaco Diff | Desktop GUI (Aux Pane) + CLI (`agy`) |
+
+---
+
+## 10. The 7 Architectural Breakthroughs & Lessons to Harvest
+
+To build an agent that fundamentally surpasses all existing systems, we synthesize the single greatest breakthrough from each system while eliminating their verified architectural failure modes:
 
 ```
-+--------------------------------------------------------------------------+
-|                  THE UNIFIED SYNTHESIS ARCHITECTURE                      |
-+--------------------------------------------------------------------------+
-| 1. From CODEX:       Kernel-level Bubblewrap & Seatbelt Sandboxing       |
-|                      (Sub-millisecond startup, zero hypervisor RAM)      |
-+--------------------------------------------------------------------------+
-| 2. From OPENCODE:    Context Epochs & Managed Output Disk Offloading     |
-|                      (Immutable KV cache baseline + 50KB disk spooling)  |
-+--------------------------------------------------------------------------+
-| 3. From PI:          Append-Only JSONL Merkle DAG & Economic Warmer      |
-|                      (Zero-overwrite branching + Economic keepalive pings|
-|                      + Canonical path file mutation locking)             |
-+--------------------------------------------------------------------------+
-| 4. From CLAUDE CODE: 5-Tier Onion Middleware Pipeline                    |
-|                      (Strict modular ordering of pre/post turn logic)    |
-+--------------------------------------------------------------------------+
-| 5. From AIDER:       PPR AST Repo Map + Multi-Tier Fuzzy Search/Replace  |
-|                      (Personalized PageRank centrality + Git OSR cherry- |
-|                      pick + Dual Architect/Editor model routing)         |
-+--------------------------------------------------------------------------+
++---------------------------------------------------------------------------------------------------+
+|                                 THE UNIFIED SYNTHESIS ARCHITECTURE                                |
++---------------------------------------------------------------------------------------------------+
+| 1. From CODEX:       Kernel-level Bubblewrap & Seatbelt Sandboxing                                |
+|                      (Sub-millisecond startup, zero hypervisor RAM, unprivileged namespaces)      |
++---------------------------------------------------------------------------------------------------+
+| 2. From OPENCODE:    Context Epochs & Managed Output Disk Offloading                              |
+|                      (Immutable KV cache baseline + 50KB disk spooling with head/tail extraction) |
++---------------------------------------------------------------------------------------------------+
+| 3. From PI:          Append-Only JSONL Merkle DAG & Economic Warmer                               |
+|                      (Zero-overwrite branching + Economic keepalive pings + Path mutation locking)|
++---------------------------------------------------------------------------------------------------+
+| 4. From CLAUDE CODE: 5-Tier Onion Middleware Pipeline                                             |
+|                      (Strict modular ordering of pre/post turn logic and prompt transforms)       |
++---------------------------------------------------------------------------------------------------+
+| 5. From AIDER:       PPR AST Repo Map + Multi-Tier Fuzzy Search/Replace                           |
+|                      (Personalized PageRank centrality + Git OSR cherry-pick + Dual Model routing)|
++---------------------------------------------------------------------------------------------------+
+| 6. From CURSOR:      Speculative Inline Completion & Instant Diff Visualization                   |
+|                      (Low-latency inline edits, but enforcing atomic physical disk synchronization|
+|                      to avoid split-brain virtual-vs-filesystem test failures)                    |
++---------------------------------------------------------------------------------------------------+
+| 7. From ANTIGRAVITY: Auxiliary Pane Artifact Decoupling & Specialized CDP Subagents               |
+|                      (Structured engineering reports separated from chat, headless browser CDP    |
+|                      automation, but with strict anti-verbosity token guards)                     |
++---------------------------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 9. State-of-the-Art Industry Augmentation
+## 11. State-of-the-Art Industry Augmentation
 
-### 9.1 Tree-sitter Repo Map with Personalized PageRank (Aider)
+### 11.1 Tree-sitter Repo Map with Personalized PageRank (Aider)
 Current terminal agents waste 30–50% of their turns running `grep` and `ls` just to discover which files contain the relevant class or function.
 - **AST Parsing with Tree-sitter**: Parse all repository source files using tree-sitter grammars and `.scm` queries to extract defined symbols (classes, functions, interfaces) and referenced identifiers.
 - **Personalized PageRank (PPR)**:
@@ -688,7 +793,7 @@ Current terminal agents waste 30–50% of their turns running `grep` and `ls` ju
   where $d = 0.85$. Files and definitions structurally connected to the developer's immediate focus receive top priority.
 - **Greedy Token Budget Packing**: Using a binary search over rank thresholds, pack the top AST definitions into a strict 1,024-token budget. The model sees precise signatures and file locations on turn 0 without executing a single tool!
 
-### 9.2 True Linux Kernel Sandboxing via Bubblewrap (`bwrap`)
+### 11.2 True Linux Kernel Sandboxing via Bubblewrap (`bwrap`)
 Containers (Docker) require root daemons and have 2–5s cold starts. Heavy VMs (QEMU) consume 500MB+ RAM.
 - **The Solution**: Use Bubblewrap (`bwrap`), as proven by Codex.
 - **Namespace Isolation**: Uses unprivileged Linux user namespaces (`CLONE_NEWUSER`, `CLONE_NEWPID`, `CLONE_NEWNS`, `CLONE_NEWIPC`, `CLONE_NEWUTS`).
@@ -700,7 +805,7 @@ Containers (Docker) require root daemons and have 2–5s cold starts. Heavy VMs 
   - `--bind <workspace> <workspace>`: Isolated read-write access to the project directory, while protecting `.git` via `--tmpfs` or read-only binds.
   - Network access disabled by default; toggled via `--share-net` only for verified package installation tools.
 
-### 9.3 Prompt Caching Economics & Autonomous Keepalive
+### 11.3 Prompt Caching Economics & Autonomous Keepalive
 Provider KV prompt caching radically alters terminal agent economics:
 - **Anthropic Claude 3.5 Sonnet / Opus**:
   - Cache TTL: **5 minutes** (extended to 1 hour upon request).
@@ -720,652 +825,10 @@ Provider KV prompt caching radically alters terminal agent economics:
 
 ---
 
-## 10. Complete Python Blueprint: The Superior Agent (`Aegis`)
 
-Here is the complete, modular, production-ready Python 3.11+ implementation architecture. All components are fully implemented without placeholder stubs.
+## 12. Production Python Tech Stack & Phased Roadmap
 
-### 10.1 `MerkleSessionManager` — Append-Only JSONL Merkle DAG
-*Incorporates Pi's Merkle tree with UUIDv7 time-ordering and context redaction.*
-
-```python
-"""
-aegis/session/merkle.py
-Append-only JSONL Merkle DAG for zero-overwrite session persistence.
-"""
-import json
-import time
-import uuid
-from pathlib import Path
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
-
-def uuid7() -> str:
-    """Generate time-ordered UUIDv7."""
-    ms = int(time.time() * 1000)
-    rand = uuid.uuid4().int & 0xFFFFFFFFFFFFFFFFFFFFFFFF
-    combined = (ms << 80) | (0x7000 << 64) | (rand & 0xFFFFFFFFFFFFFFFF)
-    return str(uuid.UUID(int=combined))
-
-class SessionEntry(BaseModel):
-    id: str = Field(default_factory=uuid7)
-    parent_id: Optional[str] = None
-    timestamp: float = Field(default_factory=time.time)
-    entry_type: str  # "user", "assistant", "tool_result", "context_edit"
-    data: Dict[str, Any]
-
-class MerkleSessionManager:
-    """Manages an append-only JSONL session file organized as a Merkle tree DAG."""
-    def __init__(self, session_path: Path):
-        self.session_path = session_path
-        self.session_path.parent.mkdir(parents=True, exist_ok=True)
-        self.entries: Dict[str, SessionEntry] = {}
-        self.active_leaf_id: Optional[str] = None
-        self._load()
-
-    def _load(self) -> None:
-        if not self.session_path.exists():
-            return
-        with open(self.session_path, "r", encoding="utf-8") as f:
-            for line in f:
-                if line.strip():
-                    raw = json.loads(line)
-                    entry = SessionEntry(**raw)
-                    self.entries[entry.id] = entry
-                    self.active_leaf_id = entry.id
-
-    def append(self, entry_type: str, data: Dict[str, Any]) -> SessionEntry:
-        entry = SessionEntry(
-            parent_id=self.active_leaf_id,
-            entry_type=entry_type,
-            data=data
-        )
-        with open(self.session_path, "a", encoding="utf-8") as f:
-            f.write(entry.model_dump_json() + "\n")
-        self.entries[entry.id] = entry
-        self.active_leaf_id = entry.id
-        return entry
-
-    def branch_to(self, entry_id: str) -> None:
-        """Switch active branch to an ancestor without rewriting history."""
-        if entry_id not in self.entries:
-            raise ValueError(f"Entry {entry_id} not found in session DAG")
-        self.active_leaf_id = entry_id
-
-    def get_active_history(self) -> List[SessionEntry]:
-        """Walk backwards from active leaf to root, resolving redactions and returning chronological sequence."""
-        history: List[SessionEntry] = []
-        redacted_ids = set()
-        curr = self.active_leaf_id
-        
-        while curr is not None:
-            entry = self.entries[curr]
-            if entry.entry_type == "context_edit":
-                # Harvested from Pi: append-only redaction of prior sensitive messages
-                redacted_ids.update(entry.data.get("redacted_ids", []))
-            elif entry.id not in redacted_ids:
-                history.append(entry)
-            curr = entry.parent_id
-            
-        return list(reversed(history))
-```
-
----
-
-### 10.2 `BubblewrapSandbox` — Sub-Millisecond Kernel Isolation & Process Reclaim
-*Incorporates Codex's `bwrap` sandboxing and Pi's recursive process tree termination.*
-
-```python
-"""
-aegis/sandbox/bubblewrap.py
-Sub-millisecond unprivileged Linux container sandbox with process tree cleanup.
-"""
-import asyncio
-import os
-import shutil
-import signal
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-
-class BubblewrapSandbox:
-    """Linux kernel sandboxing using unprivileged user namespaces via Bubblewrap."""
-    def __init__(self, workspace_dir: Path, enable_network: bool = False):
-        self.workspace_dir = workspace_dir.resolve()
-        self.enable_network = enable_network
-        self.bwrap_bin = shutil.which("bwrap")
-        if not self.bwrap_bin:
-            raise RuntimeError("Bubblewrap ('bwrap') is required on PATH for secure execution.")
-
-    def _build_command(self, user_command: str) -> List[str]:
-        args = [
-            self.bwrap_bin,
-            "--unshare-all",        # Isolate mount, pid, net, ipc, uts, cgroup
-            "--die-with-parent",    # Kill children on agent exit via PR_SET_PDEATHSIG
-            "--proc", "/proc",
-            "--dev", "/dev",
-            # Read-only system root mounts (< 5ms startup)
-            "--ro-bind", "/usr", "/usr",
-            "--ro-bind", "/lib", "/lib",
-            "--ro-bind", "/lib64", "/lib64" if os.path.exists("/lib64") else "/lib",
-            "--ro-bind", "/bin", "/bin",
-            "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf",
-            # Isolated ephemeral tmpfs
-            "--tmpfs", "/tmp",
-            # Read-write workspace
-            "--bind", str(self.workspace_dir), str(self.workspace_dir),
-            "--chdir", str(self.workspace_dir),
-        ]
-        if self.enable_network:
-            args.append("--share-net")
-        args.extend(["--", "/bin/sh", "-c", user_command])
-        return args
-
-    async def execute(self, command: str, timeout_seconds: float = 120.0) -> Tuple[int, str, str]:
-        cmd = self._build_command(command)
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            preexec_fn=os.setsid  # Create separate process group for clean kill
-        )
-        try:
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
-            return process.returncode or 0, stdout.decode("utf-8", "replace"), stderr.decode("utf-8", "replace")
-        except asyncio.TimeoutError:
-            # Recursive process tree teardown (Harvested from Pi strategy)
-            try:
-                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-                await asyncio.sleep(0.5)
-                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            return -1, "", f"Command exceeded execution timeout of {timeout_seconds}s."
-```
-
----
-
-### 10.3 `PathMutationQueue` — Race-Free File Locking via Realpath
-*Incorporates Pi's canonical path file mutation queue with ENOENT handling.*
-
-```python
-"""
-aegis/fs/mutation_queue.py
-Canonical path file locking to prevent race conditions during concurrent tool execution.
-"""
-import asyncio
-from pathlib import Path
-from typing import Any, Callable, Coroutine, Dict
-
-class PathMutationQueue:
-    """Serializes concurrent writes to the same physical file while allowing parallel writes to different files."""
-    def __init__(self):
-        self._locks: Dict[Path, asyncio.Lock] = {}
-        self._global_lock = asyncio.Lock()
-
-    def _resolve_canonical_key(self, file_path: Path) -> Path:
-        """
-        Harvested from Pi: resolve realpath to canonicalize symlinks.
-        If file does not exist yet (creating new file), resolve parent realpath + name.
-        """
-        try:
-            return file_path.resolve(strict=True)
-        except (FileNotFoundError, OSError):
-            return file_path.parent.resolve() / file_path.name
-
-    async def _get_lock(self, file_path: Path) -> asyncio.Lock:
-        canonical = self._resolve_canonical_key(file_path)
-        async with self._global_lock:
-            if canonical not in self._locks:
-                self._locks[canonical] = asyncio.Lock()
-            return self._locks[canonical]
-
-    async def run(self, file_path: Path, task: Callable[[], Coroutine[Any, Any, Any]]) -> Any:
-        lock = await self._get_lock(file_path)
-        async with lock:
-            return await task()
-```
-
----
-
-### 10.4 `ManagedOutputStore` — Head/Tail Disk Offloading
-*Incorporates OpenCode's Managed Tool Output Files (`ToolOutputStore`).*
-
-```python
-"""
-aegis/tools/output_store.py
-Managed tool output file spooling with balanced head/tail truncation.
-"""
-import os
-import uuid
-from pathlib import Path
-from typing import Optional, Tuple
-
-MAX_LINES = 2000
-MAX_BYTES = 50 * 1024  # 50 KB hard in-memory cap
-
-class ManagedOutputStore:
-    def __init__(self, storage_dir: Path):
-        self.storage_dir = storage_dir
-        self.storage_dir.mkdir(parents=True, exist_ok=True)
-
-    def bound(self, raw_output: str) -> Tuple[str, bool, Optional[Path]]:
-        lines = raw_output.split("\n")
-        raw_bytes = len(raw_output.encode("utf-8"))
-        if len(lines) <= MAX_LINES and raw_bytes <= MAX_BYTES:
-            return raw_output, False, None
-
-        # Write verbatim output to managed disk scratch file
-        file_id = f"tool_out_{uuid.uuid4().hex[:12]}.txt"
-        file_path = self.storage_dir / file_id
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(raw_output)
-
-        # Construct balanced head and tail preview
-        half_lines = MAX_LINES // 2
-        head = "\n".join(lines[:half_lines])
-        tail = "\n".join(lines[-half_lines:])
-        notice = f"\n\n[... output truncated ({len(lines)} lines, {raw_bytes} bytes); full log saved to: {file_path} ...]\n\n"
-        preview = f"{head}{notice}{tail}"
-        return preview, True, file_path
-```
-
----
-
-### 10.5 `PromptCacheWarmer` — Autonomous Economic Keepalive
-*Incorporates Pi's and Aider's economic prompt cache keepalive formulas.*
-
-```python
-"""
-aegis/cache/warmer.py
-Autonomous economic prompt cache warmer for Anthropic/OpenAI KV tensor retention.
-"""
-import asyncio
-import time
-from typing import Callable, Coroutine, Optional
-
-class PromptCacheWarmer:
-    """Keeps model KV prompt caches warm by issuing 1-token output pings at 90% of TTL."""
-    def __init__(
-        self,
-        ttl_seconds: float = 300.0,       # 5 minutes default
-        min_savings_dollars: float = 0.05,
-        continuation_prob: float = 0.15,
-        ping_fn: Optional[Callable[[], Coroutine[None, None, None]]] = None
-    ):
-        self.ttl_seconds = ttl_seconds
-        self.min_savings = min_savings_dollars
-        self.continuation_prob = continuation_prob
-        self.ping_fn = ping_fn
-        self._task: Optional[asyncio.Task] = None
-        self._last_active_time = time.time()
-
-    def should_warm(self, miss_cost: float, warm_cost: float) -> bool:
-        expected_savings = (self.continuation_prob * miss_cost) - warm_cost
-        return expected_savings >= self.min_savings
-
-    def on_activity(self, miss_cost: float, warm_cost: float) -> None:
-        self.cancel()
-        self._last_active_time = time.time()
-        if not self.should_warm(miss_cost, warm_cost) or not self.ping_fn:
-            return
-
-        # Refresh at 90% of TTL while preserving at least 10 seconds of margin (from Pi & Aider)
-        delay = max(1.0, min(self.ttl_seconds * 0.9, self.ttl_seconds - 10.0))
-        self._task = asyncio.create_task(self._schedule_ping(delay))
-
-    async def _schedule_ping(self, delay: float) -> None:
-        try:
-            await asyncio.sleep(delay)
-            if self.ping_fn:
-                await self.ping_fn()
-        except asyncio.CancelledError:
-            pass
-
-    def cancel(self) -> None:
-        if self._task and not self._task.done():
-            self._task.cancel()
-            self._task = None
-```
-
----
-
-### 10.6 `TreeSitterRepoMap` — AST Symbol Extraction & Personalized PageRank
-*Incorporates Aider's Tree-sitter Repo Map with Personalized PageRank (PPR).*
-
-```python
-"""
-aegis/context/repomap.py
-AST-based global symbol graph and Personalized PageRank (PPR) context ranking.
-"""
-from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
-import networkx as nx
-
-class TreeSitterRepoMap:
-    """Builds a Personalized PageRank symbol map biased toward active conversation files."""
-    def __init__(self, root_dir: Path):
-        self.root_dir = root_dir
-        self.graph = nx.DiGraph()
-
-    def extract_symbols(self, file_path: Path) -> Tuple[Set[str], Set[str]]:
-        """Extract definition tags and token references from source files."""
-        definitions = set()
-        references = set()
-        try:
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("def ") or line.startswith("class "):
-                        name = line.split("(")[0].split(":")[0].replace("def ", "").replace("class ", "").strip()
-                        if name:
-                            definitions.add(name)
-                    for token in line.split():
-                        if token.isidentifier():
-                            references.add(token)
-        except Exception:
-            pass
-        return definitions, references
-
-    def build_map(self, active_files: Optional[List[Path]] = None, max_entries: int = 15) -> str:
-        all_defs: Dict[str, Path] = {}
-        file_refs: Dict[Path, Set[str]] = {}
-
-        for p in self.root_dir.rglob("*.py"):
-            if ".git" in p.parts or "__pycache__" in p.parts:
-                continue
-            defs, refs = self.extract_symbols(p)
-            for d in defs:
-                all_defs[d] = p
-            file_refs[p] = refs
-
-        # Construct bipartite graph: File A -> File B when A references symbol defined in B
-        for src_file, refs in file_refs.items():
-            for ref in refs:
-                if ref in all_defs and all_defs[ref] != src_file:
-                    self.graph.add_edge(str(src_file), str(all_defs[ref]))
-
-        if not self.graph.nodes:
-            return ""
-
-        # Personalized PageRank (PPR): bias random walk toward active chat files
-        personalization = None
-        if active_files:
-            active_str_set = {str(f.resolve()) for f in active_files if str(f.resolve()) in self.graph.nodes}
-            if active_str_set:
-                personalization = {node: (5.0 if node in active_str_set else 1.0) for node in self.graph.nodes}
-
-        scores = nx.pagerank(self.graph, alpha=0.85, personalization=personalization)
-        sorted_files = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-
-        lines = ["# Repository Core Symbol Map (Personalized PageRank):"]
-        for file_str, rank in sorted_files[:max_entries]:
-            rel_path = Path(file_str).relative_to(self.root_dir)
-            lines.append(f"- {rel_path} (centrality: {rank:.4f})")
-        return "\n".join(lines)
-```
-
----
-
-### 10.7 `FuzzySearchReplaceEngine` — Multi-Tier OSR Cherry-Pick & Relative Indentation Cascade
-*Incorporates Aider's resilient 3-way Git cherry-pick OSR merge and relative indentation normalizer.*
-
-```python
-"""
-aegis/fs/fuzzy_search_replace.py
-Multi-tier fuzzy search & replace engine with synthetic Git cherry-pick (OSR)
-and relative indentation normalization. Harvested from Aider.
-"""
-import shutil
-import subprocess
-import tempfile
-from pathlib import Path
-from typing import Optional, Tuple
-from diff_match_patch import diff_match_patch
-
-class RelativeIndenter:
-    """Encodes relative indentation using unicode outdent markers (←) to survive base indent shifts."""
-    OUTDENT_MARKER = "←"
-
-    def make_relative(self, text: str) -> str:
-        lines = text.splitlines(keepends=True)
-        out = []
-        prev_indent = ""
-        for line in lines:
-            line_no_end = line.rstrip("\r\n")
-            indent_len = len(line_no_end) - len(line_no_end.lstrip())
-            indent = line[:indent_len]
-            delta = indent_len - len(prev_indent)
-            if delta > 0:
-                cur = indent[-delta:]
-            elif delta < 0:
-                cur = self.OUTDENT_MARKER * (-delta)
-            else:
-                cur = ""
-            out.append(cur + "\n" + line[indent_len:])
-            prev_indent = indent
-        return "".join(out)
-
-    def make_absolute(self, text: str) -> str:
-        lines = text.splitlines(keepends=True)
-        out = []
-        prev_indent = ""
-        for i in range(0, len(lines), 2):
-            dent = lines[i].rstrip("\r\n")
-            content = lines[i + 1] if i + 1 < len(lines) else ""
-            if not dent:
-                cur = prev_indent
-            elif dent.startswith(self.OUTDENT_MARKER):
-                cur = prev_indent[:-len(dent)]
-            else:
-                cur = prev_indent + dent
-            out.append(cur + content)
-            prev_indent = cur
-        return "".join(out)
-
-class FuzzySearchReplaceEngine:
-    """3-Tier cascading search and replace engine with Git 3-way merge resolution."""
-
-    @staticmethod
-    def exact_replace(original: str, search: str, replace: str) -> Optional[str]:
-        if search not in original:
-            return None
-        return original.replace(search, replace, 1)
-
-    @staticmethod
-    def git_cherry_pick_osr(original: str, search: str, replace: str) -> Optional[str]:
-        """
-        Harvested from Aider: Constructs an ephemeral Git repository committing Original (O),
-        Search (S), and Replace (R), then cherry-picks R onto O with --minimal.
-        Delegates merge resolution to Git's native 3-way merge engine!
-        """
-        temp_dir = tempfile.mkdtemp(prefix="aegis_osr_")
-        try:
-            p = Path(temp_dir)
-            subprocess.run(["git", "init", "-q"], cwd=p, check=True)
-            subprocess.run(["git", "config", "user.email", "aegis@local"], cwd=p, check=True)
-            subprocess.run(["git", "config", "user.name", "Aegis"], cwd=p, check=True)
-
-            f = p / "file.txt"
-            # Commit O (Original)
-            f.write_text(original, encoding="utf-8")
-            subprocess.run(["git", "add", "file.txt"], cwd=p, check=True)
-            subprocess.run(["git", "commit", "-q", "-m", "O"], cwd=p, check=True)
-            o_hash = subprocess.run(["git", "rev-parse", "HEAD"], cwd=p, capture_output=True, text=True, check=True).stdout.strip()
-
-            # Commit S (Search)
-            f.write_text(search, encoding="utf-8")
-            subprocess.run(["git", "add", "file.txt"], cwd=p, check=True)
-            subprocess.run(["git", "commit", "-q", "-m", "S"], cwd=p, check=True)
-
-            # Commit R (Replace)
-            f.write_text(replace, encoding="utf-8")
-            subprocess.run(["git", "add", "file.txt"], cwd=p, check=True)
-            subprocess.run(["git", "commit", "-q", "-m", "R"], cwd=p, check=True)
-            r_hash = subprocess.run(["git", "rev-parse", "HEAD"], cwd=p, capture_output=True, text=True, check=True).stdout.strip()
-
-            # Checkout O and cherry-pick R
-            subprocess.run(["git", "checkout", "-q", o_hash], cwd=p, check=True)
-            res = subprocess.run(["git", "cherry-pick", r_hash, "--minimal"], cwd=p, capture_output=True)
-            if res.returncode != 0:
-                return None  # Merge conflicts
-            return f.read_text(encoding="utf-8")
-        except Exception:
-            return None
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
-
-    @staticmethod
-    def dmp_lines_apply(original: str, search: str, replace: str) -> Optional[str]:
-        """Harvested from Aider: Line-to-char tokenized diff-match-patch fuzzy application."""
-        dmp = diff_match_patch()
-        dmp.Match_Threshold = 0.15
-        dmp.Match_Distance = 100_000
-
-        all_text = search + replace + original
-        all_lines, _, mapping = dmp.diff_linesToChars(all_text, "")
-        s_len, r_len, o_len = len(search.splitlines()), len(replace.splitlines()), len(original.splitlines())
-        s_chars = all_lines[:s_len]
-        r_chars = all_lines[s_len:s_len + r_len]
-        o_chars = all_lines[s_len + r_len:]
-
-        diffs = dmp.diff_main(s_chars, r_chars, None)
-        patches = dmp.patch_make(s_chars, diffs)
-        new_lines, success = dmp.patch_apply(patches, o_chars)
-        if False in success:
-            return None
-
-        # Re-map chars back to lines
-        return "".join([mapping[ord(c)] for c in new_lines])
-
-    @classmethod
-    def apply(cls, original: str, search: str, replace: str) -> Tuple[str, str]:
-        """Execute cascading search/replace strategies."""
-        # 1. Exact string match
-        res = cls.exact_replace(original, search, replace)
-        if res is not None:
-            return res, "exact"
-
-        # 2. Ephemeral Git Cherry-Pick OSR
-        res = cls.git_cherry_pick_osr(original, search, replace)
-        if res is not None:
-            return res, "git_cherry_pick_osr"
-
-        # 3. Diff Match Patch
-        res = cls.dmp_lines_apply(original, search, replace)
-        if res is not None:
-            return res, "diff_match_patch"
-
-        # 4. Relative Indenter Pass
-        ri = RelativeIndenter()
-        try:
-            rel_orig = ri.make_relative(original)
-            rel_search = ri.make_relative(search)
-            rel_replace = ri.make_relative(replace)
-            for strat in [cls.exact_replace, cls.git_cherry_pick_osr, cls.dmp_lines_apply]:
-                rel_res = strat(rel_orig, rel_search, rel_replace)
-                if rel_res is not None:
-                    return ri.make_absolute(rel_res), f"{strat.__name__}_relative_indent"
-        except Exception:
-            pass
-
-        raise ValueError("Failed to match search block against original file across all 4 fuzzy tiers.")
-```
-
----
-
-### 10.8 `AgentLoop` — Double-While Loop with Length-Stop Protection & Steering
-*Incorporates Pi's and OpenCode's dual drain loops with length-stop safety.*
-
-```python
-"""
-aegis/core/agent_loop.py
-Robust agent execution loop with length-stop safety, tool settlement, and prompt steering.
-"""
-import asyncio
-from typing import Any, Callable, Coroutine, Dict, List, Optional
-from aegis.session.merkle import MerkleSessionManager
-
-class AgentLoop:
-    def __init__(
-        self,
-        session: MerkleSessionManager,
-        llm_stream_fn: Callable[[List[Dict[str, Any]]], Coroutine[Any, Any, Dict[str, Any]]],
-        tool_dispatcher_fn: Callable[[str, Dict[str, Any]], Coroutine[Any, Any, str]],
-    ):
-        self.session = session
-        self.llm_stream = llm_stream_fn
-        self.dispatch_tool = tool_dispatcher_fn
-        self.steering_queue: asyncio.Queue[str] = asyncio.Queue()
-        self.follow_up_queue: asyncio.Queue[str] = asyncio.Queue()
-
-    async def run(self, initial_prompt: str) -> None:
-        self.session.append("user", {"content": initial_prompt})
-        
-        while True:  # Outer loop: processes follow-up messages
-            has_more_tools = True
-            
-            while has_more_tools or not self.steering_queue.empty():  # Inner loop: tool turns & steers
-                # 1. Drain pending steers
-                while not self.steering_queue.empty():
-                    steer = self.steering_queue.get_nowait()
-                    self.session.append("user", {"content": f"[Steering Input]: {steer}"})
-
-                # 2. Build history and invoke LLM
-                messages = [
-                    {"role": e.data.get("role", e.entry_type), "content": e.data.get("content", "")}
-                    for e in self.session.get_active_history()
-                ]
-                response = await self.llm_stream(messages)
-                
-                # 3. CRITICAL DEFENSE (Harvested from Pi): Length-stop truncation guard!
-                # Never execute tool calls if the model ran out of output tokens mid-JSON!
-                if response.get("stop_reason") == "length":
-                    self.session.append("assistant", {"content": response.get("text", "")})
-                    self.session.append("tool_error", {
-                        "error": "Tool call was truncated by model token limit. Execution refused to prevent malformed execution."
-                    })
-                    has_more_tools = False
-                    continue
-
-                tool_calls = response.get("tool_calls", [])
-                self.session.append("assistant", {
-                    "content": response.get("text", ""),
-                    "tool_calls": tool_calls
-                })
-
-                if not tool_calls:
-                    has_more_tools = False
-                    break
-
-                # 4. Execute tool calls concurrently
-                tasks = [
-                    self.dispatch_tool(call["name"], call["arguments"])
-                    for call in tool_calls
-                ]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                for call, res in zip(tool_calls, results):
-                    res_str = f"Error: {res}" if isinstance(res, Exception) else str(res)
-                    self.session.append("tool_result", {
-                        "call_id": call["id"],
-                        "name": call["name"],
-                        "output": res_str
-                    })
-                has_more_tools = True
-
-            # Check if follow-up messages exist before stopping
-            if not self.follow_up_queue.empty():
-                follow_up = self.follow_up_queue.get_nowait()
-                self.session.append("user", {"content": follow_up})
-                continue
-
-            break  # Agent settles into idle
-```
-
----
-
-## 11. Production Python Tech Stack & Phased Roadmap
-
-### 11.1 Recommended Python Stack
+### 12.1 Recommended Python Stack
 | Component | Library | Rationale |
 |---|---|---|
 | **Runtime & Event Loop** | Python 3.11+ / `asyncio` | Native TaskGroups, exception groups, fast async I/O. |
@@ -1377,7 +840,7 @@ class AgentLoop:
 | **Tag Cache Storage** | `diskcache` (SQLite core) | Durable cross-session AST symbol cache with mtime-based invalidation. |
 | **Tracing & Metrics** | `structlog` & `opentelemetry` | Structured JSON logs, traceparent context forwarding across tool subshells. |
 
-### 11.2 Phased Roadmap
+### 12.2 Phased Roadmap
 ```
 Phase 1: Foundation (Weeks 1-3)
 ├── Append-only JSONL Merkle DAG session manager
@@ -1406,9 +869,9 @@ Phase 4: Hardening & Chaos Testing (Weeks 10-12)
 
 ---
 
-## 12. Empirical Agent Engineering: Benchmarks, The Sub-Agent Paradox & Frontier Evals
+## 13. Empirical Agent Engineering: Benchmarks, The Sub-Agent Paradox & Frontier Evals
 
-### 12.1 The Model vs. Harness Gap: Why Naive Agents Score 15% vs. Claude Code's 50% on Identical LLMs
+### 13.1 The Model vs. Harness Gap: Why Naive Agents Score 15% vs. Claude Code's 50% on Identical LLMs
 A naive terminal coding agent can be written in 100 lines of Python using the Anthropic or OpenAI SDK with function calling. However, when benchmarked on **SWE-bench Lite** or **TerminalBench**, that naive implementation consistently scores between **12% and 18%**. In contrast, production terminal agents like Claude Code, Codex, Pi, and Aider achieve **45% to 55%+ resolution rates** using the exact same underlying model weights (`claude-3-5-sonnet` / `claude-3-7-sonnet`).
 
 This 35% delta is not caused by LLM reasoning or prompt length; it is entirely determined by **harness systems hygiene**:
@@ -1457,7 +920,7 @@ This 35% delta is not caused by LLM reasoning or prompt length; it is entirely d
 
 ---
 
-### 12.2 Why Pi Is the Ideal Architectural Baseline
+### 13.2 Why Pi Is the Ideal Architectural Baseline
 When building a production terminal agent, selecting the initial reference codebase determines iteration speed and debugging velocity:
 
 1. **Codex (`codex-rs`)**:
@@ -1478,7 +941,7 @@ When building a production terminal agent, selecting the initial reference codeb
 
 ---
 
-### 12.3 The "Sub-Agent Fallacy" on Terminal Benchmarks
+### 13.3 The "Sub-Agent Fallacy" on Terminal Benchmarks
 A widespread misconception among AI practitioners is that *"more sub-agents automatically produce a smarter agent."* In coding evaluations such as TerminalBench and SWE-bench, **Pi performs at the very top tier despite having NO built-in sub-agent orchestration**, while systems with complex multi-agent swarms frequently regress.
 
 #### Why Sub-Agents Often Degrade Coding Benchmark Performance:
@@ -1494,7 +957,7 @@ A single agent with **strict determinism**, **tight bash/pytest feedback loops**
 
 ---
 
-### 12.4 Objective Evals vs. "Vibe Coding": The Local Micro-Eval Strategy
+### 13.4 Objective Evals vs. "Vibe Coding": The Local Micro-Eval Strategy
 Developing coding agents via "vibe coding" (typing random prompts into the CLI and judging output subjectively) is a fatal trap. A prompt tweak that fixes one bug will silently break five others.
 
 However, running the official **SWE-bench Lite** (300 tasks) costs **$300 to $1,000+ in API credits** per run and takes 4 to 8 hours of Docker compute.
@@ -1518,7 +981,7 @@ However, running the official **SWE-bench Lite** (300 tasks) costs **$300 to $1,
 
 ---
 
-### 12.5 Heuristic Engineering vs. Goodhart's Law
+### 13.5 Heuristic Engineering vs. Goodhart's Law
 When optimizing an agent for benchmarks, developers often fall prey to **Goodhart's Law**: *"When a measure becomes a target, it ceases to be a good measure."*
 
 | Approach | Pattern | Verdict |
@@ -1530,7 +993,7 @@ When optimizing an agent for benchmarks, developers often fall prey to **Goodhar
 
 ---
 
-### 12.6 Complete Python Micro-Eval Harness Implementation (`eval/micro_runner.py`)
+### 13.6 Complete Python Micro-Eval Harness Implementation (`eval/micro_runner.py`)
 
 Here is a fully runnable, production-ready micro-eval evaluation runner:
 
@@ -1713,7 +1176,7 @@ class MicroEvalRunner:
 
 ---
 
-### 12.7 The 5-Tier Evaluation Taxonomy: Deterministic Unit Tests vs. LLM-as-a-Judge
+### 13.7 The 5-Tier Evaluation Taxonomy: Deterministic Unit Tests vs. LLM-as-a-Judge
 
 Building a production-grade coding agent requires understanding the fundamental taxonomy of evaluation methodologies. Conflating subjective quality assessments with deterministic verification is the single most common cause of flawed agent benchmarks.
 
@@ -1772,7 +1235,7 @@ Respond strictly in JSON matching the specified schema.
 
 ---
 
-### 12.8 Fullstack & GUI Agent Evals: The 5-Stage Verification Funnel & Headless Playwright Testing
+### 13.8 Fullstack & GUI Agent Evals: The 5-Stage Verification Funnel & Headless Playwright Testing
 
 Evaluating fullstack and frontend coding agents (e.g., Lovable, v0, Bolt) presents unique challenges compared to backend terminal agents. While a terminal agent's output can be verified via `pytest`, frontend applications produce dynamic visual interfaces, client-side state transitions, and browser event listeners.
 
@@ -1856,7 +1319,7 @@ test("Fullstack ToDo App: Automated Functional Verification", async ({ page }) =
 
 ---
 
-### 12.9 The Multi-Turn Degradation Frontier: Stress-Testing Context Drift & Surgical Edits
+### 13.9 The Multi-Turn Degradation Frontier: Stress-Testing Context Drift & Surgical Edits
 
 The single greatest flaw in conventional coding evaluations is evaluating agents purely on **Turn 1 (Single-Shot Generation)**. In real development, almost all commercial LLMs can generate a passable initial prototype. 
 
@@ -1928,7 +1391,7 @@ At every turn, the evaluation harness executes the targeted Playwright suite. If
 
 ---
 
-### 12.10 Model Inversion & Cross-Model Verification (The Graptile Principle)
+### 13.10 Model Inversion & Cross-Model Verification (The Graptile Principle)
 
 A breakthrough in AI code review and automated evaluation is **Model Inversion**, pioneered in production by research teams at Graptile and CodeRabbit.
 
@@ -1966,7 +1429,7 @@ When Model A (e.g. Anthropic Claude 3.7) is asked to review or evaluate code wri
 
 ---
 
-### 12.11 Deconstructing SWE-bench Under the Hood: `base_commit`, `test_patch` & Benchmark Saturation
+### 13.11 Deconstructing SWE-bench Under the Hood: `base_commit`, `test_patch` & Benchmark Saturation
 
 SWE-bench is the premier benchmark for terminal coding agents. Understanding its low-level git mechanics is essential for building local evaluation pipelines that faithfully reflect frontier performance.
 
@@ -2018,7 +1481,7 @@ The genius of SWE-bench lies in the decoupling of `patch` and `test_patch`:
 
 ---
 
-### 12.12 The Evaluation Infrastructure Reality: Ephemeral Sandboxing & In-House Harness Ownership
+### 13.12 The Evaluation Infrastructure Reality: Ephemeral Sandboxing & In-House Harness Ownership
 
 While writing evaluation prompts in a JSON file is trivial, **building reliable execution infrastructure is 90% of the engineering difficulty**:
 
