@@ -189,7 +189,7 @@ PARI closes **all six failure modes simultaneously**, without introducing the co
 
 | Trade-Off Axis | Option A | Option B | PARI Choice |
 |---|---|---|---|
-| 1. Safety vs. Speed | Firecracker microVM (hardware isolation) | Raw host execution | **Firecracker microVM** |
+| 1. Safety vs. Speed | Multi-Platform Sandbox (bwrap / Seatbelt / E2B) | Raw host execution | **Multi-Platform Sandbox** |
 | 2. Simplicity vs. Power | Single-agent loop | Multi-agent swarm orchestration | **Single-agent default** |
 | 3. Durability vs. RAM | Append-only Merkle DAG | In-memory array + flat JSON | **Merkle DAG** |
 | 4. Cache vs. Freshness | Immutable Context Epochs | Dynamic rolling compaction | **Immutable Epochs** |
@@ -206,7 +206,7 @@ PARI closes **all six failure modes simultaneously**, without introducing the co
 
 | Trade-Off | PARI Choice | Why | What We Sacrifice | Worth It? |
 |---|---|---|---|---|
-| Safety vs. Speed | Firecracker microVM (cloud) + bwrap fallback (local) | Unsandboxed agents are existential security risks; Devin, AWS Lambda, E2B all use Firecracker | ~125ms microVM cold start; ~1s from snapshot resume | Yes. Hardware-level isolation is the cloud-agent standard. |
+| Safety vs. Speed | Multi-Platform Sandbox: bwrap (Linux/WSL2) + Seatbelt (macOS) + E2B (Cloud) | Unsandboxed agents are existential security risks. Linux/WSL2 uses bwrap (<5ms), macOS uses native Seatbelt (<10ms), and cloud tasks leverage E2B Firecracker microVMs. | ~5-10ms sandbox bootstrap per session; native Windows without WSL2 runs supervised guardrail mode | Yes. Security gap is fatal. |
 | Simplicity vs. Power | Default single-agent; opt-in lightweight subagents | Pi scores 50% single-agent; academic multi-agent swarms score 18-25% | Parallelism on coding tasks | Yes. The Sub-Agent Fallacy is empirically proven. |
 | Durability vs. RAM | Append-only JSONL Merkle DAG with checkpoint indices | Claude Code's flat JSON dies on SIGINT | Marginal disk I/O per turn | Yes. Disk is cheap; lost sessions are catastrophic. |
 | Cache vs. Freshness | Immutable Baseline Epoch + selective mid-session updates | Claude Code's heuristic breakpoints trigger 10x billing spikes | Cannot mutate system context mid-turn | Yes. 70-90% token cost reduction across sessions. |
@@ -246,7 +246,7 @@ PARI closes **all six failure modes simultaneously**, without introducing the co
 |                                          |                                        |
 |  Layer 1:  DURABLE SESSION (Append-only JSONL Merkle DAG + Checkpoint Index)     |
 |                                          |                                        |
-|  Layer 0:  SANDBOX (Firecracker microVM Brain/Devbox + bwrap local fallback) |
+|  Layer 0:  SANDBOX (bwrap on Linux/WSL2 + Seatbelt on macOS + E2B Cloud)         |
 |                                                                                   |
 +-----------------------------------------------------------------------------------+
 ```
@@ -255,81 +255,90 @@ PARI closes **all six failure modes simultaneously**, without introducing the co
 
 ---
 
-## 5. Layer 0 — Sandboxing Engine (Firecracker MicroVM)
+## 5. Layer 0 — Sandboxing Engine (Multi-Platform Kernel Sandbox)
 
 **Closes**: Claude Code F2, Pi F1, Aider F1, OpenCode F1
 
-**Harvested From**: Devin's Brain/Devbox architecture — the industry standard for cloud coding agents (2026)
+**Harvested From**: Codex (`bwrap` on Linux + `Seatbelt` on macOS), Devin/E2B (Cloud MicroVMs), and Antigravity (Supervised Process Group & Workspace Guard fallback).
 
 ### Design
 
-PARI is a **cloud-first agent** following the Devin lifecycle model. Each agent session runs inside a **Firecracker microVM** — the same technology used by AWS Lambda, E2B, and Devin. This provides hardware-level KVM isolation: each session gets its own dedicated kernel, filesystem, and network namespace.
+PARI implements a **Multi-Platform Sandbox Engine** that provides sub-millisecond, kernel-enforced process containment across Linux, macOS, Windows, and Cloud without requiring Docker or custom hypervisors:
 
 ```
-PARI CLOUD SANDBOX ARCHITECTURE (Devin Model):
+PARI SANDBOX SELECTION DISPATCHER:
 
-  +-------------------------------------------------------+
-  |  BRAIN (Control Plane — Stateless)                    |
-  |  Python asyncio agent loop, LLM routing,              |
-  |  session DAG, context management                      |
-  |           |  vsock / API                               |
-  |           v                                            |
-  |  +---------------------------------------------------+ |
-  |  |  DEVBOX (Data Plane — Firecracker MicroVM)        | |
-  |  |  Dedicated guest kernel (Linux 6.x)               | |
-  |  |  Ephemeral filesystem (ext4 overlay)              | |
-  |  |  Cloned repo workspace (read-write)               | |
-  |  |  Isolated shell (bash/zsh)                        | |
-  |  |  NAT-gated network (pip install, git clone OK)    | |
-  |  |  Resource limits: 2 vCPU, 4GB RAM, 20GB disk      | |
-  |  +---------------------------------------------------+ |
-  +-------------------------------------------------------+
-
-  BOOT SEQUENCE:
-    1. Firecracker spawns microVM from cached rootfs snapshot (~125ms cold)
-    2. Guest kernel boots with minimal init (no systemd)
-    3. vsock channel established between Brain and Devbox
-    4. Workspace mounted: git clone <repo> or overlay from snapshot
-    5. Resource quotas enforced: vCPU, RAM, disk, network egress
-    6. Agent tool calls (bash, file_edit, file_read) routed to Devbox via vsock
-    7. On session end: Devbox destroyed; ephemeral — no state persists on host
+                          ┌── Cloud Mode     ──> E2B Firecracker MicroVM (Hardware KVM)
+                          │
+  PARI Layer 0 Dispatcher ┼── Linux / WSL2   ──> Bubblewrap (bwrap + cgroups v2)
+                          │
+                          ├── macOS (Darwin) ──> Apple Seatbelt (sandbox-exec + Scheme profile)
+                          │
+                          └── Native Windows ──> Supervised Process Group + Path Guard (Fallback)
 ```
 
-**Key Properties:**
-
-- **Hardware-level isolation (KVM)**: Each session gets its own kernel. A compromised agent cannot reach the host or other sessions — even with root inside the VM. This is strictly stronger than bwrap/namespace isolation.
-- **Ephemeral by default**: Devbox is destroyed after each session. No credentials, secrets, or side effects persist between sessions.
-- **Snapshot resume (~1s)**: For long-running tasks, PARI can snapshot the microVM state and resume later — no cold boot needed. Eliminates the session-resume cost problem.
-- **NAT-gated network**: Outbound network allowed for package installation and git operations. Inbound connections blocked. Egress rate-limited to prevent data exfiltration.
-- **Resource quotas**: CPU, RAM, and disk are hard-limited per session. Fork-bombs and memory leaks cannot affect the host or other tenants.
-- **Multi-tenant ready**: 100 users = 100 isolated microVMs on the same physical host. Zero cross-tenant attack surface.
-
-### Local Dev Fallback: bwrap
-
-For local development and self-hosted deployments where KVM is unavailable, PARI falls back to **Bubblewrap (bwrap)** — the same sandbox used by Codex. This provides Linux namespace isolation (PID, mount, network, user namespaces) without requiring a hypervisor.
-
+```python
+# Driver Dispatch Logic:
+if config.mode == "cloud" or os.environ.get("PARI_SANDBOX") == "cloud":
+    runner = E2BCloudSandboxRunner(api_key=...)
+elif sys.platform == "linux":
+    # Natively supports Linux AND Windows WSL2 (which runs a full Linux kernel)
+    runner = BwrapSandboxRunner(workspace=cwd, cgroup_memory_max="2G")
+elif sys.platform == "darwin":
+    runner = MacOSSeatbeltSandboxRunner(workspace=cwd, profile="pari_rules.sb")
+elif sys.platform == "win32":
+    # Native Windows PowerShell/CMD without WSL2
+    runner = WindowsSupervisedGuardrailRunner(workspace=cwd)
 ```
-SANDBOX SELECTION LOGIC:
-  if KVM available:
-    use Firecracker microVM (production, cloud)
-  elif Linux:
-    use bwrap unprivileged namespaces (local dev fallback)
-  elif macOS:
-    use Seatbelt sandbox-exec (macOS fallback)
-  else:
-    REFUSE TO RUN UNSANDBOXED (security is non-negotiable)
-```
+
+### Platform Backends
+
+#### 1. Linux & Windows WSL2: Bubblewrap (`bwrap`)
+- **Startup**: < 5ms (unprivileged user namespaces; zero root required).
+- **Isolation**:
+  - `CLONE_NEWUSER`, `CLONE_NEWNS`, `CLONE_NEWPID`, `CLONE_NEWIPC`, `CLONE_NEWUTS`.
+  - `--bind <workspace> <workspace>`: Writable access strictly confined to workspace.
+  - `--ro-bind /usr /usr`, `--ro-bind /lib /lib`: Host compilers, runtimes, and system binaries available read-only.
+  - `~/.ssh`, `~/.aws`, and host secrets are completely unmapped/invisible inside the sandbox.
+- **Process Lifecycle**: PR_SET_PDEATHSIG = SIGKILL (`--die-with-parent`). If PARI dies or is terminated, the sandbox process tree is instantaneously reaped. Eliminates orphan exec servers.
+- **Resource Limits**: Linux cgroups v2 (`memory.max = 2G`, `cpu.weight = 100`).
+
+#### 2. macOS: Apple Seatbelt (`sandbox-exec`)
+- **Startup**: < 10ms (native XNU kernel sandbox; zero root, zero VMs).
+- **Isolation**: Uses Apple's native Seatbelt framework with a compiled Scheme (`.sb`) profile:
+  ```scheme
+  (version 1)
+  (deny default)
+  (allow process-exec)
+  (allow file-read* (subpath "/usr") (subpath "/Library") (subpath "/System") (subpath "/Applications"))
+  (allow file-read* file-write* (subpath "<WORKSPACE>"))
+  (deny file* (subpath "~/.ssh") (subpath "~/.aws") (subpath "~/.gnupg"))
+  (allow network-outbound (remote tcp "*:443") (remote tcp "*:80")) ; package installs
+  ```
+- Exactly matches the production isolation architecture used by Codex and Claude Code on macOS.
+
+#### 3. Cloud Mode: E2B Firecracker MicroVMs
+- **Startup**: ~100–150ms via snapshot resume.
+- **Isolation**: Full hardware-level KVM microVM. Ephemeral Devbox created per session and destroyed upon completion.
+- **Strategic Value**: Satisfies cloud-scale hardware isolation without spending weeks writing custom hypervisors or vsock network bridges.
+
+#### 4. Native Windows Fallback: Supervised Process Group + Path Guard
+- For developers running directly in Windows PowerShell without WSL2 installed:
+  - **Path Guard**: `FileMutationQueue` enforces `Path.resolve().is_relative_to(WORKSPACE_ROOT)`. Rejects writes to `C:\Windows`, `System32`, or user root.
+  - **Job Objects**: Windows Job Object attaches to child processes, enforcing memory quotas and `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (equivalent to `die-with-parent`).
+  - **Prompt Guard**: Destructive or ambiguous shell patterns require explicit user confirmation.
+  - *Recommendation displayed*: `Tip: Launch PARI from WSL2 ('wsl pari') for full kernel-level bwrap isolation.`
 
 ### Trade-Off Analysis
 
 | What We Gain | What We Sacrifice | Verdict |
 |---|---|---|
-| Hardware-level KVM isolation; strongest possible security boundary | ~125ms cold start per session (mitigated by snapshot resume) | Worth it. Every cloud agent needs VM-level isolation. Devin, E2B, AWS Lambda all chose Firecracker. |
-| Ephemeral Devbox: zero state persistence between sessions | Must re-clone repo per session (mitigated by overlay snapshots) | Worth it. Ephemeral = no credential leaks, no stale state. |
-| Multi-tenant: 100 sessions on one host with zero cross-tenant risk | Requires KVM-capable infrastructure (any modern Linux cloud VM) | Worth it. Multi-tenancy is a hard requirement for a cloud agent. |
-| bwrap fallback for local dev when KVM unavailable | Two sandbox backends to maintain | Acceptable. bwrap is a thin wrapper; minimal maintenance burden. |
+| Native speed (<5-10ms) on both Linux and macOS | Two local driver profiles (bwrap + Seatbelt) | Worth it. Zero-VM developer experience with full kernel containment. |
+| Windows support via WSL2 (bwrap) + Native Guardrail fallback | Native Windows lacks unprivileged namespace isolation | Worth it. WSL2 gives Windows devs identical Linux security; native fallback prevents friction. |
+| Pragmatic Cloud MicroVMs via E2B | Cloud mode requires internet / API key | Worth it. Avoids 3 weeks of custom hypervisor plumbing while delivering Devin-grade isolation. |
+| `die-with-parent` across all platforms | Small OS-specific process signal code | Worth it. Zombie subprocess leaks are a production reliability killer. |
 
-> **IMPORTANT**: PARI's cloud mode requires KVM-capable infrastructure (bare metal or nested virtualization). For local development, bwrap is the automatic fallback. PARI will never run unsandboxed — security is a non-negotiable architectural invariant.
+> **IMPORTANT**: On Linux and macOS, PARI runs under strict kernel-enforced sandboxing (`bwrap` and `Seatbelt`). On Windows, running inside WSL2 is the recommended path for full `bwrap` parity. PARI eliminates the need for heavyweight Docker Desktop while delivering ironclad workspace confinement.
 
 ---
 
@@ -857,13 +866,13 @@ Output: evals/results_<timestamp>.json
 
 ## 17. The Explicit Trade-Offs: What PARI Sacrifices and Why
 
-### Trade-Off 1: Cloud-First Design with KVM Requirement
+### Trade-Off 1: Multi-Platform Kernel Sandboxing (Sacrifices Custom Hypervisors)
 
-**What we sacrifice**: Running on infrastructure without KVM support (some shared VPS, Windows without WSL2).
+**What we sacrifice**: Building custom, local hypervisors or custom vsock daemons from scratch.
 
-**Why Devin was right here**: Cloud coding agents execute untrusted, LLM-generated code at scale. Namespace-only sandboxes (bwrap) share the host kernel — a kernel CVE means sandbox escape. Firecracker microVMs provide a separate kernel per session, eliminating this entire attack class. Every serious cloud agent (Devin, E2B, AWS Lambda) uses Firecracker.
+**Why Codex and Devin were right here**: True kernel sandboxing locally requires leveraging what each operating system natively provides: Linux has unprivileged user namespaces (`bwrap`), macOS has Seatbelt (`sandbox-exec`). Attempting to force Firecracker locally on Windows or macOS fails because Firecracker strictly requires Linux KVM (`/dev/kvm`). Instead, Windows developers run inside WSL2 (giving them native Linux `bwrap`), while cloud microVM isolation is pragmatically satisfied via the E2B Firecracker API.
 
-**Our position**: PARI's cloud mode requires KVM-capable infrastructure (any modern cloud provider supports this). Local dev mode falls back to bwrap for developers without KVM. macOS uses Seatbelt. PARI will never run unsandboxed.
+**Our position**: PARI provides sub-10ms native kernel sandboxing on Linux and macOS, identical security inside Windows WSL2, and leverages E2B for cloud microVM execution. Security is non-negotiable, but we avoid weeks of hypervisor plumbing.
 
 ---
 
@@ -923,9 +932,10 @@ Output: evals/results_<timestamp>.json
 PHASE 1: FOUNDATION (Weeks 1-3)
   "Make it safe, durable, and correct before making it smart"
   
-  +-- Layer 0: Firecracker microVM engine (cloud) + bwrap fallback (local)
-  |           + vsock Brain<->Devbox communication channel
-  |           + snapshot/resume for session persistence
+  +-- Layer 0: Multi-platform sandbox engine (bwrap Linux/WSL2 + Seatbelt macOS + E2B Cloud)
+  |           + OS driver dispatcher (Linux bwrap, macOS Seatbelt, native Win fallback)
+  |           + E2B Firecracker runner for cloud execution
+  |           + die-with-parent lifecycle & cgroups v2 resource quotas
   +-- Layer 1: Append-only JSONL Merkle DAG session manager
   |           + atomic CRC32 append guard
   |           + checkpoint index records (every 50 turns)
@@ -983,7 +993,7 @@ PHASE 4: HARDENING AND EVALUATION (Weeks 10-12)
 
 | Dimension | Claude Code | Codex | OpenCode | Pi | Aider | Cursor | Antigravity | PARI |
 |---|---|---|---|---|---|---|---|---|
-| Kernel Sandbox | macOS only | bwrap/Seatbelt | permission dialog | raw host | raw host | raw host | process group | **Firecracker microVM + bwrap fallback** |
+| Kernel Sandbox | macOS only | bwrap/Seatbelt | permission dialog | raw host | raw host | raw host | process group | **bwrap (Linux/WSL2) + Seatbelt (macOS) + E2B (Cloud)** |
 | ACID Session State | flat JSON | SQLite | SQLite WAL | JSONL DAG | git only | in-memory | JSONL | **JSONL DAG + checkpoint** |
 | Cache Epoch Stability | heuristic | prefix tracker | Epochs | Economic Warmer | 3-tier + warmer | provider-dependent | implicit | **Epoch + Warmer + 8-tier** |
 | AST Repo Map | none | none | none | none | PPR tree-sitter | vector embeddings | grep + KI | **PPR + hub filter** |
