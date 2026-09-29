@@ -2,6 +2,11 @@
 ## A Synthesis Architecture That Surpasses Claude Code, Codex, OpenCode, Pi, Aider, Cursor, and Google Antigravity
 
 > **Design Philosophy**: Every architectural decision in this document is a direct response to a verified, source-code-grounded weakness in an existing production agent. No decision is theoretical — each one closes a specific, documented failure mode.
+>
+> **Strategic Note (PARI Engine vs. Harkirat Cloud SaaS)**:
+> - **1. Deep Engine over Web SaaS**: Build the high-leverage PARI systems engine (Tree-sitter AST, Merkle DAG, dual-model routing) instead of building a heavy multi-tenant web platform.
+> - **2. Pragmatic Cloud Sandboxing**: Satisfy cloud microVM sandboxing via E2B Firecracker rather than building custom hypervisors, bypassing 3 weeks of DevOps plumbing.
+> - **3. High-Signal YC Impact**: Maximize engineering leverage for startup targeting via verified SWE-bench benchmark results (50%+) and 10x cost reduction ($0.25/task).
 
 ---
 
@@ -184,14 +189,14 @@ PARI closes **all six failure modes simultaneously**, without introducing the co
 
 | Trade-Off Axis | Option A | Option B | PARI Choice |
 |---|---|---|---|
-| 1. Safety vs. Speed | Kernel sandbox (bwrap) | Raw host execution | **bwrap kernel sandbox** |
+| 1. Safety vs. Speed | Firecracker microVM (hardware isolation) | Raw host execution | **Firecracker microVM** |
 | 2. Simplicity vs. Power | Single-agent loop | Multi-agent swarm orchestration | **Single-agent default** |
 | 3. Durability vs. RAM | Append-only Merkle DAG | In-memory array + flat JSON | **Merkle DAG** |
 | 4. Cache vs. Freshness | Immutable Context Epochs | Dynamic rolling compaction | **Immutable Epochs** |
 | 5. Precision vs. Speed | PPR AST repo map (turn 0) | Blind grep exploration (N turns) | **PPR RepoMap** |
 | 6. Resilience vs. Cost | Multi-tier edit cascade | Single-shot full-file rewrite | **4-tier cascade** |
 | 7. Isolation vs. Memory | Process-per-subagent | Thread/fiber-based subagents | **asyncio fibers** |
-| 8. Audit vs. Clutter | Git auto-commit per turn | Dirty working tree | **Git auto-commit** |
+| 8. Audit vs. Clutter | Git auto-commit per turn | Dirty working tree + session snapshots | **Dirty working tree** |
 | 9. Portability vs. Perf | Python asyncio | Rust/Tokio 119-crate workspace | **Python asyncio** |
 | 10. Verbose vs. Dense | Plan-first verbosity | Execute-first minimal narration | **Execute-first** |
 | 11. Lock-in vs. Flex | Single-provider API | Multi-provider routing | **Multi-provider** |
@@ -201,14 +206,14 @@ PARI closes **all six failure modes simultaneously**, without introducing the co
 
 | Trade-Off | PARI Choice | Why | What We Sacrifice | Worth It? |
 |---|---|---|---|---|
-| Safety vs. Speed | bwrap kernel sandbox | Unsandboxed agents are existential security risks on real repositories | ~5ms sandbox bootstrap per session | Yes. Security gap is fatal. |
+| Safety vs. Speed | Firecracker microVM (cloud) + bwrap fallback (local) | Unsandboxed agents are existential security risks; Devin, AWS Lambda, E2B all use Firecracker | ~125ms microVM cold start; ~1s from snapshot resume | Yes. Hardware-level isolation is the cloud-agent standard. |
 | Simplicity vs. Power | Default single-agent; opt-in lightweight subagents | Pi scores 50% single-agent; academic multi-agent swarms score 18-25% | Parallelism on coding tasks | Yes. The Sub-Agent Fallacy is empirically proven. |
 | Durability vs. RAM | Append-only JSONL Merkle DAG with checkpoint indices | Claude Code's flat JSON dies on SIGINT | Marginal disk I/O per turn | Yes. Disk is cheap; lost sessions are catastrophic. |
 | Cache vs. Freshness | Immutable Baseline Epoch + selective mid-session updates | Claude Code's heuristic breakpoints trigger 10x billing spikes | Cannot mutate system context mid-turn | Yes. 70-90% token cost reduction across sessions. |
 | Precision vs. Speed | PPR AST repo map injected at turn 0 | Pi wastes 4-8 turns grepping on 50k+ LOC repos | 200-800ms AST index warmup on first session start | Yes. One startup cost eliminates 4-8 turns on every non-trivial task. |
 | Resilience vs. Cost | Multi-tier edit cascade: Exact -> Git OSR -> DMP -> Prefill | Reflection loop token burn ($0.50-$2.00 per failed diff in Aider) is catastrophic | Slightly higher implementation complexity | Yes. The cascade eliminates 80% of reflection retries. |
 | Isolation vs. Memory | asyncio.TaskGroup fiber-based subagents | Pi's spawn("node", ...) spawns full V8 runtimes (200-450MB each) | Slightly weaker process-level isolation per subagent | Yes. Fiber isolation sufficient for read-only research subagents. |
-| Audit vs. Clutter | Git auto-commit per turn with weak-model commit message | No atomic rollback = catastrophic for production codebases | Micro-commits in git history | Acceptable. Commits can be squashed before PR. |
+| Audit vs. Clutter | Dirty working tree; developer controls commits | Git auto-commit (Aider-only pattern) pollutes history with micro-commits; no other major agent uses it | No automatic atomic rollback via git | Yes. PARI's Merkle DAG session history + /snapshot command provides rollback without polluting git history. Developer commits when ready. |
 | Portability vs. Perf | Python 3.11+ asyncio | Codex's Rust workspace takes 25 min to compile | Raw compute throughput vs. Rust | Yes. Agent loops are network-I/O bound, not CPU bound. |
 | Verbose vs. Dense | Execute-first; minimal narration; strict planning overhead guard | Antigravity burns 200k-400k tokens on planning before executing | Elaborate pre-execution reasoning artifacts | Yes. Action beats narration. |
 | Lock-in vs. Flex | Multi-provider routing (Anthropic, OpenAI, DeepSeek, local Ollama) | Antigravity's Google-only lock-in is a fatal adoption blocker | Small additional abstraction layer | Yes. Model independence is a core requirement. |
@@ -241,7 +246,7 @@ PARI closes **all six failure modes simultaneously**, without introducing the co
 |                                          |                                        |
 |  Layer 1:  DURABLE SESSION (Append-only JSONL Merkle DAG + Checkpoint Index)     |
 |                                          |                                        |
-|  Layer 0:  SANDBOX (bwrap unprivileged namespaces + die-with-parent + cgroups)   |
+|  Layer 0:  SANDBOX (Firecracker microVM Brain/Devbox + bwrap local fallback) |
 |                                                                                   |
 +-----------------------------------------------------------------------------------+
 ```
@@ -250,45 +255,81 @@ PARI closes **all six failure modes simultaneously**, without introducing the co
 
 ---
 
-## 5. Layer 0 — Sandboxing Engine
+## 5. Layer 0 — Sandboxing Engine (Firecracker MicroVM)
 
 **Closes**: Claude Code F2, Pi F1, Aider F1, OpenCode F1
 
-**Harvested From**: Codex codex-bwrap — the only existing agent with correct kernel-level isolation
+**Harvested From**: Devin's Brain/Devbox architecture — the industry standard for cloud coding agents (2026)
 
 ### Design
 
-PARI uses **Bubblewrap (bwrap)** — the same sandbox technology used by Flatpak, Chromium, and Codex. It provides Linux unprivileged user namespace isolation without requiring root, Docker, or a hypervisor.
+PARI is a **cloud-first agent** following the Devin lifecycle model. Each agent session runs inside a **Firecracker microVM** — the same technology used by AWS Lambda, E2B, and Devin. This provides hardware-level KVM isolation: each session gets its own dedicated kernel, filesystem, and network namespace.
 
 ```
-PARI SANDBOX BOOT SEQUENCE:
-  1. Create new user namespace (CLONE_NEWUSER)
-  2. Create PID, mount, IPC, UTS namespaces (--unshare-all)
-  3. Bind-mount workspace read-write (--bind <workspace>)
-  4. Bind-mount /usr, /lib, /bin read-only (host binaries)
-  5. Mount tmpfs on /tmp; procfs on /proc; devtmpfs on /dev
-  6. Set PR_SET_PDEATHSIG = SIGKILL (--die-with-parent)
-  7. Apply cgroups v2: memory.max, cpu.weight quotas
-  8. Network: disabled by default; --share-net for package commands
+PARI CLOUD SANDBOX ARCHITECTURE (Devin Model):
+
+  +-------------------------------------------------------+
+  |  BRAIN (Control Plane — Stateless)                    |
+  |  Python asyncio agent loop, LLM routing,              |
+  |  session DAG, context management                      |
+  |           |  vsock / API                               |
+  |           v                                            |
+  |  +---------------------------------------------------+ |
+  |  |  DEVBOX (Data Plane — Firecracker MicroVM)        | |
+  |  |  Dedicated guest kernel (Linux 6.x)               | |
+  |  |  Ephemeral filesystem (ext4 overlay)              | |
+  |  |  Cloned repo workspace (read-write)               | |
+  |  |  Isolated shell (bash/zsh)                        | |
+  |  |  NAT-gated network (pip install, git clone OK)    | |
+  |  |  Resource limits: 2 vCPU, 4GB RAM, 20GB disk      | |
+  |  +---------------------------------------------------+ |
+  +-------------------------------------------------------+
+
+  BOOT SEQUENCE:
+    1. Firecracker spawns microVM from cached rootfs snapshot (~125ms cold)
+    2. Guest kernel boots with minimal init (no systemd)
+    3. vsock channel established between Brain and Devbox
+    4. Workspace mounted: git clone <repo> or overlay from snapshot
+    5. Resource quotas enforced: vCPU, RAM, disk, network egress
+    6. Agent tool calls (bash, file_edit, file_read) routed to Devbox via vsock
+    7. On session end: Devbox destroyed; ephemeral — no state persists on host
 ```
 
 **Key Properties:**
 
-- `--die-with-parent`: If PARI process is killed, the sandbox subprocess receives immediate SIGKILL. Eliminates Codex F5 orphaned exec-server processes.
-- `--ro-bind /usr /usr`: Host system binaries available read-only. No need to re-install system tools. Under 5ms startup.
-- `--bind <workspace> <workspace>`: Agent writes confined to workspace directory only. ~/.ssh, ~/.aws, /etc are invisible inside the sandbox.
-- cgroups v2 `memory.max = 2G`: Prevents fork-bombs and uncontrolled memory allocation from spilling onto the host.
-- Network disabled by default; enable only for pip install, npm install, git clone via a network-capable subprocess profile.
+- **Hardware-level isolation (KVM)**: Each session gets its own kernel. A compromised agent cannot reach the host or other sessions — even with root inside the VM. This is strictly stronger than bwrap/namespace isolation.
+- **Ephemeral by default**: Devbox is destroyed after each session. No credentials, secrets, or side effects persist between sessions.
+- **Snapshot resume (~1s)**: For long-running tasks, PARI can snapshot the microVM state and resume later — no cold boot needed. Eliminates the session-resume cost problem.
+- **NAT-gated network**: Outbound network allowed for package installation and git operations. Inbound connections blocked. Egress rate-limited to prevent data exfiltration.
+- **Resource quotas**: CPU, RAM, and disk are hard-limited per session. Fork-bombs and memory leaks cannot affect the host or other tenants.
+- **Multi-tenant ready**: 100 users = 100 isolated microVMs on the same physical host. Zero cross-tenant attack surface.
+
+### Local Dev Fallback: bwrap
+
+For local development and self-hosted deployments where KVM is unavailable, PARI falls back to **Bubblewrap (bwrap)** — the same sandbox used by Codex. This provides Linux namespace isolation (PID, mount, network, user namespaces) without requiring a hypervisor.
+
+```
+SANDBOX SELECTION LOGIC:
+  if KVM available:
+    use Firecracker microVM (production, cloud)
+  elif Linux:
+    use bwrap unprivileged namespaces (local dev fallback)
+  elif macOS:
+    use Seatbelt sandbox-exec (macOS fallback)
+  else:
+    REFUSE TO RUN UNSANDBOXED (security is non-negotiable)
+```
 
 ### Trade-Off Analysis
 
 | What We Gain | What We Sacrifice | Verdict |
 |---|---|---|
-| Full kernel isolation; rm -rf / is a no-op outside workspace | ~5ms per session bwrap process launch; Linux-only (Windows needs WSL2) | Worth it. Every unsandboxed agent is a security liability. |
-| die-with-parent eliminates zombie subprocess leaks | Slightly more complex subprocess management code | Worth it. Zombie leaks are a production reliability killer. |
-| No permission modal fatigue (unlike OpenCode) | Developer must configure workspace path correctly on init | Worth it. One-time config beats constant modal interruption. |
+| Hardware-level KVM isolation; strongest possible security boundary | ~125ms cold start per session (mitigated by snapshot resume) | Worth it. Every cloud agent needs VM-level isolation. Devin, E2B, AWS Lambda all chose Firecracker. |
+| Ephemeral Devbox: zero state persistence between sessions | Must re-clone repo per session (mitigated by overlay snapshots) | Worth it. Ephemeral = no credential leaks, no stale state. |
+| Multi-tenant: 100 sessions on one host with zero cross-tenant risk | Requires KVM-capable infrastructure (any modern Linux cloud VM) | Worth it. Multi-tenancy is a hard requirement for a cloud agent. |
+| bwrap fallback for local dev when KVM unavailable | Two sandbox backends to maintain | Acceptable. bwrap is a thin wrapper; minimal maintenance burden. |
 
-> **IMPORTANT**: On Windows, PARI runs inside WSL2, which provides a full Linux kernel environment supporting bwrap. This is a hard dependency — PARI does not support native Windows PowerShell execution without WSL2.
+> **IMPORTANT**: PARI's cloud mode requires KVM-capable infrastructure (bare metal or nested virtualization). For local development, bwrap is the automatic fallback. PARI will never run unsandboxed — security is a non-negotiable architectural invariant.
 
 ---
 
@@ -505,7 +546,7 @@ OUTER WHILE (turn budget <= MAX_TURNS):
   |    +-- repo_search: route to RepoMap query (Layer 3)
   |
   +-- Collect tool results -> ManagedOutputSpooler (Layer 7)
-  +-- Auto-commit if file edits occurred -> git + weak model msg
+  +-- Snapshot file state in session DAG for /undo support
   +-- Run linter / tests if configured -> structured feedback
   |
   +-- REFLECTION CHECK: if lint/test fails AND reflections < 3:
@@ -816,13 +857,13 @@ Output: evals/results_<timestamp>.json
 
 ## 17. The Explicit Trade-Offs: What PARI Sacrifices and Why
 
-### Trade-Off 1: Linux-First Design (Sacrifices Native Windows)
+### Trade-Off 1: Cloud-First Design with KVM Requirement
 
-**What we sacrifice**: Native Windows PowerShell support without WSL2.
+**What we sacrifice**: Running on infrastructure without KVM support (some shared VPS, Windows without WSL2).
 
-**Why Codex was right here**: True kernel sandboxing (bwrap, unprivileged namespaces) is a Linux-kernel feature. It does not exist on Windows without WSL2 or Hyper-V. Providing a degraded "no sandbox" Windows mode recreates Aider F1 and OpenCode F1 — the exact failures we're trying to eliminate.
+**Why Devin was right here**: Cloud coding agents execute untrusted, LLM-generated code at scale. Namespace-only sandboxes (bwrap) share the host kernel — a kernel CVE means sandbox escape. Firecracker microVMs provide a separate kernel per session, eliminating this entire attack class. Every serious cloud agent (Devin, E2B, AWS Lambda) uses Firecracker.
 
-**Our position**: PARI runs natively on Linux and macOS (macOS via Seatbelt as secondary sandbox). Windows requires WSL2. This is a deliberate trade-off: security over universal compatibility.
+**Our position**: PARI's cloud mode requires KVM-capable infrastructure (any modern cloud provider supports this). Local dev mode falls back to bwrap for developers without KVM. macOS uses Seatbelt. PARI will never run unsandboxed.
 
 ---
 
@@ -882,7 +923,9 @@ Output: evals/results_<timestamp>.json
 PHASE 1: FOUNDATION (Weeks 1-3)
   "Make it safe, durable, and correct before making it smart"
   
-  +-- Layer 0: bwrap sandbox engine with die-with-parent + cgroups v2
+  +-- Layer 0: Firecracker microVM engine (cloud) + bwrap fallback (local)
+  |           + vsock Brain<->Devbox communication channel
+  |           + snapshot/resume for session persistence
   +-- Layer 1: Append-only JSONL Merkle DAG session manager
   |           + atomic CRC32 append guard
   |           + checkpoint index records (every 50 turns)
@@ -918,7 +961,7 @@ PHASE 3: INTELLIGENCE (Weeks 7-9)
   +-- Layer 8: Dual-model router (task classifier + Architect/Editor)
   |           + anti-verbosity guard (max 4,096 planning tokens)
   |           + multi-provider adapter (Anthropic, OpenAI, DeepSeek, Ollama)
-  +-- Git auto-commit (weak model commit messages) + /undo support
+  +-- File snapshot tracking (session DAG) + /undo + /snapshot support
 
 
 PHASE 4: HARDENING AND EVALUATION (Weeks 10-12)
@@ -940,7 +983,7 @@ PHASE 4: HARDENING AND EVALUATION (Weeks 10-12)
 
 | Dimension | Claude Code | Codex | OpenCode | Pi | Aider | Cursor | Antigravity | PARI |
 |---|---|---|---|---|---|---|---|---|
-| Kernel Sandbox | macOS only | bwrap/Seatbelt | permission dialog | raw host | raw host | raw host | process group | **bwrap + cgroups** |
+| Kernel Sandbox | macOS only | bwrap/Seatbelt | permission dialog | raw host | raw host | raw host | process group | **Firecracker microVM + bwrap fallback** |
 | ACID Session State | flat JSON | SQLite | SQLite WAL | JSONL DAG | git only | in-memory | JSONL | **JSONL DAG + checkpoint** |
 | Cache Epoch Stability | heuristic | prefix tracker | Epochs | Economic Warmer | 3-tier + warmer | provider-dependent | implicit | **Epoch + Warmer + 8-tier** |
 | AST Repo Map | none | none | none | none | PPR tree-sitter | vector embeddings | grep + KI | **PPR + hub filter** |
