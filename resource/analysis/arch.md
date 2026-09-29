@@ -9,6 +9,7 @@
 > - **3. High-Signal YC Impact**: Maximize engineering leverage for startup targeting via verified SWE-bench benchmark results (50%+) and 10x cost reduction ($0.25/task).
 
 ---
+<!-- find the user real pain and why this pain exist and what should be solutions for this and complete the arch -->
 
 ## Table of Contents
 
