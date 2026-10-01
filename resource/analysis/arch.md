@@ -753,9 +753,20 @@ This structured extraction is injected as a [TEST FAILURE] block, not raw stderr
 
 ## 13. Layer 8 — Dual-Model Routing Engine
 
-**Closes**: Antigravity F1 (200k-400k token planning burn)
+**Closes**: Antigravity F1 (200k-400k token planning burn), Aider F5 (reflection loop token exhaustion), Monolithic LLM diff-formatting waste
 
 **Harvested From**: Aider's ArchitectCoder / EditorCoder separation — proven to prevent expensive reasoning models from wasting tokens on mechanical diff formatting
+
+### Why Dual-Model Routing? (The Core Rationale)
+
+Monolithic agent architectures (e.g. naive Claude Code, Google Antigravity) use a single frontier reasoning model (Claude 3.7 Sonnet Thinking, o3, or DeepSeek R1) for the entire lifecycle: planning, reading files, generating diffs, handling indentation, and writing git commit messages. 
+
+This introduces three critical systems engineering pathologies:
+1. **The Mechanical Formatting Tax**: Frontier reasoning models charge premium prices ($15.00/M output tokens). Burning expensive reasoning output tokens on emitting 500 lines of repetitive `<<<<<<< SEARCH ... ======= ... >>>>>>> REPLACE` diff markers, JSON schemas, and mechanical boilerplate is an economic disaster.
+2. **Analysis Paralysis & Meta-Commentary Burn**: When unconstrained, reasoning models enter runaway self-reflection loops (Antigravity F1), generating 6–12 internal planning turns and burning 200k–400k tokens before editing a single line of code.
+3. **Cognitive Contamination**: When an LLM must simultaneously reason about high-level system architecture AND output character-exact search/replace chunks, its attention budget is split between abstract logic and whitespace fidelity, leading to subtle off-by-one line bugs.
+
+**The Solution**: Strict decoupling of **Architectural Reasoning** from **Deterministic File Mutation**.
 
 ### Design
 
@@ -766,7 +777,7 @@ USER PROMPT
 TASK CLASSIFIER:
   - Complexity score (LOC touched, cross-file scope, ambiguity signals)
   - Explicit reasoning triggers: "design", "refactor", "how should"
-  - Default: DIRECT EDITOR for < 3 files
+  - Default: DIRECT EDITOR for < 3 files / local edits
      |              |
      | Complex       | Simple
      v              v
@@ -781,17 +792,40 @@ Instantiate EDITOR MODEL dynamically
 with architect's plan as system context
 ```
 
-**Anti-Verbosity Guard**: A strict token limit is placed on the Architect model's planning phase (max_planning_tokens = 4096). Planning that exceeds this budget is truncated and execution begins. This directly addresses Antigravity F1.
+#### 8A. The Economic Equation: Why Two Calls Cost 80% Less Than One
 
-**Weak Model for Commit Messages**: A cheap model (Haiku, Flash-8B) synthesizes git commit messages from the diff. This prevents expensive frontier-model tokens being burned on mechanical commit message generation.
+A common intuition is that two sequential API calls must cost more than one. In LLM token pricing, the exact opposite is true:
+
+* **Monolithic Approach (Single Frontier Call)**:
+  * Input: 40k tokens context
+  * Output: 400 tokens reasoning + 3,500 tokens of mechanical diff code
+  * Output cost @ $15.00/M = **$0.058 per turn** (over 20 turns = **$1.16**)
+* **Dual-Model Approach (PARI Layer 8)**:
+  * **Architect Call**: Reads context, outputs a dense **300-token high-signal plan**. Cost @ $15.00/M = **$0.0045**
+  * **Editor Call (Haiku / DeepSeek V3)**: Ingests the 300-token plan, outputs 3,500 tokens of diffs. Cost @ $1.25/M = **$0.0043**
+  * **Total Output Cost**: **$0.0088 per turn** (**~85% cost reduction** per turn, with superior reasoning quality).
+
+#### 8B. Anti-Verbosity Guard (Closing Antigravity F1)
+A strict hard token ceiling is placed on the Architect model's output (`max_planning_tokens = 4096`). If the Architect fails to conclude its plan within 4k tokens, the output is forcefully cut and handed to the Editor model with instructions to execute the partial plan and resolve remainder tasks incrementally. This completely arrests recursive planning loops.
+
+#### 8C. Task Classifier Bypass (Zero Overhead on Simple Edits)
+Not every turn requires deep architectural deliberation. If the Task Classifier detects a localized edit (e.g., `< 3` files affected, typo fixes, test assertion adjustments, CSS updates), the Architect is bypassed entirely. The prompt routes directly to the Editor model, avoiding both the latency and cost of a two-step handshake.
+
+#### 8D. Weak Model Offloading for Administrative Side-Tasks
+Secondary operational chores are offloaded to ultra-cheap models (Claude 3.5 Haiku, Gemini 2.5 Flash-8B, or DeepSeek V3):
+- Synthesizing semantic Git commit messages from unified diffs
+- Summarizing truncated stdout from the `ManagedOutputSpooler`
+- Classifying incoming user prompts and intent detection
+This preserves the primary frontier token budget exclusively for high-leverage architectural problem-solving.
 
 ### Trade-Off Analysis
 
 | What We Gain | What We Sacrifice | Verdict |
 |---|---|---|
-| Architect model focuses entirely on reasoning; editor on mechanics | Two sequential API calls per complex turn | Worth it. Two cheap-model calls cost less than one expensive-model call doing both. |
+| Architect model focuses entirely on reasoning; editor on mechanics | Two sequential API calls per complex turn | Worth it. Two cheap-model calls cost ~85% less than one expensive-model call doing both. |
 | Anti-verbosity guard prevents 200k-400k token planning burn | Planning sometimes cut off before ideal depth | Worth it. Execution with imperfect plan > perfect plan with no execution. |
 | Weak model for commit messages saves significant token cost | Commit messages may be less descriptive | Acceptable. Commit messages can always be amended. |
+| Eliminates diff syntax corruption from reasoning models | Slight pipeline orchestration complexity | Worth it. Search/replace accuracy jumps dramatically when editor model is specialized. |
 
 ---
 
