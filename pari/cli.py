@@ -95,21 +95,33 @@ def cmd_eval(args: argparse.Namespace) -> int:
 
 def cmd_run(args: argparse.Namespace) -> int:
     """Main interactive REPL agent execution."""
-    print_banner()
-
     workspace = Path(args.workspace or os.getcwd()).resolve()
-    console.print(f"[bold]Workspace:[/bold] {workspace}")
-    console.print(f"[bold]Sandbox:[/bold]   {check_sandbox_availability()}")
-    console.print(f"[bold]Edit Mode:[/bold] Exact match (fail-on-ambiguity) [dim](Fallback: {args.edit_fallback})[/dim]")
-    console.print(f"[bold]Search:[/bold]    v1 ripgrep & globbing [dim](AST RepoMap: {args.repomap})[/dim]")
 
     if args.dry_run:
+        print_banner()
+        console.print(f"[bold]Workspace:[/bold] {workspace}")
+        console.print(f"[bold]Sandbox:[/bold]   {check_sandbox_availability()}")
+        console.print(f"[bold]Edit Mode:[/bold] Exact match (fail-on-ambiguity) [dim](Fallback: {args.edit_fallback})[/dim]")
+        console.print(f"[bold]Search:[/bold]    v1 ripgrep & globbing [dim](AST RepoMap: {args.repomap})[/dim]")
         console.print("[green]Self-check passed: environment and CLI options verified.[/green]")
         return 0
 
-    console.print("\n[dim]Ready for prompts. Type '/help' for commands, Ctrl+C to exit.[/dim]")
-    console.print("[dim](Agent execution engine is ready for session connection)[/dim]\n")
+    import asyncio
+    from pari.tui.app import TerminalApp
+    from pari.agent.runtime import AgentRuntime
+
+    runtime = AgentRuntime(workspace)
+    # Add any explicitly pinned files
+    for pinned in args.add:
+        runtime.add_pinned_file(pinned)
+
+    app = TerminalApp(workspace, runtime=runtime)
+    try:
+        asyncio.run(app.run_repl())
+    except KeyboardInterrupt:
+        console.print("\n[dim]Terminated by user.[/dim]")
     return 0
+
 
 
 def main(argv: Optional[list] = None) -> int:

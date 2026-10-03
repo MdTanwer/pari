@@ -3,7 +3,24 @@
 import os
 import re
 from pathlib import Path
-from typing import Dict, List
+from dataclasses import dataclass
+from typing import Dict, List, Optional
+
+@dataclass
+class GrepMatch:
+    file_path: str
+    line_number: int
+    line_content: str
+
+    def __getitem__(self, item: str):
+        if item == "file":
+            return self.file_path
+        if item == "line":
+            return self.line_number
+        if item == "content":
+            return self.line_content
+        raise KeyError(item)
+
 
 IGNORED_DIRS = {
     ".git", ".venv", "venv", "node_modules", "__pycache__",
@@ -57,14 +74,15 @@ def grep_search(
             with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
                 for line_num, line in enumerate(f, start=1):
                     if pattern.search(line):
-                        matches.append({
-                            "file": rel_path,
-                            "line": line_num,
-                            "content": line.rstrip("\r\n"),
-                        })
+                        matches.append(GrepMatch(
+                            file_path=rel_path,
+                            line_number=line_num,
+                            line_content=line.rstrip("\r\n"),
+                        ))
                         if len(matches) >= max_matches:
                             return matches
         except (OSError, UnicodeDecodeError):
             continue
 
     return matches
+

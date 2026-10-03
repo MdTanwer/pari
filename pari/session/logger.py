@@ -1,12 +1,22 @@
-"""Durable session engine with append-only JSONL, CRC32 checks, and torn-write recovery."""
+"""PARI Layer 1: Append-Only JSONL Session Logger.
+
+Architectural Purpose:
+    Closes Claude Code F1 & Pi F5.
+    Writes every session event with an explicit CRC32 checksum, flushes to OS buffer,
+    and calls os.fsync() on critical milestones.
+    On startup, scans backward from EOF to automatically detect and truncate torn writes
+    caused by power loss or sudden SIGKILL.
+"""
 
 import json
 import os
+from pathlib import Path
 import time
+from typing import Any, Dict, Iterator, List, Optional
 import uuid
 import zlib
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+
+from pari.session.events import SessionEvent, SessionEventType
 
 
 def compute_crc32(payload: str) -> str:
@@ -48,7 +58,7 @@ class SessionLogger:
                     # Verify CRC32
                     test_data = {k: v for k, v in data.items() if k != "crc32"}
                     canonical_json = json.dumps(test_data, sort_keys=True)
-                    if compute_crc32(canonical_json) == stored_crc:
+                    if compute_crc32(canonical_json) == stored_crc or str(zlib.crc32(canonical_json.encode('utf-8'))) == str(stored_crc):
                         valid_offset = f.tell()
                         last_id = data.get("id")
                     else:
@@ -90,6 +100,17 @@ class SessionLogger:
         self.last_record_id = record_id
         return record_id
 
+    def log(self, event_type: SessionEventType, payload: Dict[str, Any]) -> SessionEvent:
+        """Typed event append API."""
+        val = event_type.value if isinstance(event_type, SessionEventType) else str(event_type)
+        rec_id = self.append_event(val, payload)
+        return SessionEvent(
+            id=rec_id,
+            parent_id=self.last_record_id,
+            type=SessionEventType(val) if val in [e.value for e in SessionEventType] else SessionEventType.USER_PROMPT,
+            payload=payload,
+        )
+
     def read_events(self) -> List[Dict[str, Any]]:
         """Read all verified records from the session file."""
         if not self.session_file.exists():
@@ -104,3 +125,17 @@ class SessionLogger:
                     except json.JSONDecodeError:
                         continue
         return events
+
+    def iter_events(self) -> Iterator[SessionEvent]:
+        for data in self.read_events():
+            try:
+                yield SessionEvent.from_dict({
+                    "id": data["id"],
+                    "parent_id": data.get("parentId") or data.get("parent_id"),
+                    "type": data["type"],
+                    "timestamp": data.get("timestamp", 0.0),
+                    "payload": data.get("data") or data.get("payload", {}),
+                    "crc32": data.get("crc32"),
+                })
+            except Exception:
+                continue
