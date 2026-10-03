@@ -68,9 +68,8 @@ The table below diagnoses the **seven core developer pain points**, the **underl
 * **Why this pain exists**:
   * Agents like Claude Code, Pi, and OpenCode have **zero structural awareness** of the codebase. On repositories exceeding 50,000 LOC, they burn 4 to 8 exploratory turns running blind `find` and `grep` commands just to locate where a function is defined.
 * **PARI's Architectural Solution**:
-  * **Layer 3 Personalized PageRank AST RepoMap**: Injected at **Turn 0** into Tier 3 of the prompt.
-  * Extracted via Tree-sitter C bindings and weighted by call graph connectivity.
-  * The agent knows the definitions, types, and call sites across the entire project before taking its first action. Exploratory search turns drop to zero.
+  * **v1 Foundation**: High-speed substring ripgrep and path globbing (`find_files`, `grep_search`) with zero startup indexing delay.
+  * **v2 AST RepoMap Fallback**: On enterprise codebases with ambiguous grep matches, PARI injects a Tree-sitter AST symbol map via Personalized PageRank to provide structural call graph context.
 
 ---
 
@@ -83,6 +82,8 @@ The table below diagnoses the **seven core developer pain points**, the **underl
   * **Layer 1 Append-Only Merkle DAG**: Every turn is flushed to disk with POSIX `O_APPEND | O_SYNC` and a CRC32 integrity checksum.
   * **Periodic Checkpoint Indices**: Appended every 50 turns, reducing session resume latency to $O(K)$ where $K \le 50$ ($< 15\text{ ms}$ startup).
   * **Backwards Recovery Scan**: Automatically truncates torn writes on startup, guaranteeing the DAG parent-pointer chain is never broken.
+  * **Realistic v1 `/undo` Boundary**: Restores exact pre-turn file states and terminates spawned child process trees, while logging and disclosing non-file side effects (dependencies, external APIs) with manual guidance instead of falsely promising complete terminal reversal.
+
 
 ---
 

@@ -20,7 +20,7 @@ The exact same frontier reasoning model (Claude 3.7 Sonnet, GPT-4o) demonstrates
 2. **Mid-stream token truncation** $\rightarrow$ Solved by Layer 4 (Strict `stop_reason == "length"` rejection guard).
 3. **File write race conditions** $\rightarrow$ Solved by Layer 6 (`FileMutationQueue` canonical realpath serialization).
 4. **KV cache invalidation cascades** $\rightarrow$ Solved by Layer 2 (Immutable Baseline Epochs freezing Tiers 1–4).
-5. **Blind file traversal loops** $\rightarrow$ Solved by Layer 3 (Personalized PageRank AST repo map injected at Turn 0).
+5. **Blind file traversal loops** $\rightarrow$ Solved by Layer 3 (v1: Fast substring ripgrep & globbing / v2: Tree-sitter AST fallback).
 6. **Unsandboxed host execution** $\rightarrow$ Solved by Layer 0 (Multi-platform kernel isolation: `bwrap`, `Seatbelt`, E2B MicroVMs).
 
 ---
@@ -43,7 +43,7 @@ The exact same frontier reasoning model (Claude 3.7 Sonnet, GPT-4o) demonstrates
 |                                          |                                        |
 |  Layer 4:  AGENT EXECUTION LOOP (Double-while + stop_reason guard + tools)       |
 |                                          |                                        |
-|  Layer 3:  INTELLIGENCE (Tree-sitter PPR AST RepoMap + diskcache SQLite)         |
+|  Layer 3:  NAVIGATION (v1: Substring Grep & Globbing / v2: Tree-sitter Fallback)  |
 |                                          |                                        |
 |  Layer 2:  CONTEXT & CACHE (Immutable Epoch + mid-session updates + Warmer)      |
 |                                          |                                        |
@@ -69,7 +69,8 @@ All system documentation has been modularized and organized inside the [`docs/`]
 * [Layer 0: Sandboxing Engine](docs/layers/layer-0-sandboxing.md) — Multi-platform kernel isolation (`bwrap`, `Seatbelt`, E2B).
 * [Layer 1: Durable Session Engine](docs/layers/layer-1-session-dag.md) — Append-only JSONL Merkle DAG with $O(K)$ checkpoints.
 * [Layer 2: Context & Cache Architecture](docs/layers/layer-2-context-cache.md) — Immutable Baseline Epochs & Economic Warmer.
-* [Layer 3: Intelligence & AST RepoMap](docs/layers/layer-3-intelligence-repomap.md) — Tree-sitter Personalized PageRank with Hub Suppression.
+* [Layer 3: Codebase Intelligence & Navigation](docs/layers/layer-3-intelligence-repomap.md) — v1 ripgrep & globbing / v2 Tree-sitter AST fallback.
+
 * [Layer 4: Agent Execution Loop](docs/layers/layer-4-execution-loop.md) — Double-while state machine & PTY daemon detection.
 * [Layer 5: Multi-Tier Fuzzy Edit Engine](docs/layers/layer-5-edit-engine.md) — 4-tier diff cascade (Exact $\rightarrow$ Git OSR $\rightarrow$ DMP $\rightarrow$ Prefill).
 * [Layer 6: Concurrency & File Safety](docs/layers/layer-6-concurrency-safety.md) — `FileMutationQueue` realpath locks & shadow worktrees.

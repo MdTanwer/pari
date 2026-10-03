@@ -44,15 +44,16 @@ Rather than making the most complex mechanism the mandatory default, PARI adhere
 PARI EXECUTION TIERS:
 
 1. SIMPLE DEFAULT PATH (Deterministic & Safe):
+   - Codebase Navigation (v1): High-speed substring ripgrep, regex search, and file globbing (`find_files`, `grep_search`). Zero parser lag.
    - Exact string search/replace with strict FAIL-ON-AMBIGUITY.
    - Canonical realpath lock + atomic tempfile-then-rename write.
    - Single-agent execution loop with host-enforced timeouts.
    - Append-only JSONL event transcript with CRC32 verification.
    - Deterministic test verification (compiler exit codes).
 
-2. CONFIGURABLE ENHANCEMENTS (Behind Feature Flags):
+2. CONFIGURABLE ENHANCEMENTS (Behind Feature Flags / v2):
+   - Context Navigation (v2 Fallback): Tree-sitter AST symbol extractor & Personalized PageRank (`--repomap=ppr`) when grep/globbing is insufficient.
    - Edit Fallbacks: --edit-fallback=git-osr,dmp (activates fuzzy tiers).
-   - Context Map:   --repomap=ppr (activates Tree-sitter PageRank).
    - Cache Warmer:  --cache-warmer=auto (activates idle background pings).
    - Model Routing: --route=dual (activates Architect/Editor separation).
 ```
@@ -92,7 +93,7 @@ Prompt instructions (e.g. *"Do not plan for more than 4,000 tokens"*) shape tone
 | **1. Kernel Sandbox** | macOS only (`sandbox-exec`) | `bwrap` / Seatbelt / Restricted Tokens | None (Interactive permission modal) | None (Raw host execution) | None (Raw host execution) | None (Raw host execution) | Supervised Process Group | **bwrap (Linux/WSL2) + Seatbelt (macOS) + E2B (Cloud)** |
 | **2. Session Durability** | In-memory + flat JSON | SQLite Database | SQLite with WAL mode | Append-only JSONL Merkle DAG | Git commit log only | In-memory workspace state | JSONL Event Transcripts | **Append-only JSONL Merkle DAG + Checkpoint Indices** |
 | **3. Cache Stability** | Heuristic single breakpoint | Prefix tracker | Immutable Epochs | Autonomous Economic Warmer | 3-tier prefix hierarchy | Provider-dependent | Implicit session caching | **Immutable Epochs + 8-Tier Hierarchy + Warmer (Behind Flag)** |
-| **4. Codebase Navigation** | Substring grep & globbing | File search tools | Glob & grep tools | Grep & find tools (4–8 blind turns) | Tree-sitter PageRank (1k tokens) | Cloud vector embeddings | Grep & Knowledge Items (KI) | **Personalized PageRank AST + Hub Suppression (2k tokens)** |
+| **4. Codebase Navigation** | Substring grep & globbing | File search tools | Glob & grep tools | Grep & find tools (4–8 blind turns) | Tree-sitter PageRank (1k tokens) | Cloud vector embeddings | Grep & Knowledge Items (KI) | **v1: Substring grep & globbing / v2: Tree-sitter AST fallback** |
 | **5. Edit Engine Resilience** | Direct write | Direct write | Direct write | Direct write | 3-tier cascade (Exact/OSR/DMP) | Monaco fuzzy matcher | Direct write | **Exact Match Default + Fallback Cascade (Exact/OSR/DMP/Prefill)** |
 | **6. File Write Safety** | Uncoordinated async writes | Async process spawn | Fiber mutexes | `FileMutationQueue` (realpath) | Synchronous serial writes | Monaco virtual buffer | Managed TaskPool | **`FileMutationQueue` (canonical realpath) + Atomic Rename** |
 | **7. Tool Output Handling** | In-memory slice truncation | Memory truncate | 50KB / 2k-line limits | Head/tail truncation | Line limit truncation | Character truncation | Paged reading tools | **50KB / 2k-line Disk Spooler + Structured Traceback Parser** |
@@ -104,16 +105,48 @@ Prompt instructions (e.g. *"Do not plan for more than 4,000 tokens"*) shape tone
 
 ---
 
-## 6. Beyond File Rollback: Managing External Side Effects
+## 6. The v1 `/undo` Contract: File Rollback, Process Cleanup & Disclosed Side Effects
 
-Git checkpoints only restore tracked filesystem state. When an agent runs tests, installs dependencies, or calls external APIs, non-file side effects occur.
+A terminal coding agent can strictly control what it launches, but **cannot magically reverse arbitrary shell side effects**. Promising that `/undo` restores the entire system creates a false sense of security.
 
-PARI’s rollback model addresses this through **Side-Effect Logging**:
-1. **Process Tracking**: All background daemons and child PIDs are tracked so `/undo` can actively terminate leaked processes.
-2. **Environment & Dependency Logs**: Shell commands that modify environment packages (`pip install`, `npm install`) are tagged in `.pari/side-effects.jsonl`.
-3. **Compensating Action Guidance**: When `/undo` is invoked across a turn with side effects, PARI prints actionable rollback recommendations:
-   ```
-   [Undo Notice]: Reverted 3 files via session DAG.
-   Warning: Turn 14 executed 'npm install axios'.
-   Recommended compensating action: npm uninstall axios
-   ```
+For PARI v1, the `/undo` contract is explicitly defined across four boundaries:
+
+```
++-----------------------------------------------------------------------------------+
+|                        PARI v1 /undo EXECUTION CONTRACT                           |
++-----------------------------------------------------------------------------------+
+|                                                                                   |
+|  1. FILE ROLLBACK (Fully Automated):                                              |
+|     - PARI captures a pre-edit hash/snapshot before mutating any file.            |
+|     - /undo restores exact pre-mutation file states for files PARI modified.      |
+|                                                                                   |
+|  2. PROCESS CLEANUP (Fully Automated):                                            |
+|     - All child PIDs and process groups spawned during the turn are tracked.      |
+|     - /undo (or shutdown) terminates running child processes and daemons.         |
+|                                                                                   |
+|  3. SIDE-EFFECT LOGGING & DISCLOSURE (Logged & Warned, Not Auto-Reversed):        |
+|     - Commands modifying dependencies/environments (npm, pip, cargo, migrations)  |
+|       are detected and logged to .pari/side-effects.jsonl.                        |
+|     - PARI warns the user and suggests manual cleanup commands.                   |
+|     - PARI does NOT execute automatic uninstall/rollback commands to avoid       |
+|       unintended secondary destruction.                                           |
+|                                                                                   |
+|  4. EXPLICIT LIMITATION DISCLAIMER:                                               |
+|     - /undo CANNOT reverse third-party API calls (e.g. Stripe, AWS, Slack).       |
+|     - /undo CANNOT reverse external database mutations or dropped remote tables.  |
+|                                                                                   |
++-----------------------------------------------------------------------------------+
+```
+
+### Example Terminal `/undo` Interaction
+```
+pari> /undo
+[Undo Complete]: Restored 2 modified files (src/auth/service.py, tests/test_auth.py).
+[Process Cleanup]: Terminated 1 background server (PID 48210: 'npm run dev').
+
+[Side-Effect Warning]:
+  Turn 14 executed: 'npm install jsonwebtoken'
+  Note: Dependency changes are logged but not automatically uninstalled.
+  Suggested manual cleanup: npm uninstall jsonwebtoken
+```
+

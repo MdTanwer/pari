@@ -63,6 +63,10 @@ The 12-week implementation plan is structured into four sequential 3-week phases
   * Implement Tier 3: Google `diff_match_patch` line fuzzy matching.
   * Implement Tier 4: Assistant prefill continuation and targeted block re-requests.
   * Build `RelativeIndenter` whitespace normalization.
+* **Layer 3 — Codebase Navigation (v1 Core)**:
+  * Implement high-speed substring ripgrep and regex search tool (`grep_search`).
+  * Implement file hierarchy path globbing tool (`find_files`).
+  * Enforce zero startup lag and zero parser warmup.
 * **Layer 9 — Terminal Interface (TUI)**:
   * Rich differential rendering with streaming markdown and syntax highlighting.
   * Interactive unified diff previews and real-time USD cost tracking.
@@ -72,17 +76,18 @@ The 12-week implementation plan is structured into four sequential 3-week phases
 
 ---
 
-## Phase 3: Intelligence (Weeks 7–9)
-**Goal**: Provide codebase structural awareness from Turn 0 and slash API costs via dual-model routing.
+## Phase 3: Intelligence & Advanced Routing (Weeks 7–9)
+**Goal**: Provide structural AST awareness as a fallback and slash API costs via dual-model routing.
 
 ### Deliverables
-* **Layer 3 — Intelligence Layer (AST RepoMap)**:
+* **Layer 3 — AST RepoMap & Personalized PageRank (v2 Fallback)**:
   * Tree-sitter AST symbol extractor with `.scm` tag queries across Python, TypeScript, Rust, and Go.
   * Build weighted bipartite call graph using NetworkX ($50\times$ active files, $10\times$ prompt tokens).
   * Compute Personalized PageRank (PPR) with $d = 0.85$.
   * Implement PARI Hub Suppression Filter ($>50$ inbound references dampened by $0.05\times$).
-  * Binary search token packing into a precise 2,048-token context budget.
+  * Binary search token packing into a precise 2,048-token context budget (`--repomap=ppr`).
   * Implement `diskcache.Cache` SQLite store with `mtime` invalidation and worktree-scoped keys.
+
 * **Layer 8 — Dual-Model Routing Engine**:
   * Build Task Classifier analyzing prompt scope and cross-file complexity.
   * Implement Architect / Editor separation (Sonnet Thinking $\rightarrow$ Haiku / DeepSeek V3).

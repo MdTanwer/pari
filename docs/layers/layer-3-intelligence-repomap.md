@@ -1,26 +1,33 @@
-# Layer 3: The Intelligence Layer (AST RepoMap & Personalized PageRank)
+# Layer 3: Codebase Intelligence & Navigation
 
-> **Closes Failures**: Pi F3 (4–8 blind exploratory grep turns), Aider F4 (PageRank utility hub distortion), and the complete lack of AST awareness in Claude Code, Codex, and OpenCode.  
-> **Harvested From**: Aider's Personalized PageRank (`repomap.py`) — enhanced with Hub Suppression Filters and Worktree-Scoped Caching.
-
----
-
-## 1. Overview: The Problem with Blind File Traversal
-
-When presented with a prompt like *"Fix token expiration handling in the authentication service"*, naive coding agents (Claude Code, Pi, OpenCode) have no structural model of the repository. They execute a blind sequence of exploratory tool turns:
-1. `find_by_name "*auth*"`
-2. `grep "TokenExpired"`
-3. `read_file "src/utils/auth.py"` (discovers it's just a helper)
-4. `grep "verify_token"`
-5. `read_file "src/services/auth_service.py"`
-
-This wastes **4 to 8 expensive tool turns**, consumes 30k–60k tokens, and burns 30–60 seconds before writing a single line of code.
-
-PARI delivers **Turn-0 Codebase Awareness**: at the very start of the session, PARI injects a mathematically optimized **2,048-token AST symbol map** into Tier 3 of the prompt. The model knows the classes, methods, and call sites across the entire project before it takes its first action.
+> **Design Principle**: *Start fast and simple; add AST intelligence as a fallback.*  
+> **v1 Default Engine**: Substring ripgrep, regex searching, and path globbing (`find_files`, `grep_search`). Zero startup latency, zero parser warmup.  
+> **v2 Advanced Fallback**: Tree-sitter AST Symbol Graph with Personalized PageRank (PPR), injected when ambiguous grep searches or enterprise codebases require structural call-graph awareness.
 
 ---
 
-## 2. Six-Step Pipeline Architecture
+## 1. Overview: The Codebase Navigation Strategy
+
+Effective code navigation balances **speed** and **semantic depth**:
+
+### The v1 Foundation: High-Speed Substring Grep & Globbing (Default)
+In the vast majority of everyday coding tasks, senior engineers do not need a multi-layer graph algorithm to locate code; they use fast regex search and file path globbing:
+1. **`find_files(pattern)`**: Path globbing (e.g. `*auth*.py`, `src/**/*.ts`) to inspect repository hierarchy instantaneously.
+2. **`grep_search(query, path_filter)`**: Ripgrep-powered substring and regex search across files with line numbers and bounding snippets.
+3. **Key Advantages**: Zero startup indexing latency, zero memory overhead, 100% language-agnostic, and infallible on unparseable/broken syntax trees.
+
+### The v2 Enhancement: Tree-sitter AST RepoMap (Configurable Fallback)
+On enterprise codebases exceeding 50,000 LOC, blind grep loops can become inefficient when symbol names are ubiquitous (e.g. searching for `process()` returns 400 matches across 80 files).
+
+For these scenarios, PARI v2 provides the **Tree-sitter AST RepoMap with Personalized PageRank (PPR)** as an advanced fallback (`--repomap=ppr`):
+* Extracts class/function declarations and call sites via Tree-sitter grammars.
+* Computes PageRank to pack the top 2,048 tokens of symbol signatures into Tier 3 of the prompt.
+* Acts as a structural map when simple substring queries are ambiguous.
+
+---
+
+## 2. Six-Step v2 AST Pipeline Architecture (Fallback)
+
 
 ```
 +-----------------------------------------------------------------------------------+

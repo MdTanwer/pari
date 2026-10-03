@@ -126,14 +126,18 @@ PARI enforces **Tool Output Sidecar Pointers**:
 
 ---
 
-### 4. Non-Destructive Context Editing via `CONTEXT_EDIT`
-When a developer issues an `/undo` or modifies history:
-* Historical records are **never overwritten or mutated on disk**.
-* PARI appends a `CONTEXT_EDIT` record specifying the branch point or redacted record ID:
+### 4. Non-Destructive Context Editing via `CONTEXT_EDIT` & `/undo`
+When a developer issues an `/undo`:
+* **Immutable History**: Historical records are **never deleted or overwritten on disk**.
+* **Pre-Edit Snapshot Restoration**: PARI restores the pre-mutation file snapshot captured at the start of that turn.
+* **Process Cleanup**: The process IDs associated with the turn's tool execution are terminated.
+* **Side-Effect Disclosure**: Logged dependency/external changes are displayed with manual rollback suggestions.
+* **DAG Branch Pointer**: PARI appends a `CONTEXT_EDIT` record specifying the branch point:
   ```json
-  {"id": "0192...", "parentId": "0192...", "type": "CONTEXT_EDIT", "data": {"action": "branch", "branch_from_id": "0192abd..."}}
+  {"id": "0192...", "parentId": "0192...", "type": "CONTEXT_EDIT", "data": {"action": "undo_to", "target_record_id": "0192abd...", "restored_files": ["src/auth.py"]}}
   ```
-* Branches in the DAG are first-class citizens. Developers can switch between competing solution branches without losing historical work.
+* Developers can branch, rewind, and explore alternative paths without ever corrupting the session DAG.
+
 
 ---
 

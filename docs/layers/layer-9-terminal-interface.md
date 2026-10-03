@@ -63,7 +63,7 @@ PARI delivers a **Pure Terminal Interface** built with **Rich** and **prompt_too
 
 | Command | Action | Implementation |
 |---|---|---|
-| `/undo` | Roll back repository to state prior to the last agent turn | Traverses session Merkle DAG to previous node; reverts disk |
+| `/undo` | Roll back files changed in the last turn, stop child processes, and disclose side effects | Restores pre-edit snapshots, kills tracked child PIDs, and warns on logged dependency/API changes |
 | `/snapshot [name]` | Save a named restore point in the DAG | Emits a labeled snapshot tag in `.pari/sessions/` |
 | `/diff` | Render current uncommitted working tree diff | Executes `git diff` against working tree |
 | `/add <path>` | Pin a reference file into Tier 4 Context Epoch | Loads file into Immutable Baseline Context |
@@ -71,6 +71,9 @@ PARI delivers a **Pure Terminal Interface** built with **Rich** and **prompt_too
 | `/model <name>` | Dynamically switch active model provider | Updates Layer 8 Router configuration |
 | `/cost` | Display detailed financial breakdown | Summarizes input/output token spend across session |
 | `/reset` | Clear conversation history; maintain repo map | Appends new `SESSION_START` root record |
+
+> **Note on `/undo` Scope (v1)**: `/undo` guarantees physical file restoration and child process cleanup. It logs and warns about environment/dependency changes (e.g. `npm install`), but does not automatically execute uninstalls. It cannot reverse third-party API calls or remote database mutations.
+
 
 ---
 

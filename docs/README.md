@@ -24,7 +24,7 @@ Every layer in PARI is strictly decoupled and independently testable:
 | **Layer 0** | [Sandboxing Engine](layers/layer-0-sandboxing.md) | Multi-platform kernel isolation: `bwrap` (Linux/WSL2), Apple `Seatbelt` (macOS), and E2B Firecracker MicroVMs (Cloud). |
 | **Layer 1** | [Durable Session Engine](layers/layer-1-session-dag.md) | Append-only JSONL Merkle DAG with UUIDv7, atomic CRC32 append guards, and $O(K)$ checkpoint indexing. |
 | **Layer 2** | [Context & Cache Architecture](layers/layer-2-context-cache.md) | Immutable Baseline Epochs, 8-tier ChatChunks, autonomous economic cache warmer, and safe compaction. |
-| **Layer 3** | [Intelligence & AST RepoMap](layers/layer-3-intelligence-repomap.md) | Tree-sitter symbol graph, Personalized PageRank (PPR), hub-suppression filter, and binary search token packing. |
+| **Layer 3** | [Codebase Navigation](layers/layer-3-intelligence-repomap.md) | v1: Substring ripgrep & globbing (zero lag); v2: Tree-sitter AST & PageRank fallback. |
 | **Layer 4** | [Agent Execution Runtime](layers/layer-4-execution-loop.md) | Double-while state machine, token truncation length guard, PTY daemon detection, and structured reflection. |
 | **Layer 5** | [Multi-Tier Fuzzy Edit Engine](layers/layer-5-edit-engine.md) | 4-tier diff cascade: Exact Match $\rightarrow$ Synthetic Git OSR $\rightarrow$ Google DMP $\rightarrow$ Prefill Continuation. |
 | **Layer 6** | [Concurrency & File Safety](layers/layer-6-concurrency-safety.md) | `FileMutationQueue` realpath serialization, symlink deduplication, and shadow git worktrees. |
