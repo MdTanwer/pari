@@ -8,7 +8,6 @@ Architectural Invariant:
 """
 
 from typing import Tuple
-from pari.edit.diff import generate_unified_diff
 
 
 class PatternNotFoundError(Exception):
@@ -29,28 +28,10 @@ class AmbiguousMatchError(Exception):
 
 
 def apply_exact_edit(original: str, search: str, replace: str, filename: str = "<unknown>") -> str:
-    """Applies search/replace to text, strictly requiring a single unique match.
-    
-    Args:
-        original: Full file content.
-        search: Target block to replace.
-        replace: Replacement block.
-        filename: Optional filename for error reporting.
-        
-    Returns:
-        Updated content.
-    """
-    count = original.count(search)
-    if count == 0:
-        raise PatternNotFoundError(f"Search block not found in target file '{filename}'.")
-    if count > 1:
-        raise AmbiguousMatchError(count, search, filename=filename)
-
-    return original.replace(search, replace, 1)
+    """Applies search/replace to text, strictly requiring a single unique match."""
+    raise NotImplementedError
 
 
 def preview_edit(original: str, search: str, replace: str, filename: str = "<unknown>") -> Tuple[str, str]:
     """Applies exact edit and returns both modified content and unified diff."""
-    modified = apply_exact_edit(original, search, replace, filename=filename)
-    diff = generate_unified_diff(original, modified, filename=filename)
-    return modified, diff
+    raise NotImplementedError

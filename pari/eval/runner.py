@@ -7,7 +7,6 @@ and executes deterministic pytest suites to compute exact pass rates.
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from pari.eval.metrics import calculate_eval_metrics, EvalMetrics
 
 
 @dataclass
@@ -20,7 +19,7 @@ class TestCase:
 
 @dataclass
 class EvalReport:
-    metrics: EvalMetrics
+    metrics: Any
     case_results: List[Dict[str, Any]]
 
 
@@ -31,16 +30,5 @@ class MicroEvalRunner:
         self.workspace = workspace.resolve()
 
     def run_suite(self, test_cases: List[TestCase]) -> EvalReport:
-        results = []
-        for case in test_cases:
-            # Deterministic execution
-            results.append({
-                "id": case.id,
-                "passed": True,
-                "cost_usd": 0.02,
-                "turns": 3,
-                "duration_seconds": 4.5,
-            })
-
-        metrics = calculate_eval_metrics(results)
-        return EvalReport(metrics=metrics, case_results=results)
+        """Run benchmark suite and compile report."""
+        raise NotImplementedError

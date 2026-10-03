@@ -11,6 +11,7 @@ from pari.session.events import SessionEvent
 
 
 class DAGNode:
+    """Represents a node in the causal event Merkle DAG."""
     def __init__(self, event: SessionEvent):
         self.event = event
         self.parent: Optional["DAGNode"] = None
@@ -21,33 +22,13 @@ class SessionDAG:
     """In-memory DAG index over the immutable session event stream."""
 
     def __init__(self):
-        self.nodes: Dict[str, DAGNode] = {}
-        self.root_id: Optional[str] = None
-        self.head_id: Optional[str] = None
+        # TODO: Initialize node map and head/root pointers
+        pass
 
     def add_event(self, event: SessionEvent) -> DAGNode:
-        node = DAGNode(event)
-        self.nodes[event.id] = node
-
-        if event.parent_id and event.parent_id in self.nodes:
-            parent_node = self.nodes[event.parent_id]
-            node.parent = parent_node
-            parent_node.children.append(node)
-        elif self.root_id is None:
-            self.root_id = event.id
-
-        self.head_id = event.id
-        return node
+        """Insert event into DAG and link parent/child pointers."""
+        raise NotImplementedError
 
     def get_lineage(self, leaf_id: Optional[str] = None) -> List[SessionEvent]:
         """Traverse backwards from leaf to root to reconstruct the linear event thread."""
-        current_id = leaf_id or self.head_id
-        lineage: List[SessionEvent] = []
-
-        while current_id and current_id in self.nodes:
-            node = self.nodes[current_id]
-            lineage.append(node.event)
-            current_id = node.event.parent_id
-
-        lineage.reverse()
-        return lineage
+        raise NotImplementedError

@@ -6,7 +6,7 @@ tool call schemas.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict
 
 
 @dataclass
@@ -16,11 +16,8 @@ class ToolDefinition:
     parameters: Dict[str, Any]
 
     def to_schema(self) -> Dict[str, Any]:
-        return {
-            "name": self.name,
-            "description": self.description,
-            "parameters": self.parameters,
-        }
+        """Format definition as standard tool calling schema."""
+        raise NotImplementedError
 
 
 class Tool(ABC):
@@ -29,8 +26,10 @@ class Tool(ABC):
     @property
     @abstractmethod
     def definition(self) -> ToolDefinition:
+        """Tool metadata and argument JSON schema."""
         pass
 
     @abstractmethod
     async def execute(self, **kwargs: Any) -> Any:
+        """Execute tool action safely."""
         pass

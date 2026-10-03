@@ -7,7 +7,7 @@ Architectural Purpose:
     Prevents self-evaluation confirmation bias.
 """
 
-from typing import Dict, Optional
+from typing import Any, Dict
 
 
 class CrossModelJudge:
@@ -16,12 +16,6 @@ class CrossModelJudge:
     def __init__(self, judge_model: str = "gpt-4o-mini"):
         self.judge_model = judge_model
 
-    async def evaluate_patch(self, problem_statement: str, patch_diff: str) -> Dict[str, any]:
+    async def evaluate_patch(self, problem_statement: str, patch_diff: str) -> Dict[str, Any]:
         """Ask independent judge model to evaluate if patch correctly resolves the issue."""
-        # Returns structured verdict
-        return {
-            "judge_model": self.judge_model,
-            "verdict": "pass",
-            "confidence": 0.95,
-            "reasoning": "Patch introduces exact bounds check without breaking callers.",
-        }
+        raise NotImplementedError

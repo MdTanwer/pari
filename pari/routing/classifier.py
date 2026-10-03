@@ -7,7 +7,6 @@ Architectural Purpose:
 """
 
 from enum import Enum
-import re
 from typing import List
 
 
@@ -21,17 +20,5 @@ class TaskClassifier:
 
     @staticmethod
     def classify(prompt: str, active_files: List[str]) -> TaskComplexity:
-        lower = prompt.lower()
-
-        # If user explicitly asks for architectural design or refactoring across many files
-        if any(w in lower for w in ["refactor", "redesign", "architect", "migrate", "system"]):
-            return TaskComplexity.ARCHITECTURAL
-
-        if len(active_files) > 2:
-            return TaskComplexity.ARCHITECTURAL
-
-        # Simple localized edit indicators
-        if any(w in lower for w in ["typo", "fix line", "rename", "add comment", "format"]):
-            return TaskComplexity.SIMPLE_EDIT
-
-        return TaskComplexity.ARCHITECTURAL
+        """Classify task complexity based on intent keywords and scope."""
+        raise NotImplementedError

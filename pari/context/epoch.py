@@ -9,8 +9,8 @@ Architectural Purpose:
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
-from pari.context.chunks import ContextChunk, ContextTier
+from typing import List
+from pari.context.chunks import ContextChunk
 
 
 @dataclass
@@ -25,29 +25,8 @@ class ContextEpoch:
 
     def freeze(self):
         """Freeze baseline tiers to lock KV cache prefix."""
-        self.is_frozen = True
+        raise NotImplementedError
 
     def get_baseline_chunks(self) -> List[ContextChunk]:
-        return [
-            ContextChunk(
-                tier=ContextTier.SYSTEM_PROMPT,
-                content=self.system_prompt,
-                identifier="sys_baseline",
-            ),
-            ContextChunk(
-                tier=ContextTier.TOOL_DEFINITIONS,
-                content=self.tools_schema,
-                identifier="tools_baseline",
-            ),
-            ContextChunk(
-                tier=ContextTier.STATIC_REPO_MAP,
-                content=self.static_repo_map,
-                identifier="repomap_baseline",
-                cache_control=True,  # Primary cache breakpoint
-            ),
-            ContextChunk(
-                tier=ContextTier.PROJECT_RULES,
-                content=self.project_rules,
-                identifier="rules_baseline",
-            ),
-        ]
+        """Assemble immutable baseline context chunks."""
+        raise NotImplementedError

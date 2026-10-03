@@ -8,9 +8,8 @@ Architectural Purpose:
     All code mutations are strictly single-agent to prevent concurrent file conflicts.
 """
 
-import asyncio
 from dataclasses import dataclass
-from typing import Any, Callable, Coroutine, List, Optional
+from typing import Any, Coroutine, List
 
 
 @dataclass
@@ -24,13 +23,12 @@ class FiberSubagentPool:
     """Manages lightweight concurrent read-only research fibers."""
 
     def __init__(self, max_concurrency: int = 4):
-        self.semaphore = asyncio.Semaphore(max_concurrency)
+        self.max_concurrency = max_concurrency
 
     async def run_task(self, task_id: str, coro: Coroutine) -> Any:
-        async with self.semaphore:
-            return await coro
+        """Run single research task with concurrency throttling."""
+        raise NotImplementedError
 
     async def run_parallel_research(self, tasks: List[SubagentTask]) -> List[Any]:
-        """Execute multiple read-only tasks concurrently using asyncio.gather."""
-        coros = [self.run_task(t.task_id, t.coro) for t in tasks]
-        return await asyncio.gather(*coros, return_exceptions=True)
+        """Execute multiple read-only tasks concurrently."""
+        raise NotImplementedError

@@ -9,8 +9,6 @@ Architectural Purpose:
     cache warm status at negligible cost (<$0.001/hr).
 """
 
-import asyncio
-import time
 from typing import Callable, Optional
 
 
@@ -20,33 +18,15 @@ class CacheWarmer:
     def __init__(self, interval_seconds: float = 270.0, warm_callback: Optional[Callable] = None):
         self.interval_seconds = interval_seconds
         self.warm_callback = warm_callback
-        self._task: Optional[asyncio.Task] = None
-        self._last_activity = time.time()
-        self._running = False
 
     def touch(self):
         """Mark recent interaction to reset idle timer."""
-        self._last_activity = time.time()
-
-    async def _loop(self):
-        while self._running:
-            await asyncio.sleep(30.0)
-            elapsed = time.time() - self._last_activity
-            if elapsed >= self.interval_seconds:
-                if self.warm_callback:
-                    try:
-                        await self.warm_callback()
-                    except Exception:
-                        pass
-                self._last_activity = time.time()
+        raise NotImplementedError
 
     def start(self):
-        if not self._running:
-            self._running = True
-            self._task = asyncio.create_task(self._loop())
+        """Start background keep-alive ping loop."""
+        raise NotImplementedError
 
     def stop(self):
-        self._running = False
-        if self._task:
-            self._task.cancel()
-            self._task = None
+        """Stop background keep-alive ping loop."""
+        raise NotImplementedError

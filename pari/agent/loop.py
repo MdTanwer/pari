@@ -7,9 +7,8 @@ Architectural Purpose:
     automatically prompts a continuation message rather than executing broken partial syntax.
 """
 
-import asyncio
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable
 
 
 @dataclass
@@ -33,33 +32,4 @@ class AgentExecutionLoop:
         is_length_truncated: Callable[[Any], bool],
     ) -> TurnResult:
         """Execute autonomous steps for a given user prompt."""
-        turn_count = 0
-        total_tool_calls = 0
-
-        current_prompt = prompt
-        last_response = ""
-
-        while turn_count < self.max_autonomous_turns:
-            turn_count += 1
-            response = await step_fn(current_prompt, turn_count)
-
-            # Check if model output was truncated mid-stream by token limit
-            if is_length_truncated(response):
-                current_prompt = "Your previous output was truncated by token length limits. Please continue where you left off."
-                continue
-
-            # Process response and determine if more turns needed
-            has_tool_calls = getattr(response, "has_tool_calls", False)
-            if not has_tool_calls:
-                last_response = getattr(response, "text", str(response))
-                break
-
-            total_tool_calls += getattr(response, "tool_call_count", 1)
-            current_prompt = getattr(response, "tool_results_prompt", "")
-
-        return TurnResult(
-            response_text=last_response,
-            tool_calls_executed=total_tool_calls,
-            tokens_used=0,
-            requires_user_input=True,
-        )
+        raise NotImplementedError

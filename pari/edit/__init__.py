@@ -17,22 +17,4 @@ Subsystems:
     - diff: Unified diff generation
 """
 
-from pari.edit.exact import (
-    apply_exact_edit,
-    preview_edit,
-    AmbiguousMatchError,
-    PatternNotFoundError,
-)
-from pari.edit.diff import generate_unified_diff
-from pari.edit.indenter import normalize_relative_indentation
-from pari.edit.cascade import EditCascade
-
-__all__ = [
-    "apply_exact_edit",
-    "preview_edit",
-    "AmbiguousMatchError",
-    "PatternNotFoundError",
-    "generate_unified_diff",
-    "normalize_relative_indentation",
-    "EditCascade",
-]
+# Placeholder imports will be exported once implementations are added

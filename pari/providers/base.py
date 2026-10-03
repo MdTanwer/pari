@@ -5,7 +5,7 @@ Defines the contract for calling LLM inference APIs with tool calling and prompt
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -53,4 +53,4 @@ class LLMProvider(ABC):
         temperature: float = 0.0,
     ) -> ModelResponse:
         """Execute a completion request."""
-        pass
+        raise NotImplementedError

@@ -4,13 +4,22 @@ Supports local models (Llama 3, Qwen 2.5 Coder, DeepSeek R1 distilled) via local
 Allows 100% offline, private coding agent execution without external cloud tokens.
 """
 
-from typing import Optional
-from pari.providers.openai import OpenAIProvider
+from typing import Any, Dict, List, Optional
+from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage
 
 
-class OllamaProvider(OpenAIProvider):
+class OllamaProvider(LLMProvider):
     """Adapter for locally hosted Ollama instances."""
 
     def __init__(self, model_name: str = "qwen2.5-coder:7b", base_url: str = "http://localhost:11434/v1"):
         super().__init__(model_name, api_key="ollama")
-        self.api_url = f"{base_url.rstrip('/')}/chat/completions"
+        self.base_url = base_url
+
+    async def complete(
+        self,
+        messages: List[ProviderMessage],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        temperature: float = 0.0,
+    ) -> ModelResponse:
+        """Call local Ollama endpoint."""
+        raise NotImplementedError

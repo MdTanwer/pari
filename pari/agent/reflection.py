@@ -10,7 +10,7 @@ Architectural Purpose:
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Optional
 
 
 @dataclass
@@ -25,24 +25,15 @@ class ReflectionManager:
 
     def __init__(self, max_reflections: int = 3):
         self.max_reflections = max_reflections
-        self.attempts: Dict[str, int] = {}
 
     def should_retry(self, operation_id: str) -> bool:
-        current = self.attempts.get(operation_id, 0)
-        return current < self.max_reflections
+        """Check if reflection attempts remain under ceiling."""
+        raise NotImplementedError
 
     def record_failure(self, operation_id: str, error_type: str, message: str) -> str:
-        current = self.attempts.get(operation_id, 0) + 1
-        self.attempts[operation_id] = current
-
-        return (
-            f"[PARI REFLECTION RETRY {current}/{self.max_reflections}]\n"
-            f"Operation '{operation_id}' failed with {error_type}: {message}\n"
-            "Please review the error and provide an alternative, corrected tool call."
-        )
+        """Format error feedback prompt for next turn."""
+        raise NotImplementedError
 
     def reset(self, operation_id: Optional[str] = None):
-        if operation_id:
-            self.attempts.pop(operation_id, None)
-        else:
-            self.attempts.clear()
+        """Clear failure counts."""
+        raise NotImplementedError

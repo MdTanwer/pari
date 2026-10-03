@@ -10,13 +10,4 @@ Architectural Purpose:
 
 def enforce_planning_ceiling(plan_text: str, max_tokens: int = 4096) -> str:
     """Enforce token ceiling on architect reasoning output."""
-    max_chars = max_tokens * 4
-    if len(plan_text) <= max_chars:
-        return plan_text
-
-    cutoff = plan_text[:max_chars]
-    return (
-        f"{cutoff}\n\n"
-        "[PARI ANTI-VERBOSITY GUARD: Plan cut off at 4,096 tokens to prevent infinite planning loops. "
-        "Proceed immediately to execute the above architectural steps.]"
-    )
+    raise NotImplementedError

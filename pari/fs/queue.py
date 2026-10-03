@@ -9,19 +9,14 @@ Architectural Purpose:
 
 import asyncio
 from pathlib import Path
-from typing import Dict
 
 
 class FileMutationQueue:
     """Serializes concurrent write mutations per canonical filesystem path."""
 
     def __init__(self):
-        self._locks: Dict[str, asyncio.Lock] = {}
-        self._master_lock = asyncio.Lock()
+        pass
 
     async def get_lock(self, file_path: Path) -> asyncio.Lock:
-        canonical = str(file_path.resolve())
-        async with self._master_lock:
-            if canonical not in self._locks:
-                self._locks[canonical] = asyncio.Lock()
-            return self._locks[canonical]
+        """Get canonical per-path lock."""
+        raise NotImplementedError
