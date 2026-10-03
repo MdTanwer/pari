@@ -16,22 +16,27 @@ The documentation is organized into modular sections covering high-level archite
 
 ---
 
-### 2. Core Engine Layers (Deep Dives)
-Every layer in PARI is strictly decoupled and independently testable:
+### 2. Core Engine Layers (Implementation Status)
 
-| Layer | Component | Summary |
-|---|---|---|
-| **Layer 0** | [Sandboxing Engine](layers/layer-0-sandboxing.md) | Multi-platform kernel isolation: `bwrap` (Linux/WSL2), Apple `Seatbelt` (macOS), and E2B Firecracker MicroVMs (Cloud). |
-| **Layer 1** | [Durable Session Engine](layers/layer-1-session-dag.md) | Append-only JSONL Merkle DAG with UUIDv7, atomic CRC32 append guards, and $O(K)$ checkpoint indexing. |
-| **Layer 2** | [Context & Cache Architecture](layers/layer-2-context-cache.md) | Immutable Baseline Epochs, 8-tier ChatChunks, autonomous economic cache warmer, and safe compaction. |
-| **Layer 3** | [Codebase Navigation](layers/layer-3-intelligence-repomap.md) | v1: Substring ripgrep & globbing (zero lag); v2: Tree-sitter AST & PageRank fallback. |
-| **Layer 4** | [Agent Execution Runtime](layers/layer-4-execution-loop.md) | Double-while state machine, token truncation length guard, PTY daemon detection, and structured reflection. |
-| **Layer 5** | [Multi-Tier Fuzzy Edit Engine](layers/layer-5-edit-engine.md) | 4-tier diff cascade: Exact Match $\rightarrow$ Synthetic Git OSR $\rightarrow$ Google DMP $\rightarrow$ Prefill Continuation. |
-| **Layer 6** | [Concurrency & File Safety](layers/layer-6-concurrency-safety.md) | `FileMutationQueue` realpath serialization, symlink deduplication, and shadow git worktrees. |
-| **Layer 7** | [Output Hygiene & Spooler](layers/layer-7-output-hygiene.md) | 50KB / 2,000-line disk spooler, balanced head/tail extraction, and structured traceback parsing. |
-| **Layer 8** | [Dual-Model Routing Engine](layers/layer-8-dual-model-router.md) | Architect vs. Editor decoupling, task classification, anti-planning guards, and 85% cost optimization. |
-| **Layer 9** | [Terminal Interface & TUI](layers/layer-9-terminal-interface.md) | Rich differential rendering, live streaming, interactive diff reviews, and cost tracking. |
-| **Layer 10** | [Evaluation & Observability](layers/layer-10-eval-observability.md) | Built-in micro-eval suite, SWE-bench Lite harness, cross-model Graptile judge, and structlog telemetry. |
+To maintain strict engineering honesty, features in this documentation are explicitly labeled by implementation maturity:
+* 🟢 **Implemented**: Code and automated test suite exist and pass in the repository.
+* 🟡 **v1 Prototype**: Core logic/scaffolding implemented; undergoing integration.
+* ⚪ **Planned Design Target**: Architecture specification documented; scheduled in roadmap.
+
+| Layer | Component | Implementation Status | Scope / Deliverable |
+|---|---|---|---|
+| **Layer 0** | [Sandboxing Engine](layers/layer-0-sandboxing.md) | ⚪ Planned Design Target | v1 target: Linux/WSL2 Bubblewrap (`bwrap`) |
+| **Layer 1** | [Durable Session Engine](layers/layer-1-session-dag.md) | 🟡 v1 Prototype | Append-only JSONL event log with CRC32 |
+| **Layer 2** | [Context & Cache](layers/layer-2-context-cache.md) | ⚪ Planned Design Target | Immutable Baseline Epochs & prompt structure |
+| **Layer 3** | [Codebase Navigation](layers/layer-3-intelligence-repomap.md) | 🟡 v1 Prototype | Substring ripgrep & file globbing (v2: AST PageRank) |
+| **Layer 4** | [Agent Execution Runtime](layers/layer-4-execution-loop.md) | ⚪ Planned Design Target | Double-while loop & PTY daemon watchdog |
+| **Layer 5** | [Edit Engine](layers/layer-5-edit-engine.md) | 🟡 v1 Prototype | Exact-match with strict fail-on-ambiguity + diffs |
+| **Layer 6** | [Concurrency & File Safety](layers/layer-6-concurrency-safety.md) | 🟡 v1 Prototype | Safe path traversal guard & atomic disk replacement |
+| **Layer 7** | [Output Hygiene](layers/layer-7-output-hygiene.md) | ⚪ Planned Design Target | 50KB/2k-line spooler with sidecar pointers |
+| **Layer 8** | [Dual-Model Router](layers/layer-8-dual-model-router.md) | ⚪ Planned Target (v2) | Architect/Editor task classifier |
+| **Layer 9** | [Terminal Interface](layers/layer-9-terminal-interface.md) | 🟡 v1 Prototype | CLI argument parser & environment inspection |
+| **Layer 10** | [Evaluation Harness](layers/layer-10-eval-observability.md) | ⚪ Planned Target (Phase 4)| Micro-eval runner & deterministic benchmark |
+
 
 ---
 

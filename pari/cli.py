@@ -7,18 +7,17 @@ from pathlib import Path
 from typing import Optional
 
 from pari import __version__
+from pari.fs import resolve_safe_path
+from pari.search import find_files, grep_search
 
 try:
     from rich.console import Console
-    from rich.panel import Panel
     from rich.table import Table
     console = Console()
 except ImportError:
-    # Graceful fallback if rich is not yet installed
     class SimpleConsole:
         def print(self, *args, **kwargs):
             text = " ".join(str(a) for a in args)
-            # Strip simple rich tags if any
             for tag in ["[bold blue]", "[/bold blue]", "[bold green]", "[/bold green]",
                         "[bold red]", "[/bold red]", "[dim]", "[/dim]", "[bold]", "[/bold]"]:
                 text = text.replace(tag, "")
@@ -29,15 +28,13 @@ except ImportError:
 def print_banner():
     banner = f"""[bold blue]PARI[/bold blue] [dim]v{__version__}[/dim] — Terminal Coding Agent
 [dim]Platform-Isolated | Exact & Resilient Edits | Durable Sessions[/dim]"""
-    if hasattr(console, "print"):
-        console.print(banner)
-        console.print("-" * 65)
+    console.print(banner)
+    console.print("-" * 65)
 
 
 def check_sandbox_availability() -> str:
     """Detect available platform sandbox primitive."""
     if sys.platform == "linux":
-        # Check if bubblewrap is in PATH
         from shutil import which
         if which("bwrap"):
             return "bwrap (Linux unprivileged namespaces: Active)"
@@ -52,6 +49,40 @@ def check_sandbox_availability() -> str:
     return f"Platform '{sys.platform}' unsupported"
 
 
+def cmd_find(args: argparse.Namespace) -> int:
+    """Find files matching pattern in workspace."""
+    workspace = Path(args.workspace or os.getcwd()).resolve()
+    files = find_files(workspace, pattern=args.pattern, max_results=args.limit)
+    if not files:
+        console.print(f"[dim]No files found matching '{args.pattern}'[/dim]")
+        return 0
+
+    for f in files:
+        console.print(f"  {f}")
+    console.print(f"[dim]Total: {len(files)} file(s)[/dim]")
+    return 0
+
+
+def cmd_grep(args: argparse.Namespace) -> int:
+    """Search for query in workspace files."""
+    workspace = Path(args.workspace or os.getcwd()).resolve()
+    matches = grep_search(
+        workspace,
+        query=args.query,
+        is_regex=args.regex,
+        path_filter=args.filter,
+        max_matches=args.limit,
+    )
+    if not matches:
+        console.print(f"[dim]No matches found for '{args.query}'[/dim]")
+        return 0
+
+    for m in matches:
+        console.print(f"[bold green]{m['file']}[/bold green]:[bold blue]{m['line']}[/bold blue]: {m['content']}")
+    console.print(f"[dim]Total: {len(matches)} match(es)[/dim]")
+    return 0
+
+
 def cmd_eval(args: argparse.Namespace) -> int:
     """Run local micro-eval benchmark suite."""
     console.print(f"[bold green]PARI Eval Runner[/bold green] — Suite: [bold]{args.suite}[/bold]")
@@ -59,7 +90,6 @@ def cmd_eval(args: argparse.Namespace) -> int:
         console.print(f"[bold red]Error:[/bold red] Benchmark suite '{args.suite}' not found.")
         return 1
     console.print("Micro-eval harness initialized. Running test cases...")
-    # Evaluation suite execution logic will be connected here in Phase 4
     return 0
 
 
@@ -118,6 +148,19 @@ def main(argv: Optional[list] = None) -> int:
 
     subparsers = parser.add_subparsers(dest="subcommand", help="Subcommands")
 
+    # pari find
+    find_parser = subparsers.add_parser("find", help="Find files matching pattern")
+    find_parser.add_argument("pattern", type=str, default="*", nargs="?", help="File glob pattern")
+    find_parser.add_argument("-l", "--limit", type=int, default=100, help="Max results")
+
+    # pari grep
+    grep_parser = subparsers.add_parser("grep", help="Search text across workspace files")
+    grep_parser.add_argument("query", type=str, help="Search string or regex")
+    grep_parser.add_argument("-r", "--regex", action="store_true", help="Treat query as regular expression")
+    grep_parser.add_argument("-f", "--filter", type=str, default="*", help="File path pattern filter")
+    grep_parser.add_argument("-l", "--limit", type=int, default=50, help="Max matches")
+
+    # pari eval
     eval_parser = subparsers.add_parser("eval", help="Run benchmark evaluation suites")
     eval_parser.add_argument(
         "--suite", type=str, default="./evals/micro_suite.json",
@@ -126,7 +169,11 @@ def main(argv: Optional[list] = None) -> int:
 
     args = parser.parse_args(argv)
 
-    if args.subcommand == "eval":
+    if args.subcommand == "find":
+        return cmd_find(args)
+    elif args.subcommand == "grep":
+        return cmd_grep(args)
+    elif args.subcommand == "eval":
         return cmd_eval(args)
     else:
         return cmd_run(args)
