@@ -28,7 +28,8 @@ PARI Context Epoch Structure:
 +------------------------------------------------------+  <- IMMUTABLE BASELINE EPOCH
 | Tier 1: System Identity & Core Behavioral Rules      |
 | Tier 2: Tool Definitions & Canonical Schemas         |  [Cache Breakpoint 1]
-| Tier 3: PPR AST Repository Symbol Map (<= 2048 tok)  |
+| Tier 3: Repository Context (v1 File Manifest /       |
+|         v2 Optional AST RepoMap when enabled)        |
 | Tier 4: Readonly Reference Files (docs, interfaces)  |  [Cache Breakpoint 2]
 +------------------------------------------------------+  <- STABILITY BOUNDARY
 | Tier 5: Active Working Files (currently edited files)|  [Cache Breakpoint 3]
@@ -42,11 +43,14 @@ PARI Context Epoch Structure:
 ### Tier Definitions & Cache Breakpoints
 
 1. **Tier 1 (System Identity)**: Core system instructions, safety bounds, persona, and output style invariants.
-2. **Tier 2 (Tool Schemas)**: Exact JSON/tool schemas for `bash_exec`, `file_edit`, `read_tool_output`, and `repo_query`.
+2. **Tier 2 (Tool Schemas)**: Exact JSON/tool schemas for `bash_exec`, `file_edit`, `read_tool_output`, `find_files`, and `grep_search`.
    * *Breakpoint 1*: Ensures tool schemas never incur cache-write overhead.
-3. **Tier 3 (PPR AST RepoMap)**: The 2,048-token codebase symbol graph extracted by Layer 3.
+3. **Tier 3 (Repository Context)**:
+   * *v1 Core (Default)*: High-level repository tree manifest (directory layout, key config files). Code navigation occurs dynamically via `find_files` and `grep_search` with zero parser delay.
+   * *v2 Fallback (`--repomap=ppr`)*: Optional 2,048-token Tree-sitter AST symbol graph injected when structural call graph context is explicitly enabled.
 4. **Tier 4 (Readonly Reference Files)**: Architecture specs, design docs, or reference headers explicitly loaded via `/add`.
    * *Breakpoint 2 (End of Immutable Baseline)*: Tiers 1–4 are assembled **once** at session start and frozen. They never change during a session unless a new session epoch is created.
+
 5. **Tier 5 (Active Working Files)**: Content of files currently being modified by the agent.
    * *Breakpoint 3*: Changes as files are edited. When Tier 5 changes, only Tiers 5–8 recompute; **Tiers 1–4 remain 100% warm in cache**.
 6. **Tier 6 (Conversation Turn History)**: Rolling transcript of user prompts, assistant plans, and concise tool execution confirmations.

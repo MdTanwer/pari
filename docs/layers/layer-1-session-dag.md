@@ -104,15 +104,16 @@ PARI introduces periodic **`CHECKPOINT_INDEX`** records appended every 50 turns:
 
 ---
 
-### 2. Atomic Append Guard with Backwards CRC32 Recovery
-To guarantee zero file corruption if the process is terminated mid-write:
-1. Every write is opened with POSIX `O_APPEND | O_SYNC`. The OS kernel guarantees atomic writes up to `PIPE_BUF` (typically 4 KB).
+### 2. Append Guard with Backwards CRC32 Recovery
+To guarantee safe recovery if the process is terminated mid-write:
+1. Every write is opened with POSIX `O_APPEND`, followed by explicit `file.flush()` and `os.fsync(file.fileno())` to ensure the entry reaches persistent storage.
 2. Each serialized JSON string is appended with a trailing `\n` and a calculated `crc32` hash.
-3. If an abrupt power loss or `SIGKILL` occurs during append, a partial line may exist at the end of the file.
-4. **Session Recovery Scan**: On initialization, PARI opens the session file and reads backwards:
+3. If an abrupt power loss or `SIGKILL` interrupts disk serialization, a partial line may remain at the end of the file.
+4. **Session Recovery Scan**: On initialization, PARI opens the session file and inspects the trailing record:
    * If the last line fails JSON decoding or its CRC32 checksum does not match its contents, it is recognized as a torn write.
-   * PARI immediately truncates the file at the preceding valid newline boundary via `file.truncate()`.
-   * The DAG parent-pointer chain remains 100% mathematically valid and intact.
+   * PARI truncates the file back to the preceding valid newline boundary via `file.truncate()`.
+   * The DAG parent-pointer chain remains mathematically valid and intact.
+
 
 ---
 

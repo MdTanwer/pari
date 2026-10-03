@@ -116,9 +116,13 @@ For PARI v1, the `/undo` contract is explicitly defined across four boundaries:
 |                        PARI v1 /undo EXECUTION CONTRACT                           |
 +-----------------------------------------------------------------------------------+
 |                                                                                   |
-|  1. FILE ROLLBACK (Fully Automated):                                              |
+|  1. FILE ROLLBACK (Guarded & Safe):                                               |
 |     - PARI captures a pre-edit hash/snapshot before mutating any file.            |
+|     - Guarded Rollback Check: Before restoring, PARI checks if the developer      |
+|       manually modified the file after PARI's edit. If modified, it prompts       |
+|       instead of blindly overwriting newer user work.                             |
 |     - /undo restores exact pre-mutation file states for files PARI modified.      |
+
 |                                                                                   |
 |  2. PROCESS CLEANUP (Fully Automated):                                            |
 |     - All child PIDs and process groups spawned during the turn are tracked.      |

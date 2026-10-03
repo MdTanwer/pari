@@ -68,22 +68,28 @@ To launch an interactive coding session inside your current repository:
 pari
 ```
 
+### Verify CLI Installation
+```bash
+# View all available CLI flags and options
+pari --help
+
+# Run self-check to verify environment and sandbox availability
+pari --dry-run
+```
+
 ### Common CLI Options
 ```bash
 # Launch with explicit active reference files loaded into Tier 4 Context
 pari --add src/auth/service.py --add docs/api_spec.md
 
-# Configure Dual-Model Router profiles explicitly
-pari --architect claude-3-7-sonnet --editor claude-3-5-haiku
+# Specify target workspace explicitly
+pari --workspace /path/to/project
 
-# Run using open-weights models via DeepSeek API
-pari --architect deepseek-r1 --editor deepseek-v3
+# Enable optional v2 AST PageRank context fallback
+pari --repomap ppr
 
-# Force Cloud MicroVM Sandboxing (useful in CI/CD)
-pari --sandbox cloud
-
-# Resume a previous session by session ID
-pari --resume 0192abc0-1111-7000-8000-000000000001
+# Enable optional edit fallback cascade
+pari --edit-fallback cascade
 ```
 
 ---
@@ -96,31 +102,30 @@ Once inside the interactive prompt, you can use built-in slash commands to inspe
 pari> /help
 
 Available Commands:
-  /undo              Revert repository changes from the most recent turn
+  /undo              Guarded rollback of files changed in last turn & process cleanup
   /diff              Display unified git diff of current uncommitted changes
   /snapshot <name>   Create a labeled restore checkpoint in the session DAG
   /add <path>        Pin a file or documentation into Tier 4 Context Epoch
   /drop <path>       Unpin a file from Tier 4 Context Epoch
   /model <name>      Dynamically switch active model provider
   /cost              Display detailed breakdown of token consumption and USD spend
-  /reset             Clear conversation history while preserving repo AST cache
+  /reset             Clear conversation history while maintaining session root
   /exit              Exit session cleanly (session state is durable in .pari/)
 ```
 
 ---
 
-## 5. Verifying Installation with Micro-Evals
+## 5. Verifying Installation
 
-To verify that all 11 layers of PARI are functioning properly on your system:
+To verify that the PARI v1 core CLI and environment are functioning properly on your system:
 
 ```bash
-# Run the local 10-issue verification suite
-pari eval run --suite ./evals/micro_suite.json
+# Run environment self-check
+pari --dry-run
 ```
 
 This will:
-1. Boot the platform sandbox (`bwrap` or `Seatbelt`).
-2. Construct the Tree-sitter AST repository map.
-3. Execute the double-while execution loop with test assertions.
-4. Verify diff application via the 4-tier edit cascade.
-5. Print a structured verification report to the terminal.
+1. Detect and verify the platform sandbox (`bwrap` on Linux/WSL2).
+2. Validate workspace path resolution and permission boundaries.
+3. Verify that dependencies and CLI entrypoints are active.
+

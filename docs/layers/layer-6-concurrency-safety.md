@@ -73,13 +73,16 @@ class FileMutationQueue:
             # ENOENT Fallback: File does not exist yet; use absolute normalized path
             canonical_path = os.path.abspath(file_path)
 
-        # 2. Enforce sandbox boundary: path traversal protection
-        if not canonical_path.startswith(self.workspace_root):
+        # 2. Enforce sandbox boundary: path traversal protection via Path.is_relative_to()
+        try:
+            Path(canonical_path).resolve().relative_to(Path(self.workspace_root).resolve())
+        except ValueError:
             raise PermissionError(
-                f"Security violation: Path {canonical_path} traverses outside workspace {self.workspace_root}"
+                f"Security violation: Path '{canonical_path}' is outside workspace '{self.workspace_root}'"
             )
 
         # 3. Thread-safe lock registration
+
         async with self._global_registry_lock:
             if canonical_path not in self._locks:
                 self._locks[canonical_path] = asyncio.Lock()

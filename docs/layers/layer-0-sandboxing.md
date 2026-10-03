@@ -28,9 +28,12 @@ PARI SANDBOX SELECTION DISPATCHER:
 
 ---
 
-## 2. Dispatcher Architecture & Driver Selection
+## 2. Dispatcher Architecture & Staged Implementation Scope
 
-When PARI initializes an execution turn, the Layer 0 Dispatcher dynamically instantiates the appropriate isolation driver:
+> **v1 Staged Scope**: **Linux and Windows WSL2 via Bubblewrap (`bwrap`)** is the primary, production-tested Tier 1 backend for v1. It provides verified unprivileged namespace isolation, `--die-with-parent` lifecycle control, and cgroups v2 resource bounds. macOS Seatbelt, E2B Cloud, and Windows Supervised modes are staged for subsequent validation.
+
+When PARI initializes an execution turn, the Layer 0 Dispatcher instantiates the appropriate isolation driver:
+
 
 ```python
 # Dispatcher logic (pari/sandbox/dispatcher.py)
@@ -136,11 +139,13 @@ On macOS, Bubblewrap is not available. PARI implements native Apple Seatbelt san
     (subpath "/private/var/folders"))
 
 ;; Explicit secret blackout: deny all access to credentials
+;; IMPORTANT: Apple Seatbelt Scheme profiles do NOT expand '~' automatically.
+;; Paths must be resolved to the absolute user home directory prior to profile compilation.
 (deny file* 
-    (subpath "~/.ssh")
-    (subpath "~/.aws")
-    (subpath "~/.gnupg")
-    (subpath "~/.config"))
+    (subpath "<USER_HOME>/.ssh")
+    (subpath "<USER_HOME>/.aws")
+    (subpath "<USER_HOME>/.gnupg")
+    (subpath "<USER_HOME>/.config"))
 
 ;; Network: allow outbound HTTP/HTTPS for dependency managers (pip, npm, cargo)
 (allow network-outbound 
