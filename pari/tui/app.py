@@ -231,7 +231,7 @@ class TerminalApp:
     def print_welcome(self):
         """Display startup banner."""
         welcome_text = (
-            f"[bold cyan]PARI v0.1.1[/bold cyan] — Coding Agent\n"
+            f"[bold cyan]PARI v0.1.2[/bold cyan] — Coding Agent\n"
             f"[dim]Website   :[/dim] [cyan]https://pari-cli.in[/cyan]\n"
             f"[dim]Workspace :[/dim] [yellow]{self.workspace}[/yellow]\n"
             f"[dim]Model     :[/dim] [green]{self.model_name}[/green]\n\n"

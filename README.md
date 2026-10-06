@@ -90,19 +90,17 @@ All system documentation has been modularized and organized inside the [`docs/`]
 
 Official Website & Documentation: **[https://pari-cli.in](https://pari-cli.in)**
 
-Choose your platform's one-line install command:
+Choose your platform's installation command:
 
 ### 1. macOS & Linux (`curl`)
 ```bash
 curl -fsSL https://pari-cli.in/install.sh | bash
 ```
-*(Alternative via GitHub: `curl -fsSL https://raw.githubusercontent.com/MdTanwer/pari/main/install.sh | bash`)*
 
 ### 2. Windows (`irm` in PowerShell)
 ```powershell
 irm https://pari-cli.in/install.ps1 | iex
 ```
-*(Alternative via GitHub: `irm https://raw.githubusercontent.com/MdTanwer/pari/main/install.ps1 | iex`)*
 
 ### 3. Via `pip` / `pipx` / `uv`
 ```bash
