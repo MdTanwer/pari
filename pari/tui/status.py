@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Dict, Tuple
 
 
-@dataclass
+@dataclass 
 class TokenUsage:
     input_tokens: int = 0
     output_tokens: int = 0

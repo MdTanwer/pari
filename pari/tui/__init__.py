@@ -10,7 +10,7 @@ Subsystems:
     - app: Interactive terminal session loop
     - diff_view: Syntax-highlighted unified diff preview & approval prompt
     - status: Token tracker & USD cost meter
-    - commands: Interactive slash commands (/undo, /diff, /model, /help)
+    - commands: Interactive slash commands (/undo, /diff, /model, /help) 
 """
 
 from pari.tui.app import TerminalApp

@@ -5,7 +5,7 @@ Handles in-session slash commands:
     /diff     - Inspect pending or latest diffs
     /add      - Add a specific file into active context
     /model    - Inspect or switch active LLM model
-    /help     - Display available commands
+    /help     - Display available commands  
 """
 
 from typing import Callable, Dict, Optional, Tuple
