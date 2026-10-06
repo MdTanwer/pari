@@ -4,6 +4,8 @@ on:
   release:
     types: [published]
   push:
+    branches:
+      - main
     tags:
       - "v*"
   workflow_dispatch: # Allows manual trigger from GitHub Actions tab
@@ -12,6 +14,9 @@ jobs:
   build-and-publish:
     name: Build & Upload to PyPI
     runs-on: ubuntu-latest
+    environment:
+      name: Production
+      url: https://pypi.org/p/pari
     permissions:
       id-token: write # Required for Trusted Publishing (OIDC)
       contents: read
@@ -36,6 +41,5 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          # Works with PYPI_API_TOKEN secret or PyPI Trusted Publishing (OIDC)
-          password: ${{ secrets.PYPI_API_TOKEN }}
+          password: ${{ secrets.PYPI_API_TOKEN || secrets.PYPI_TOKEN || secrets.pypi_token }}
           skip-existing: true
