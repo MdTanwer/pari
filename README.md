@@ -86,23 +86,40 @@ All system documentation has been modularized and organized inside the [`docs/`]
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Installation & Quick Start
 
-### Installation
+Choose your platform's one-line install command:
+
+### 1. macOS & Linux (`curl`)
 ```bash
-git clone https://github.com/MdTanwer/pari.git
-cd pari
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+curl -fsSL https://raw.githubusercontent.com/MdTanwer/pari/main/install.sh | bash
 ```
 
-### Launch Interactive Session
+### 2. Windows (`irm` in PowerShell)
+```powershell
+irm https://raw.githubusercontent.com/MdTanwer/pari/main/install.ps1 | iex
+```
+
+### 3. Via `pip` / `pipx` / `uv`
+```bash
+# Recommended (isolated CLI)
+pipx install pari
+
+# Fast via uv
+uv tool install pari
+
+# Standard pip
+pip install pari
+```
+
+---
+
+### 💻 Launch Interactive Session
 ```bash
 # Export your API key
 export ANTHROPIC_API_KEY="sk-ant-..."
 
-# Launch PARI in your active project workspace
+# Launch PARI anywhere in your project workspace
 pari
 ```
 
