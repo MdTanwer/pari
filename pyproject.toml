@@ -13,11 +13,6 @@ authors = [
     { name = "PARI Contributors" }
 ]
 keywords = ["ai", "coding-agent", "terminal", "llm", "developer-tools"]
-[project.urls]
-Homepage = "https://pari-cli.in"
-Documentation = "https://pari-cli.in"
-Repository = "https://github.com/MdTanwer/pari"
-
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -29,13 +24,17 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Code Generators",
 ]
-
 dependencies = [
     "rich>=13.0.0",
     "prompt_toolkit>=3.0.36",
     "pydantic>=2.0.0",
     "httpx>=0.24.0",
 ]
+
+[project.urls]
+Homepage = "https://pari-cli.in"
+Documentation = "https://pari-cli.in"
+Repository = "https://github.com/MdTanwer/pari"
 
 [project.optional-dependencies]
 dev = [
