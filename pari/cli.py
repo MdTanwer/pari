@@ -5,12 +5,14 @@ and launching the interactive agent REPL.
 """
 
 import argparse
+import asyncio
 import os
 import sys
 from pathlib import Path
 from typing import Optional
 
 from pari import __version__
+from pari.tui import TerminalApp
 
 
 def print_banner():
@@ -43,17 +45,21 @@ def cmd_eval(args: argparse.Namespace) -> int:
 
 def cmd_run(args: argparse.Namespace) -> int:
     """Main interactive REPL agent execution."""
-    print_banner()
     workspace = Path(args.workspace or os.getcwd()).resolve()
-    print(f"Workspace: {workspace}")
 
     if args.dry_run:
+        print_banner()
+        print(f"Workspace: {workspace}")
         print("Self-check passed: environment and CLI options verified.")
         return 0
 
-    # TODO: Launch Layer 9 TerminalApp REPL
-    print("\n[PARI REPL Placeholder: Ready for layer-by-layer implementation]")
+    app = TerminalApp(workspace=workspace)
+    try:
+        asyncio.run(app.run_repl())
+    except KeyboardInterrupt:
+        pass
     return 0
+
 
 
 def main(argv: Optional[list] = None) -> int:

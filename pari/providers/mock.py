@@ -21,4 +21,26 @@ class MockOfflineProvider(LLMProvider):
         temperature: float = 0.0,
     ) -> ModelResponse:
         """Simulate completion for local testing."""
-        raise NotImplementedError
+        last_prompt = messages[-1].content if messages else ""
+        lower_prompt = last_prompt.lower()
+
+        # If user asks to find python files, simulate a tool call or answer
+        if "find" in lower_prompt or "python" in lower_prompt:
+            return ModelResponse(
+                text="PARI Agent: Found python files in workspace.",
+                tool_calls=[],
+                tokens_in=120,
+                tokens_out=40,
+                cached_tokens=0,
+                stop_reason="end_turn",
+            )
+
+        return ModelResponse(
+            text=f"PARI Agent response to: {last_prompt}",
+            tool_calls=[],
+            tokens_in=80,
+            tokens_out=30,
+            cached_tokens=0,
+            stop_reason="end_turn",
+        )
+

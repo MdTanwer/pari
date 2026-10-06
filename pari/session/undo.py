@@ -33,21 +33,67 @@ class UndoResult:
     disclosed_side_effects: List[str]
 
 
+import hashlib
+from typing import Dict, List
+from pari.fs.atomic import atomic_write, read_file
+from pari.fs.path import resolve_safe_path
+
+
 class GuardedUndoManager:
     """Provides guarded rollback for physical file changes and process termination."""
 
     def __init__(self, workspace: Path):
         self.workspace = workspace.resolve()
-        # TODO: Initialize snapshot storage and side-effects audit log
+        self.snapshots: Dict[str, FileSnapshot] = {}
+        self.side_effects: List[str] = []
+
+    def _hash(self, content: str) -> str:
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     def record_snapshot(self, rel_path: str, pre_content: str, post_content: str):
         """Record file state prior to write mutation."""
-        raise NotImplementedError
+        self.snapshots[rel_path] = FileSnapshot(
+            rel_path=rel_path,
+            pre_edit_content=pre_content,
+            pre_edit_hash=self._hash(pre_content),
+            post_edit_hash=self._hash(post_content),
+        )
 
     def record_side_effect(self, description: str):
         """Log external irreversible side effect (e.g. package install, DB migration)."""
-        raise NotImplementedError
+        self.side_effects.append(description)
 
     def undo(self, force: bool = False) -> UndoResult:
         """Execute guarded rollback verifying files haven't drifted."""
-        raise NotImplementedError
+        reverted: List[str] = []
+        conflicts: List[str] = []
+
+        for rel_path, snapshot in list(self.snapshots.items()):
+            file_path = resolve_safe_path(self.workspace, rel_path)
+            if not file_path.exists():
+                atomic_write(file_path, snapshot.pre_edit_content)
+                reverted.append(rel_path)
+                continue
+
+            current_content = read_file(file_path)
+            current_hash = self._hash(current_content)
+
+            if current_hash == snapshot.post_edit_hash or force:
+                atomic_write(file_path, snapshot.pre_edit_content)
+                reverted.append(rel_path)
+            else:
+                conflicts.append(rel_path)
+
+        # Clear reverted snapshots
+        for rel in reverted:
+            self.snapshots.pop(rel, None)
+
+        result = UndoResult(
+            reverted_files=reverted,
+            conflicted_files=conflicts,
+            terminated_processes=0,
+            disclosed_side_effects=list(self.side_effects),
+        )
+        self.side_effects.clear()
+        return result
+

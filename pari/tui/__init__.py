@@ -13,4 +13,16 @@ Subsystems:
     - commands: Interactive slash commands (/undo, /diff, /model, /help)
 """
 
-# Placeholder imports will be exported once implementations are added
+from pari.tui.app import TerminalApp
+from pari.tui.commands import SlashCommandHandler
+from pari.tui.diff_view import display_diff
+from pari.tui.status import CostMeter, TokenUsage
+
+__all__ = [
+    "TerminalApp",
+    "SlashCommandHandler",
+    "display_diff",
+    "CostMeter",
+    "TokenUsage",
+]
+

@@ -12,4 +12,17 @@ from typing import Union
 
 def resolve_safe_path(workspace_root: Union[str, Path], target_path: Union[str, Path]) -> Path:
     """Resolve a target path safely relative to the workspace root."""
-    raise NotImplementedError
+    root = Path(workspace_root).resolve()
+    target = Path(target_path)
+    if not target.is_absolute():
+        resolved = (root / target).resolve()
+    else:
+        resolved = target.resolve()
+
+    try:
+        resolved.relative_to(root)
+    except ValueError:
+        raise PermissionError(f"Path traversal rejected: '{target_path}' is outside workspace '{workspace_root}'")
+
+    return resolved
+
