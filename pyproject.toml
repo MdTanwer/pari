@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pari-cli"
-version = "0.1.0"
+version = "0.1.1"
 description = "A resilient, sandbox-first terminal coding agent engineered for high pass rates and low token burn."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,6 +13,11 @@ authors = [
     { name = "PARI Contributors" }
 ]
 keywords = ["ai", "coding-agent", "terminal", "llm", "developer-tools"]
+[project.urls]
+Homepage = "https://pari-cli.in"
+Documentation = "https://pari-cli.in"
+Repository = "https://github.com/MdTanwer/pari"
+
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -52,6 +57,7 @@ all = [
 
 [project.scripts]
 pari = "pari.cli:main"
+pari-cli = "pari.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

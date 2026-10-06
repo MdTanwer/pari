@@ -17,7 +17,7 @@ from pari.tui import TerminalApp
 
 def print_banner():
     """Print the startup terminal banner."""
-    print(f"PARI v{__version__} — Terminal Coding Agent")
+    print(f"PARI v{__version__} — Terminal Coding Agent (https://pari-cli.in)")
     print("Platform-Isolated | Exact & Resilient Edits | Durable Sessions")
     print("-" * 65)
 
