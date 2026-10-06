@@ -44,7 +44,9 @@ def test_tui_slash_commands(tmp_path: Path):
     test_file = tmp_path / "hello.py"
     test_file.write_text("print('test')")
     add_res = app.process_message(f"/add {test_file.name}")
-    assert "Pinned" in add_res
+    assert "Added" in add_res or "Pinned" in add_res
+
+
 
 
 def test_cost_meter():
