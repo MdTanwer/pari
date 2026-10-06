@@ -59,3 +59,45 @@ def test_cost_meter():
     assert "1.5k tokens" in status
     assert "$" in status
 
+
+def test_slash_command_completer():
+    from prompt_toolkit.completion import CompleteEvent
+    from prompt_toolkit.document import Document
+    from pari.tui.app import SlashCommandCompleter
+
+    completer = SlashCommandCompleter()
+    event = CompleteEvent(completion_requested=False)
+
+    # 1. Typing '/' should return all 8 commands
+    doc_slash = Document("/")
+    completions = list(completer.get_completions(doc_slash, event))
+    texts = [c.text for c in completions]
+    assert len(completions) == 8
+    for cmd in ["/help", "/diff", "/undo", "/clear", "/model", "/add", "/exit", "/quit"]:
+        assert cmd in texts
+        # Ensure display and display_meta description exist
+        comp = next(c for c in completions if c.text == cmd)
+        assert comp.display_meta != ""
+        assert comp.start_position == -1
+
+    # 2. Specific prefix matching
+    doc_diff = Document("/di")
+    diff_comps = list(completer.get_completions(doc_diff, event))
+    assert len(diff_comps) == 1
+    assert diff_comps[0].text == "/diff"
+    assert diff_comps[0].start_position == -3
+
+    doc_model = Document("/mo")
+    model_comps = list(completer.get_completions(doc_model, event))
+    assert len(model_comps) == 1
+    assert model_comps[0].text == "/model"
+
+    # 3. Non-slash commands should not trigger completions
+    doc_text = Document("Hello PARI")
+    assert list(completer.get_completions(doc_text, event)) == []
+
+    # 4. Commands with arguments should not trigger slash command completions
+    doc_args = Document("/model gpt-4o")
+    assert list(completer.get_completions(doc_args, event)) == []
+
+
