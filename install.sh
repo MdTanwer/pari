@@ -26,7 +26,7 @@ echo ""
 # 1. Prefer uv if installed (fastest)
 if command -v uv >/dev/null 2>&1; then
     echo "${GREEN}✓ Found uv.${RESET} Installing pari via uv tool..."
-    uv tool install --force pari 2>/dev/null || uv tool install --force "git+${REPO_URL}"
+    uv tool install --force pari-cli 2>/dev/null || uv tool install --force "git+${REPO_URL}"
     echo ""
     echo "${GREEN}${BOLD}✓ PARI installed successfully!${RESET}"
     echo "Run ${CYAN}pari${RESET} to get started."
@@ -36,7 +36,7 @@ fi
 # 2. Prefer pipx if installed (isolated)
 if command -v pipx >/dev/null 2>&1; then
     echo "${GREEN}✓ Found pipx.${RESET} Installing pari via pipx..."
-    pipx install --force pari 2>/dev/null || pipx install --force "git+${REPO_URL}"
+    pipx install --force pari-cli 2>/dev/null || pipx install --force "git+${REPO_URL}"
     echo ""
     echo "${GREEN}${BOLD}✓ PARI installed successfully!${RESET}"
     echo "Run ${CYAN}pari${RESET} to get started."
@@ -51,7 +51,7 @@ if command -v python3 >/dev/null 2>&1; then
 
     python3 -m venv "$INSTALL_DIR/venv"
     "$INSTALL_DIR/venv/bin/pip" install --upgrade pip --quiet
-    "$INSTALL_DIR/venv/bin/pip" install pari --quiet 2>/dev/null || "$INSTALL_DIR/venv/bin/pip" install "git+${REPO_URL}" --quiet
+    "$INSTALL_DIR/venv/bin/pip" install pari-cli --quiet 2>/dev/null || "$INSTALL_DIR/venv/bin/pip" install "git+${REPO_URL}" --quiet
 
     # Create symlink in ~/.local/bin
     ln -sf "$INSTALL_DIR/venv/bin/pari" "$BIN_DIR/pari"

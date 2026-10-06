@@ -103,13 +103,13 @@ irm https://raw.githubusercontent.com/MdTanwer/pari/main/install.ps1 | iex
 ### 3. Via `pip` / `pipx` / `uv`
 ```bash
 # Recommended (isolated CLI)
-pipx install pari
+pipx install pari-cli
 
 # Fast via uv
-uv tool install pari
+uv tool install pari-cli
 
 # Standard pip
-pip install pari
+pip install pari-cli
 ```
 
 ---

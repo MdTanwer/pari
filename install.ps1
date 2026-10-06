@@ -21,7 +21,7 @@ Write-Host ""
 # 1. Prefer uv if available
 if (Get-Command uv -ErrorAction SilentlyContinue) {
     Write-Host "[+] Found uv. Installing pari via uv tool..." -ForegroundColor Green
-    try { uv tool install --force pari } catch { uv tool install --force "git+$RepoUrl" }
+    try { uv tool install --force pari-cli } catch { uv tool install --force "git+$RepoUrl" }
     Write-Host "`n[✓] PARI installed successfully! Type 'pari' to start." -ForegroundColor Cyan
     exit
 }
@@ -29,7 +29,7 @@ if (Get-Command uv -ErrorAction SilentlyContinue) {
 # 2. Prefer pipx if available
 if (Get-Command pipx -ErrorAction SilentlyContinue) {
     Write-Host "[+] Found pipx. Installing pari via pipx..." -ForegroundColor Green
-    try { pipx install --force pari } catch { pipx install --force "git+$RepoUrl" }
+    try { pipx install --force pari-cli } catch { pipx install --force "git+$RepoUrl" }
     Write-Host "`n[✓] PARI installed successfully! Type 'pari' to start." -ForegroundColor Cyan
     exit
 }
@@ -48,7 +48,7 @@ if ($PythonCmd) {
     $VenvPip = Join-Path $ScriptsDir "pip.exe"
 
     & $VenvPip install --upgrade pip --quiet
-    try { & $VenvPip install pari --quiet } catch { & $VenvPip install "git+$RepoUrl" --quiet }
+    try { & $VenvPip install pari-cli --quiet } catch { & $VenvPip install "git+$RepoUrl" --quiet }
 
     # Ensure Scripts directory is in user PATH
     $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")

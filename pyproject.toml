@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pari"
+name = "pari-cli"
 version = "0.1.0"
 description = "A resilient, sandbox-first terminal coding agent engineered for high pass rates and low token burn."
 readme = "README.md"
