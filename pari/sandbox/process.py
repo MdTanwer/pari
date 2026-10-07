@@ -13,10 +13,11 @@ Features:
 This runner does not create a mount namespace. Prefer BwrapSandboxRunner on Linux.
 """
 
+import os
 from pathlib import Path
 from typing import Dict, Optional
 
-from pari.sandbox.base import SandboxLimits, SandboxResult, SandboxRunner, scrub_env
+from pari.sandbox.base import SANDBOX_PATH, SandboxLimits, SandboxResult, SandboxRunner, scrub_env
 
 
 class SupervisedProcessRunner(SandboxRunner):
@@ -31,7 +32,11 @@ class SupervisedProcessRunner(SandboxRunner):
         env: Optional[Dict[str, str]] = None,
         timeout: Optional[float] = None,
     ) -> SandboxResult:
-        child_env = scrub_env(env, home=str(self.workspace))
+        child_env = scrub_env(
+            env,
+            home=str(self.workspace),
+            path=os.environ.get("PATH", SANDBOX_PATH),
+        )
         shell = "/bin/sh" if Path("/bin/sh").exists() else "/usr/bin/sh"
         return self._execute(
             [shell, "-c", command],

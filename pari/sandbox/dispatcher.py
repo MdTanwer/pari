@@ -32,8 +32,9 @@ def get_sandbox_runner(
     """Select and instantiate the appropriate sandbox runner for the current platform.
 
     Mode comes from force_mode, then PARI_SANDBOX, then PARI_SANDBOX_MODE.
-    auto picks bwrap on Linux when it is installed, Seatbelt on macOS, and the
-    supervised process runner otherwise.
+    On Linux, auto fails closed: it uses Bubblewrap and does not silently run
+    the command on the host when bwrap is missing. The supervised runner is the
+    native Windows fallback, or an explicit none/process mode.
     """
     mode = (
         force_mode
@@ -53,8 +54,10 @@ def get_sandbox_runner(
     if mode != "auto":
         raise ValueError(f"Unknown sandbox mode: {mode}")
 
-    if sys.platform == "linux" and shutil.which("bwrap"):
+    if sys.platform == "linux":
         return BwrapSandboxRunner(workspace, limits=limits)
-    if sys.platform == "darwin" and shutil.which("sandbox-exec"):
+    if sys.platform == "darwin":
+        if not shutil.which("sandbox-exec"):
+            raise FileNotFoundError("sandbox-exec is not available on this Mac")
         return MacOSSeatbeltSandboxRunner(workspace, limits=limits)
     return SupervisedProcessRunner(workspace, limits=limits)

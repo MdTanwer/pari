@@ -12,6 +12,7 @@ Guarantees:
 from __future__ import annotations
 
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -24,12 +25,33 @@ from typing import Callable, Dict, List, Optional
 
 _SECRET_ENV_MARKERS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "COOKIE")
 _SECRET_ENV_NAMES = {"SSH_AUTH_SOCK", "SSH_AGENT_PID"}
+SANDBOX_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+# Binding one of these as the workspace would undo the read-only system mounts.
+_FORBIDDEN_WORKSPACES = frozenset({
+    "/",
+    "/usr",
+    "/bin",
+    "/lib",
+    "/lib64",
+    "/etc",
+    "/sbin",
+    "/proc",
+    "/dev",
+    "/sys",
+    "/root",
+    "/home",
+})
 
 
-def scrub_env(extra: Optional[Dict[str, str]] = None, *, home: str) -> Dict[str, str]:
+def scrub_env(
+    extra: Optional[Dict[str, str]] = None,
+    *,
+    home: str,
+    path: str = SANDBOX_PATH,
+) -> Dict[str, str]:
     """Build a minimal environment that does not forward host credentials."""
     env = {
-        "PATH": os.environ.get("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"),
+        "PATH": path,
         "HOME": home,
         "TMPDIR": "/tmp",
         "LANG": os.environ.get("LANG", "C.UTF-8"),
@@ -58,13 +80,17 @@ class SandboxLimits:
         timeout_seconds: Maximum allowed wall-clock run duration.
         max_output_bytes: Ceiling for stdout/stderr spooling.
         memory_limit_mb: cgroup ceiling on Linux.
-        allow_network: Policy toggle for network interface access.
+        allow_network: Share the host network for every command.
+        allow_package_network: Share the network only for a single package-install command.
+        read_only: Mount the workspace read-only.
     """
 
     timeout_seconds: float = 30.0
     max_output_bytes: int = 50 * 1024
     memory_limit_mb: int = 2048
-    allow_network: bool = True
+    allow_network: bool = False
+    allow_package_network: bool = True
+    read_only: bool = False
 
 
 @dataclass
@@ -78,6 +104,7 @@ class SandboxResult:
         duration_seconds: Elapsed execution time.
         timed_out: True if terminated by timeout.
         truncated: True if output exceeded max_output_bytes.
+        cgroup_applied: True when memory.max, pids.max, and cpu.weight were set.
     """
 
     exit_code: int
@@ -86,6 +113,33 @@ class SandboxResult:
     duration_seconds: float
     timed_out: bool = False
     truncated: bool = False
+    cgroup_applied: bool = False
+
+
+_PACKAGE_BINS = frozenset({"pip", "pip3", "npm", "pnpm", "yarn", "cargo", "poetry", "uv"})
+_PACKAGE_SUBCOMMANDS = frozenset({"install", "add", "update", "fetch", "sync"})
+_SHELL_COMPOSERS = (";", "&&", "||", "|", "`", "$(", "\n", ">", "<")
+
+
+def network_allowed(command: str, limits: SandboxLimits) -> bool:
+    """Host network stays off unless every command may use it, or this is one package install.
+
+    A shell composition such as ``pip install x; curl`` does not receive the network.
+    """
+    if limits.allow_network:
+        return True
+    if not limits.allow_package_network:
+        return False
+    if any(marker in command for marker in _SHELL_COMPOSERS):
+        return False
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        return False
+    if len(parts) < 2:
+        return False
+    binary = Path(parts[0]).name
+    return binary in _PACKAGE_BINS and parts[1] in _PACKAGE_SUBCOMMANDS
 
 
 @dataclass
@@ -103,6 +157,8 @@ class SandboxRunner(ABC):
         self.workspace = Path(workspace).resolve()
         if not self.workspace.is_dir():
             raise NotADirectoryError(f"Workspace is not a directory: {self.workspace}")
+        if str(self.workspace) in _FORBIDDEN_WORKSPACES:
+            raise ValueError(f"Refusing to sandbox a system directory: {self.workspace}")
         self.limits = limits or SandboxLimits()
         self._active_pgids: set[int] = set()
         self._cgroups: List[Path] = []
@@ -132,13 +188,6 @@ class SandboxRunner(ABC):
             libc.prctl(1, signal.SIGKILL)  # PR_SET_PDEATHSIG = 1
             if os.getppid() == 1:
                 os._exit(1)
-            try:
-                import resource
-
-                byte_cap = self.limits.memory_limit_mb * 1024 * 1024
-                resource.setrlimit(resource.RLIMIT_AS, (byte_cap, byte_cap))
-            except (ImportError, OSError, ValueError):
-                pass
 
     def _execute(
         self,
@@ -161,7 +210,7 @@ class SandboxRunner(ABC):
             preexec_fn=preexec or self._child_setup,
         )
         self._active_pgids.add(proc.pid)
-        self._place_in_cgroup(proc.pid)
+        cgroup_applied = self._place_in_cgroup(proc.pid)
         capture = _StreamCapture()
         threads = [
             threading.Thread(target=self._drain, args=(proc.stdout, capture, "stdout"), daemon=True),
@@ -200,6 +249,7 @@ class SandboxRunner(ABC):
             duration_seconds=time.monotonic() - started,
             timed_out=timed_out,
             truncated=capture.truncated or stdout_cut or stderr_cut,
+            cgroup_applied=cgroup_applied,
         )
 
     def _drain(self, pipe, capture: _StreamCapture, key: str) -> None:
@@ -243,13 +293,13 @@ class SandboxRunner(ABC):
             except (ProcessLookupError, PermissionError, OSError):
                 pass
 
-    def _place_in_cgroup(self, pid: int) -> None:
-        """Best-effort cgroup v2 memory, pid, and cpu caps. Skip when the kernel refuses."""
+    def _place_in_cgroup(self, pid: int) -> bool:
+        """Apply cgroup v2 memory, pid, and cpu caps. Return False when the kernel refuses."""
         if sys.platform != "linux":
-            return
+            return False
         parent = _current_cgroup_dir()
         if parent is None:
-            return
+            return False
         cgroup = parent / f"pari-{os.getpid()}-{pid}"
         try:
             cgroup.mkdir(exist_ok=True)
@@ -258,13 +308,17 @@ class SandboxRunner(ABC):
             (cgroup / "pids.max").write_text("256")
             (cgroup / "cpu.weight").write_text("100")
             (cgroup / "cgroup.procs").write_text(str(pid))
+            members = (cgroup / "cgroup.procs").read_text().split()
+            if str(pid) not in members:
+                raise OSError("process was not placed in the cgroup")
         except OSError:
             try:
                 cgroup.rmdir()
             except OSError:
                 pass
-            return
+            return False
         self._cgroups.append(cgroup)
+        return True
 
     def _cleanup_processes(self) -> None:
         for pid in list(self._active_pgids):
