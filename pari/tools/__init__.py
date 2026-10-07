@@ -11,4 +11,7 @@ Available Tools:
     - grep_search: Substring and regex text search across repository files
 """
 
-# Placeholder imports will be exported once implementations are added
+from pari.tools.registry import ToolRegistry, get_default_registry
+
+
+__all__ = ["ToolRegistry", "get_default_registry"]

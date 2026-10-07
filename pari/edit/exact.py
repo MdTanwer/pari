@@ -7,6 +7,8 @@ Architectural Invariant:
     - An edit is ONLY applied if the search pattern matches EXACTLY once.
 """
 
+from pari.edit.diff import generate_unified_diff
+
 
 class PatternNotFoundError(Exception):
     """Raised when the search string does not exist in target content."""
@@ -32,7 +34,14 @@ def apply_exact_edit(
     original: str, search: str, replace: str, filename: str = "<unknown>"
 ) -> str:
     """Applies search/replace to text, strictly requiring a single unique match."""
-    raise NotImplementedError
+    if search == "":
+        raise PatternNotFoundError("Search string is empty.")
+    count = original.count(search)
+    if count == 0:
+        raise PatternNotFoundError(f"Search target not found in '{filename}'.")
+    if count > 1:
+        raise AmbiguousMatchError(count, search, filename)
+    return original.replace(search, replace, 1)
 
 
 def preview_edit(
@@ -42,4 +51,5 @@ def preview_edit(
     filename: str = "<unknown>",
 ) -> tuple[str, str]:
     """Applies exact edit and returns both modified content and unified diff."""
-    raise NotImplementedError
+    modified = apply_exact_edit(original, search, replace, filename)
+    return modified, generate_unified_diff(original, modified, filename)

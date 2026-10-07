@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pari.search import find_files, grep_search
+from pari.intelligence.search import find_files, grep_search
 
 
 def test_find_files(tmp_path: Path):

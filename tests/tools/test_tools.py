@@ -39,6 +39,11 @@ async def test_tool_registry_and_fs_tools(tmp_path: Path):
     updated = await registry.execute("read_file", {"path": "hello.txt"})
     assert updated == "Hello PARI!"
 
+    with pytest.raises(PermissionError):
+        await registry.execute(
+            "write_file", {"path": "../outside.txt", "content": "nope"}
+        )
+
 
 @pytest.mark.asyncio
 async def test_bash_tool_sandboxed(tmp_path: Path):

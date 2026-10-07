@@ -17,4 +17,19 @@ Subsystems:
     - diff: Unified diff generation
 """
 
-# Placeholder imports will be exported once implementations are added
+from pari.edit.diff import generate_unified_diff
+from pari.edit.exact import (
+    AmbiguousMatchError,
+    PatternNotFoundError,
+    apply_exact_edit,
+    preview_edit,
+)
+
+
+__all__ = [
+    "AmbiguousMatchError",
+    "PatternNotFoundError",
+    "apply_exact_edit",
+    "generate_unified_diff",
+    "preview_edit",
+]
