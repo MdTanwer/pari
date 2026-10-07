@@ -4,7 +4,8 @@ Integrates Layer 6 safe path resolution and atomic writes with Layer 5 edit casc
 """
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
+
 from pari.tools.base import Tool, ToolDefinition
 
 
@@ -48,6 +49,6 @@ class EditFileTool(Tool):
     def definition(self) -> ToolDefinition:
         raise NotImplementedError
 
-    async def execute(self, path: str, search: str, replace: str) -> Dict[str, Any]:
+    async def execute(self, path: str, search: str, replace: str) -> dict[str, Any]:
         """Apply edit using cascade."""
         raise NotImplementedError

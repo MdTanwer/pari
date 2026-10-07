@@ -6,16 +6,16 @@ tool call schemas.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any
 
 
 @dataclass
 class ToolDefinition:
     name: str
     description: str
-    parameters: Dict[str, Any]
+    parameters: dict[str, Any]
 
-    def to_schema(self) -> Dict[str, Any]:
+    def to_schema(self) -> dict[str, Any]:
         """Format definition as standard tool calling schema."""
         raise NotImplementedError
 

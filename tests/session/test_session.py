@@ -1,7 +1,7 @@
 """Unit tests for pari.session append-only JSONL log and torn-write recovery."""
 
-import json
 from pathlib import Path
+
 from pari.session import SessionLogger
 
 

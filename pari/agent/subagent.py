@@ -1,15 +1,18 @@
 """PARI Layer 4: Fiber-Based Research Subagent Pool.
 
 Architectural Purpose:
-    Closes Pi F2 (Process-per-subagent footprint: 4 subagents = 4 V8 runtimes = 800MB-1.8GB RAM).
+    Closes Pi F2 (Process-per-subagent footprint: 4 subagents = 4 V8 runtimes =
+    800MB-1.8GB RAM).
     PARI runs subagents as lightweight Python asyncio tasks within the same process.
     Crucial Safety Invariant:
-    Subagents are strictly restricted to READ-ONLY tasks (documentation reading, grep searches).
+    Subagents are strictly restricted to READ-ONLY tasks (documentation reading, grep
+    searches).
     All code mutations are strictly single-agent to prevent concurrent file conflicts.
 """
 
+from collections.abc import Coroutine
 from dataclasses import dataclass
-from typing import Any, Coroutine, List
+from typing import Any
 
 
 @dataclass
@@ -29,6 +32,6 @@ class FiberSubagentPool:
         """Run single research task with concurrency throttling."""
         raise NotImplementedError
 
-    async def run_parallel_research(self, tasks: List[SubagentTask]) -> List[Any]:
+    async def run_parallel_research(self, tasks: list[SubagentTask]) -> list[Any]:
         """Execute multiple read-only tasks concurrently."""
         raise NotImplementedError

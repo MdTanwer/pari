@@ -1,16 +1,17 @@
 """PARI Layer 0: Base Sandbox Interface.
 
-Defines the contract for all platform sandbox implementations (Bubblewrap, Seatbelt, E2B, ProcessGroup).
-All commands executed by PARI must run through an implementation of SandboxRunner.
+Defines the contract for Bubblewrap, Seatbelt, E2B, and the process-group runner.
+All commands executed by PARI must run through a SandboxRunner.
 
 Guarantees:
-    1. Working directory isolation: Writes restricted to authorized workspace tree.
-    2. Die-with-parent lifecycle: Child processes killed when agent process terminates.
-    3. Resource bounding: Execution constrained by timeout, max output bytes, and memory.
+    1. Working directory isolation: writes stay inside the workspace.
+    2. Die-with-parent lifecycle: children die when the agent process dies.
+    3. Resource bounding: timeout, output bytes, and memory are capped.
 """
 
 from __future__ import annotations
 
+import ctypes
 import os
 import shlex
 import signal
@@ -19,36 +20,47 @@ import sys
 import threading
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
 
-_SECRET_ENV_MARKERS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "COOKIE")
+
+_SECRET_ENV_MARKERS = (
+    "KEY",
+    "TOKEN",
+    "SECRET",
+    "PASSWORD",
+    "PASSWD",
+    "CREDENTIAL",
+    "COOKIE",
+)
 _SECRET_ENV_NAMES = {"SSH_AUTH_SOCK", "SSH_AGENT_PID"}
 SANDBOX_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 # Binding one of these as the workspace would undo the read-only system mounts.
-_FORBIDDEN_WORKSPACES = frozenset({
-    "/",
-    "/usr",
-    "/bin",
-    "/lib",
-    "/lib64",
-    "/etc",
-    "/sbin",
-    "/proc",
-    "/dev",
-    "/sys",
-    "/root",
-    "/home",
-})
+_FORBIDDEN_WORKSPACES = frozenset(
+    {
+        "/",
+        "/usr",
+        "/bin",
+        "/lib",
+        "/lib64",
+        "/etc",
+        "/sbin",
+        "/proc",
+        "/dev",
+        "/sys",
+        "/root",
+        "/home",
+    }
+)
 
 
 def scrub_env(
-    extra: Optional[Dict[str, str]] = None,
+    extra: dict[str, str] | None = None,
     *,
     home: str,
     path: str = SANDBOX_PATH,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Build a minimal environment that does not forward host credentials."""
     env = {
         "PATH": path,
@@ -81,7 +93,7 @@ class SandboxLimits:
         max_output_bytes: Ceiling for stdout/stderr spooling.
         memory_limit_mb: cgroup ceiling on Linux.
         allow_network: Share the host network for every command.
-        allow_package_network: Share the network only for a single package-install command.
+        allow_package_network: Network for one package-install command only.
         read_only: Mount the workspace read-only.
     """
 
@@ -116,15 +128,17 @@ class SandboxResult:
     cgroup_applied: bool = False
 
 
-_PACKAGE_BINS = frozenset({"pip", "pip3", "npm", "pnpm", "yarn", "cargo", "poetry", "uv"})
+_PACKAGE_BINS = frozenset(
+    {"pip", "pip3", "npm", "pnpm", "yarn", "cargo", "poetry", "uv"}
+)
 _PACKAGE_SUBCOMMANDS = frozenset({"install", "add", "update", "fetch", "sync"})
 _SHELL_COMPOSERS = (";", "&&", "||", "|", "`", "$(", "\n", ">", "<")
 
 
 def network_allowed(command: str, limits: SandboxLimits) -> bool:
-    """Host network stays off unless every command may use it, or this is one package install.
+    """Share the network only when asked, or for one package-install command.
 
-    A shell composition such as ``pip install x; curl`` does not receive the network.
+    ``pip install x; curl`` does not receive the network.
     """
     if limits.allow_network:
         return True
@@ -153,37 +167,37 @@ class _StreamCapture:
 class SandboxRunner(ABC):
     """Abstract base class for all PARI kernel and cloud sandboxes."""
 
-    def __init__(self, workspace: Path, limits: Optional[SandboxLimits] = None):
+    def __init__(self, workspace: Path, limits: SandboxLimits | None = None):
         self.workspace = Path(workspace).resolve()
         if not self.workspace.is_dir():
             raise NotADirectoryError(f"Workspace is not a directory: {self.workspace}")
         if str(self.workspace) in _FORBIDDEN_WORKSPACES:
-            raise ValueError(f"Refusing to sandbox a system directory: {self.workspace}")
+            raise ValueError(
+                f"Refusing to sandbox a system directory: {self.workspace}"
+            )
         self.limits = limits or SandboxLimits()
         self._active_pgids: set[int] = set()
-        self._cgroups: List[Path] = []
+        self._cgroups: list[Path] = []
 
     @abstractmethod
     def run_command(
         self,
         command: str,
-        env: Optional[Dict[str, str]] = None,
-        timeout: Optional[float] = None,
+        env: dict[str, str] | None = None,
+        timeout: float | None = None,
     ) -> SandboxResult:
         """Execute a shell command inside the sandbox."""
         raise NotImplementedError
 
     @abstractmethod
     def cleanup(self) -> None:
-        """Terminate any lingering child processes, virtual mounts, or microVM instances."""
+        """Stop leftover child processes, mounts, or microVMs."""
         raise NotImplementedError
 
     def _child_setup(self) -> None:
         """Run in the forked child: new process group, die with parent, memory cap."""
         os.setsid()
         if sys.platform == "linux":
-            import ctypes
-
             libc = ctypes.CDLL(None, use_errno=True)
             libc.prctl(1, signal.SIGKILL)  # PR_SET_PDEATHSIG = 1
             if os.getppid() == 1:
@@ -191,12 +205,12 @@ class SandboxRunner(ABC):
 
     def _execute(
         self,
-        argv: List[str],
+        argv: list[str],
         *,
         cwd: Path,
-        env: Dict[str, str],
+        env: dict[str, str],
         timeout: float,
-        preexec: Optional[Callable[[], None]] = None,
+        preexec: Callable[[], None] | None = None,
     ) -> SandboxResult:
         """Run argv with a timeout, an output cap, and process-group teardown."""
         started = time.monotonic()
@@ -213,8 +227,12 @@ class SandboxRunner(ABC):
         cgroup_applied = self._place_in_cgroup(proc.pid)
         capture = _StreamCapture()
         threads = [
-            threading.Thread(target=self._drain, args=(proc.stdout, capture, "stdout"), daemon=True),
-            threading.Thread(target=self._drain, args=(proc.stderr, capture, "stderr"), daemon=True),
+            threading.Thread(
+                target=self._drain, args=(proc.stdout, capture, "stdout"), daemon=True
+            ),
+            threading.Thread(
+                target=self._drain, args=(proc.stderr, capture, "stderr"), daemon=True
+            ),
         ]
         for thread in threads:
             thread.start()
@@ -294,7 +312,7 @@ class SandboxRunner(ABC):
                 pass
 
     def _place_in_cgroup(self, pid: int) -> bool:
-        """Apply cgroup v2 memory, pid, and cpu caps. Return False when the kernel refuses."""
+        """Apply memory, pid, and cpu caps. False if the kernel refuses."""
         if sys.platform != "linux":
             return False
         parent = _current_cgroup_dir()
@@ -332,7 +350,7 @@ class SandboxRunner(ABC):
         self._cgroups.clear()
 
 
-def _current_cgroup_dir() -> Optional[Path]:
+def _current_cgroup_dir() -> Path | None:
     try:
         text = Path("/proc/self/cgroup").read_text()
     except OSError:

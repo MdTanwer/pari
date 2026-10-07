@@ -9,13 +9,17 @@ Architectural Purpose:
     cache warm status at negligible cost (<$0.001/hr).
 """
 
-from typing import Callable, Optional
+from collections.abc import Callable
 
 
 class CacheWarmer:
     """Maintains prompt cache warmth via periodic lightweight async pings."""
 
-    def __init__(self, interval_seconds: float = 270.0, warm_callback: Optional[Callable] = None):
+    def __init__(
+        self,
+        interval_seconds: float = 270.0,
+        warm_callback: Callable | None = None,
+    ):
         self.interval_seconds = interval_seconds
         self.warm_callback = warm_callback
 

@@ -1,12 +1,13 @@
 """Integration tests for AgentRuntime and Interactive REPL commands."""
 
 from pathlib import Path
+
 import pytest
 
 from pari.agent.runtime import AgentRuntime
-from pari.tui.app import TerminalApp
+from pari.fs.atomic import atomic_write, read_file
 from pari.providers.mock import MockOfflineProvider
-from pari.fs.atomic import read_file, atomic_write
+from pari.tui.app import TerminalApp
 
 
 @pytest.mark.asyncio
@@ -52,4 +53,3 @@ async def test_slash_commands_in_terminal_app(tmp_path: Path):
     undo_res = app.commands.handle("/undo")
     assert "hello.py" in undo_res[1] and "Reverted files" in undo_res[1]
     assert read_file(test_file) == "val = 1\n"
-

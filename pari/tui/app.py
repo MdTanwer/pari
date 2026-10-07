@@ -1,15 +1,12 @@
 import asyncio
-from pathlib import Path
-import shutil
-from typing import Optional
-
 from collections.abc import Iterable
+from pathlib import Path
+
 from prompt_toolkit import PromptSession
 from prompt_toolkit.application.current import get_app
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion
 from prompt_toolkit.document import Document
 from prompt_toolkit.filters import has_completions
-from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import CompleteStyle
@@ -20,6 +17,7 @@ from rich.panel import Panel
 
 from pari.tui.commands import SlashCommandHandler
 from pari.tui.diff_view import display_diff
+
 
 # Slash command metadata definitions
 COMMAND_METADATA = [
@@ -35,7 +33,8 @@ COMMAND_METADATA = [
 
 
 class SlashCommandCompleter(Completer):
-    """Autocompleter for slash commands with formatted descriptions and clean prefix matching."""
+    """Autocompleter for slash commands with formatted descriptions and clean prefix
+    matching."""
 
     def __init__(self, commands: list[tuple[str, str]] | None = None):
         self.commands = commands or COMMAND_METADATA
@@ -45,12 +44,13 @@ class SlashCommandCompleter(Completer):
     ) -> Iterable[Completion]:
         text = document.text_before_cursor.lstrip()
 
-        # If user has entered arguments (e.g. "/model gpt-4o "), don't complete slash commands
+        # If the user already typed arguments, do not complete the slash command.
         if " " in text:
             return
 
-        # Trigger on '/' or when explicit completion is requested (e.g. Tab on empty line)
-        if not text.startswith("/") and not (complete_event.completion_requested and not text):
+        # Complete on '/' or when Tab asks for completions on an empty line.
+        completion = complete_event.completion_requested and not text
+        if not text.startswith("/") and not completion:
             return
 
         query = text.lower()
@@ -65,33 +65,32 @@ class SlashCommandCompleter(Completer):
 
 
 # Modern CLI theme matching the completion dropdown menu & toolbar styling
-CLI_STYLE = Style.from_dict({
-    # Prompt & input
-    "prompt": "fg:#38bdf8 bold",
-    "": "fg:#f3f4f6",
-    "placeholder": "fg:#6b7280 italic",
-
-    # Completion Menu dropdown
-    "completion-menu": "bg:#18181b fg:#f4f4f5",
-    "completion-menu.completion": "bg:#18181b fg:#38bdf8",
-    "completion-menu.completion.current": "bg:#27272a fg:#38bdf8 bold",
-    "completion-menu.meta.completion": "bg:#18181b fg:#717882",
-    "completion-menu.meta.completion.current": "bg:#27272a fg:#e4e4e7",
-    "completion-menu.multi-column-meta": "bg:#18181b fg:#717882",
-
-    # Scrollbar
-    "scrollbar.background": "bg:#18181b",
-    "scrollbar.button": "bg:#3f3f46",
-    "scrollbar.arrow": "bg:#18181b fg:#717882",
-
-    # Bottom toolbar & navigation hint keys
-    "bottom-toolbar": "bg:default fg:#717882",
-    "bottom-toolbar.text": "bg:default fg:#717882",
-    "toolbar-key": "fg:#38bdf8 bold",
-    "toolbar-key-esc": "fg:#717882",
-    "toolbar-action": "fg:#717882",
-    "toolbar-dot": "fg:#4b5563",
-})
+CLI_STYLE = Style.from_dict(
+    {
+        # Prompt & input
+        "prompt": "fg:#38bdf8 bold",
+        "": "fg:#f3f4f6",
+        "placeholder": "fg:#6b7280 italic",
+        # Completion Menu dropdown
+        "completion-menu": "bg:#18181b fg:#f4f4f5",
+        "completion-menu.completion": "bg:#18181b fg:#38bdf8",
+        "completion-menu.completion.current": "bg:#27272a fg:#38bdf8 bold",
+        "completion-menu.meta.completion": "bg:#18181b fg:#717882",
+        "completion-menu.meta.completion.current": "bg:#27272a fg:#e4e4e7",
+        "completion-menu.multi-column-meta": "bg:#18181b fg:#717882",
+        # Scrollbar
+        "scrollbar.background": "bg:#18181b",
+        "scrollbar.button": "bg:#3f3f46",
+        "scrollbar.arrow": "bg:#18181b fg:#717882",
+        # Bottom toolbar & navigation hint keys
+        "bottom-toolbar": "bg:default fg:#717882",
+        "bottom-toolbar.text": "bg:default fg:#717882",
+        "toolbar-key": "fg:#38bdf8 bold",
+        "toolbar-key-esc": "fg:#717882",
+        "toolbar-action": "fg:#717882",
+        "toolbar-dot": "fg:#4b5563",
+    }
+)
 
 
 class TerminalApp:
@@ -120,7 +119,8 @@ class TerminalApp:
         )
 
     def _create_key_bindings(self) -> KeyBindings:
-        """Keybindings for autocomplete navigation: enter select, tab complete, esc cancel."""
+        """Keybindings for autocomplete navigation: enter select, tab complete, esc
+        cancel."""
         kb = KeyBindings()
 
         @kb.add("enter", filter=has_completions)
@@ -166,7 +166,7 @@ class TerminalApp:
         self.commands.register("/model", self._cmd_model)
         self.commands.register("/add", self._cmd_add)
 
-    def _cmd_help(self, args: str) -> str:
+    def _cmd_help(self, _args: str) -> str:
         return (
             "**Available Slash Commands:**\n\n"
             "- `/diff` - Preview pending or latest unified diffs\n"
@@ -178,7 +178,7 @@ class TerminalApp:
             "- `/exit` or `/quit` - End interactive session"
         )
 
-    def _cmd_diff(self, args: str) -> str:
+    def _cmd_diff(self, _args: str) -> str:
         # Display sample/active unified diff preview
         sample_diff = (
             "--- a/src/example.py\n"
@@ -192,7 +192,7 @@ class TerminalApp:
         display_diff(sample_diff, filename="src/example.py", console=self.console)
         return "Inspecting diff preview for `src/example.py`."
 
-    def _cmd_undo(self, args: str) -> str:
+    def _cmd_undo(self, _args: str) -> str:
         # TODO: res = self.runtime.undo_manager.undo()
         if hasattr(self, "runtime") and hasattr(self.runtime, "undo_manager"):
             res = self.runtime.undo_manager.undo()
@@ -207,7 +207,8 @@ class TerminalApp:
             if hasattr(self, "cost_meter"):
                 self.cost_meter.model_family = self.model_name.lower()
             return f"Switched active model to: `{self.model_name}`"
-        return f"Active model: `{self.model_name}` (Tiers: claude-3-7-sonnet, claude-3-5-sonnet, gpt-4o, pari-core)"
+        tiers = "claude-3-7-sonnet, claude-3-5-sonnet, gpt-4o, pari-core"
+        return f"Active model: `{self.model_name}` (Tiers: {tiers})"
 
     def _cmd_add(self, args: str) -> str:
         if not args:
@@ -226,8 +227,6 @@ class TerminalApp:
             rel = target
         return f"Added {rel} to active context."
 
-
-
     def print_welcome(self):
         """Display startup banner."""
         welcome_text = (
@@ -235,7 +234,9 @@ class TerminalApp:
             f"[dim]Website   :[/dim] [cyan]https://pari-cli.in[/cyan]\n"
             f"[dim]Workspace :[/dim] [yellow]{self.workspace}[/yellow]\n"
             f"[dim]Model     :[/dim] [green]{self.model_name}[/green]\n\n"
-            f"[dim]Type your message, [/dim][bold cyan]/help[/bold cyan][dim] for commands, [/dim][bold cyan]/exit[/bold cyan][dim] to quit.[/dim]"
+            "[dim]Type your message, [/dim][bold cyan]/help[/bold cyan]"
+            "[dim] for commands, [/dim][bold cyan]/exit[/bold cyan]"
+            "[dim] to quit.[/dim]"
         )
         self.console.print(
             Panel(
@@ -257,7 +258,8 @@ class TerminalApp:
         return [("class:placeholder", "Ask PARI to do anything...")]
 
     def get_bottom_toolbar(self):
-        """Dynamic toolbar showing key navigation hints during completion or session status."""
+        """Dynamic toolbar showing key navigation hints during completion or session
+        status."""
         try:
             app = get_app()
             buff = app.current_buffer
@@ -287,7 +289,10 @@ class TerminalApp:
         except ValueError:
             rel_path = str(self.workspace)
 
-        cost_str = f" · {self.cost_meter.format_status()}" if hasattr(self, "cost_meter") else ""
+        if hasattr(self, "cost_meter"):
+            cost_str = f" · {self.cost_meter.format_status()}"
+        else:
+            cost_str = ""
         status_meta = f"  {self.model_name} default · {rel_path}{cost_str}"
         return [
             ("class:bottom-toolbar.text", status_meta),
@@ -304,16 +309,21 @@ class TerminalApp:
         normalized = user_msg.strip().lower()
 
         # 2. Handle greetings like "hi how are you", "hi howr you", etc.
-        if "how" in normalized and ("are you" in normalized or "r you" in normalized or "howr" in normalized):
+        greeting = (
+            "are you" in normalized or "r you" in normalized or "howr" in normalized
+        )
+        if "how" in normalized and greeting:
             return "Good! How can I help you today?"
         elif normalized in ("hi", "hello", "hey"):
             return "Hello! How can I assist you with your project?"
 
         # 3. Normal turn execution (TODO: self.cost_meter.add_usage)
         if hasattr(self, "cost_meter"):
-            self.cost_meter.add_usage(in_tokens=len(user_msg.split()) * 4 + 150, out_tokens=60)
-        return f"Received: {user_msg}\n\n*(Agent core is ready for prompt orchestration)*"
-
+            in_tokens = len(user_msg.split()) * 4 + 150
+            self.cost_meter.add_usage(in_tokens=in_tokens, out_tokens=60)
+        return (
+            f"Received: {user_msg}\n\n*(Agent core is ready for prompt orchestration)*"
+        )
 
     async def run_repl(self):
         """Main interactive terminal read-eval-print loop."""
@@ -342,13 +352,20 @@ class TerminalApp:
                     continue
 
                 # 3. Simulate thinking with Rich status spinner
-                with self.console.status("[bold cyan]PARI is thinking...", spinner="dots"):
+                status = "[bold cyan]PARI is thinking..."
+                with self.console.status(status, spinner="dots"):
                     await asyncio.sleep(0.4)
                     response = self.process_message(text)
 
                 # 4. Render response via Rich
                 self.console.print()
-                self.console.print(Panel(Markdown(response), title="[bold cyan]PARI Agent[/bold cyan]", border_style="dim"))
+                self.console.print(
+                    Panel(
+                        Markdown(response),
+                        title="[bold cyan]PARI Agent[/bold cyan]",
+                        border_style="dim",
+                    )
+                )
                 self.console.print()
 
             except (KeyboardInterrupt, EOFError):

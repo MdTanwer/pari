@@ -15,22 +15,27 @@ This runner does not create a mount namespace. Prefer BwrapSandboxRunner on Linu
 
 import os
 from pathlib import Path
-from typing import Dict, Optional
 
-from pari.sandbox.base import SANDBOX_PATH, SandboxLimits, SandboxResult, SandboxRunner, scrub_env
+from pari.sandbox.base import (
+    SANDBOX_PATH,
+    SandboxLimits,
+    SandboxResult,
+    SandboxRunner,
+    scrub_env,
+)
 
 
 class SupervisedProcessRunner(SandboxRunner):
     """Supervised process runner using process-group tracking and a workspace cwd."""
 
-    def __init__(self, workspace: Path, limits: Optional[SandboxLimits] = None):
+    def __init__(self, workspace: Path, limits: SandboxLimits | None = None):
         super().__init__(workspace, limits)
 
     def run_command(
         self,
         command: str,
-        env: Optional[Dict[str, str]] = None,
-        timeout: Optional[float] = None,
+        env: dict[str, str] | None = None,
+        timeout: float | None = None,
     ) -> SandboxResult:
         child_env = scrub_env(
             env,

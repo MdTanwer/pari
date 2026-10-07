@@ -1,15 +1,18 @@
 """PARI Layer 4: Agent Runtime State and Dispatcher.
 
-Coordinates session state, tool definitions, undo tracking, and communication with the model.
+Coordinates session state, tool definitions, undo tracking, and communication with the
+model.
 Executes the full turn lifecycle:
-    User Prompt -> Context Assembly -> Provider Completion -> Tool Execution -> Diff Review -> Response
+    User Prompt -> Context Assembly -> Provider Completion -> Tool Execution -> Diff
+    Review -> Response
 """
 
 import json
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from pari.providers.base import LLMProvider, ProviderMessage
 from pari.providers.mock import MockOfflineProvider
@@ -22,16 +25,16 @@ class AgentRuntime:
     def __init__(
         self,
         workspace: Path,
-        session_file: Optional[Path] = None,
-        provider: Optional[LLMProvider] = None,
+        session_file: Path | None = None,
+        provider: LLMProvider | None = None,
     ):
         self.workspace = workspace.resolve()
         self.session_file = session_file or (self.workspace / ".pari" / "session.jsonl")
         self.provider = provider or MockOfflineProvider()
         self.undo_manager = GuardedUndoManager(self.workspace)
-        self.pinned_files: List[str] = []
-        self.session_id: Optional[str] = None
-        self.messages: List[ProviderMessage] = []
+        self.pinned_files: list[str] = []
+        self.session_id: str | None = None
+        self.messages: list[ProviderMessage] = []
 
     def start_session(self) -> str:
         """Initialize session and emit start event to session.jsonl."""
@@ -60,10 +63,12 @@ class AgentRuntime:
     async def execute_turn(
         self,
         prompt: str,
-        on_tool_call: Optional[Callable[[str, Dict[str, Any]], None]] = None,
-        on_diff: Optional[Callable[[str, str], None]] = None,
+        on_tool_call: Callable[[str, dict[str, Any]], None] | None = None,
+        on_diff: Callable[[str, str], None] | None = None,
     ) -> str:
         """Execute conversational turn with autonomous tool execution."""
+        self.on_tool_call = on_tool_call
+        self.on_diff = on_diff
         if not self.session_id:
             self.start_session()
 
@@ -88,4 +93,3 @@ class AgentRuntime:
             f.write(json.dumps(turn_record) + "\n")
 
         return resp.text
-

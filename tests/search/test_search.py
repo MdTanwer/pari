@@ -1,6 +1,7 @@
 """Unit tests for pari.search file globbing and substring grep."""
 
 from pathlib import Path
+
 from pari.search import find_files, grep_search
 
 

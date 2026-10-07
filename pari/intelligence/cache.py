@@ -7,14 +7,15 @@ Architectural Purpose:
 """
 
 from pathlib import Path
-from typing import Optional
 
 
 class WorktreeSymbolCache:
-    """Manages cached symbol index keyed specifically to workspace path and file mtimes."""
+    """Manages cached symbol index keyed specifically to workspace path and file
+    mtimes."""
 
-    def __init__(self, workspace: Path, cache_dir: Optional[Path] = None):
+    def __init__(self, workspace: Path, cache_dir: Path | None = None):
         self.workspace = workspace.resolve()
+        self.cache_dir = cache_dir
 
     def get_db_path(self) -> Path:
         """Return path to workspace-isolated SQLite cache file."""

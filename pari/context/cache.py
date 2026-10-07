@@ -6,10 +6,10 @@ Positions Anthropic / provider prompt cache breakpoints at optimal tier boundari
 This guarantees high cache hit rates (70-90%) throughout long sessions.
 """
 
-from typing import List
 from pari.context.chunks import ContextChunk
 
 
-def mark_cache_breakpoints(chunks: List[ContextChunk]) -> List[ContextChunk]:
-    """Inspect chunks and ensure cache_control flags are set only on key tier boundaries."""
+def mark_cache_breakpoints(chunks: list[ContextChunk]) -> list[ContextChunk]:
+    """Inspect chunks and ensure cache_control flags are set only on key tier
+    boundaries."""
     raise NotImplementedError

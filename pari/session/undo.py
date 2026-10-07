@@ -1,23 +1,21 @@
 """PARI Layer 1: Guarded Undo Manager.
 
-Architectural Purpose:
-    Implements a safe, bounded /undo mechanism:
-    1. Restores files modified by the most recent turn.
-    2. Guarded check: If the developer manually edited the file after PARI touched it,
-       aborts or prompts to prevent accidental overwrite of user work.
-    3. Terminates background processes started during the turn.
-    4. Explicit disclosure: Informs user that external side effects (API calls, remote DBs,
-       pip install) are logged but not automatically reversible.
+Restores files from the last turn, stops processes started in that turn,
+and refuses to overwrite a file the developer changed afterward.
 """
 
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+
+from pari.fs.atomic import atomic_write, read_file
+from pari.fs.path import resolve_safe_path
 
 
 @dataclass
 class FileSnapshot:
     """Pre- and post-edit file hash snapshot."""
+
     rel_path: str
     pre_edit_content: str
     pre_edit_hash: str
@@ -27,16 +25,11 @@ class FileSnapshot:
 @dataclass
 class UndoResult:
     """Outcome of guarded undo execution."""
-    reverted_files: List[str]
-    conflicted_files: List[str]
+
+    reverted_files: list[str]
+    conflicted_files: list[str]
     terminated_processes: int
-    disclosed_side_effects: List[str]
-
-
-import hashlib
-from typing import Dict, List
-from pari.fs.atomic import atomic_write, read_file
-from pari.fs.path import resolve_safe_path
+    disclosed_side_effects: list[str]
 
 
 class GuardedUndoManager:
@@ -44,8 +37,8 @@ class GuardedUndoManager:
 
     def __init__(self, workspace: Path):
         self.workspace = workspace.resolve()
-        self.snapshots: Dict[str, FileSnapshot] = {}
-        self.side_effects: List[str] = []
+        self.snapshots: dict[str, FileSnapshot] = {}
+        self.side_effects: list[str] = []
 
     def _hash(self, content: str) -> str:
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
@@ -60,13 +53,14 @@ class GuardedUndoManager:
         )
 
     def record_side_effect(self, description: str):
-        """Log external irreversible side effect (e.g. package install, DB migration)."""
+        """Log external irreversible side effect (e.g. package install, DB
+        migration)."""
         self.side_effects.append(description)
 
     def undo(self, force: bool = False) -> UndoResult:
         """Execute guarded rollback verifying files haven't drifted."""
-        reverted: List[str] = []
-        conflicts: List[str] = []
+        reverted: list[str] = []
+        conflicts: list[str] = []
 
         for rel_path, snapshot in list(self.snapshots.items()):
             file_path = resolve_safe_path(self.workspace, rel_path)
@@ -96,4 +90,3 @@ class GuardedUndoManager:
         )
         self.side_effects.clear()
         return result
-

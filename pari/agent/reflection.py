@@ -10,7 +10,6 @@ Architectural Purpose:
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -34,6 +33,6 @@ class ReflectionManager:
         """Format error feedback prompt for next turn."""
         raise NotImplementedError
 
-    def reset(self, operation_id: Optional[str] = None):
+    def reset(self, operation_id: str | None = None):
         """Clear failure counts."""
         raise NotImplementedError

@@ -7,7 +7,6 @@ Architectural Purpose:
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
 
 
 @dataclass
@@ -17,7 +16,9 @@ class GrepMatch:
     line_content: str
 
 
-def find_files(workspace_root: Path, pattern: str = "*", max_results: int = 100) -> List[str]:
+def find_files(
+    workspace_root: Path, pattern: str = "*", max_results: int = 100
+) -> list[str]:
     """Find files in workspace matching a glob pattern, respecting ignore rules."""
     raise NotImplementedError
 
@@ -28,6 +29,7 @@ def grep_search(
     is_regex: bool = False,
     path_filter: str = "*",
     max_matches: int = 50,
-) -> List[GrepMatch]:
-    """Search for query across files in workspace, returning matches with line numbers."""
+) -> list[GrepMatch]:
+    """Search for query across files in workspace, returning matches with line
+    numbers."""
     raise NotImplementedError

@@ -17,23 +17,28 @@ from __future__ import annotations
 import os
 import shutil
 from pathlib import Path
-from typing import Dict, List, Optional
 
-from pari.sandbox.base import SandboxLimits, SandboxResult, SandboxRunner, network_allowed, scrub_env
+from pari.sandbox.base import (
+    SandboxLimits,
+    SandboxResult,
+    SandboxRunner,
+    network_allowed,
+    scrub_env,
+)
 
 
 class BwrapSandboxRunner(SandboxRunner):
     """Runs commands in an unprivileged Linux Bubblewrap (bwrap) sandbox."""
 
-    def __init__(self, workspace: Path, limits: Optional[SandboxLimits] = None):
+    def __init__(self, workspace: Path, limits: SandboxLimits | None = None):
         super().__init__(workspace, limits)
         self._bwrap = find_bwrap(self.workspace)
 
     def run_command(
         self,
         command: str,
-        env: Optional[Dict[str, str]] = None,
-        timeout: Optional[float] = None,
+        env: dict[str, str] | None = None,
+        timeout: float | None = None,
     ) -> SandboxResult:
         child_env = scrub_env(env, home="/tmp")
         argv = self._argv(command, child_env)
@@ -47,7 +52,7 @@ class BwrapSandboxRunner(SandboxRunner):
     def cleanup(self) -> None:
         self._cleanup_processes()
 
-    def _argv(self, command: str, env: Dict[str, str]) -> List[str]:
+    def _argv(self, command: str, env: dict[str, str]) -> list[str]:
         workspace = str(self.workspace)
         argv = [
             self._bwrap,
@@ -121,7 +126,7 @@ def _is_inside(path: Path, parent: Path) -> bool:
     return True
 
 
-def _append_secret_masks(argv: List[str], workspace: Path) -> None:
+def _append_secret_masks(argv: list[str], workspace: Path) -> None:
     """Hide credential files that live inside the writable workspace mount."""
     names = list(_SECRET_DIRS)
     if workspace == Path.home().resolve():
@@ -139,8 +144,8 @@ def _append_secret_masks(argv: List[str], workspace: Path) -> None:
         argv.extend(["--ro-bind", str(git_dir), str(git_dir)])
 
 
-def _append_system_mounts(argv: List[str]) -> None:
-    """Read-only system paths. Symlinks (merged /usr) stay symlinks so /usr is the real mount."""
+def _append_system_mounts(argv: list[str]) -> None:
+    """Mount system paths read-only. Merged-/usr symlinks stay symlinks."""
     usr = Path("/usr")
     if usr.is_dir() and not usr.is_symlink():
         argv.extend(["--ro-bind", "/usr", "/usr"])

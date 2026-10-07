@@ -3,8 +3,8 @@
 Coordinates prompt classification, architect plan generation, and editor execution.
 """
 
-from typing import Any, Callable, Coroutine, List, Optional
-from pari.routing.classifier import TaskClassifier, TaskComplexity
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 
 class DualModelRouter:
@@ -12,12 +12,14 @@ class DualModelRouter:
 
     def __init__(
         self,
-        architect_call: Optional[Callable[[str], Coroutine[Any, Any, str]]] = None,
-        editor_call: Optional[Callable[[str, Optional[str]], Coroutine[Any, Any, str]]] = None,
+        architect_call: Callable[[str], Coroutine[Any, Any, str]] | None = None,
+        editor_call: (
+            Callable[[str, str | None], Coroutine[Any, Any, str]] | None
+        ) = None,
     ):
         self.architect_call = architect_call
         self.editor_call = editor_call
 
-    async def route_and_execute(self, prompt: str, active_files: List[str]) -> str:
+    async def route_and_execute(self, prompt: str, active_files: list[str]) -> str:
         """Route prompt based on task complexity classification."""
         raise NotImplementedError

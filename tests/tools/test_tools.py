@@ -1,7 +1,9 @@
 """Unit tests for Standard Tool Suite."""
 
 from pathlib import Path
+
 import pytest
+
 from pari.tools.registry import get_default_registry
 
 
@@ -18,7 +20,9 @@ async def test_tool_registry_and_fs_tools(tmp_path: Path):
     assert "grep_search" in names
 
     # Test write_file
-    res = await registry.execute("write_file", {"path": "hello.txt", "content": "Hello World!"})
+    res = await registry.execute(
+        "write_file", {"path": "hello.txt", "content": "Hello World!"}
+    )
     assert "Successfully wrote" in res
 
     # Test read_file
@@ -26,7 +30,10 @@ async def test_tool_registry_and_fs_tools(tmp_path: Path):
     assert content == "Hello World!"
 
     # Test edit_file
-    edit_res = await registry.execute("edit_file", {"path": "hello.txt", "search": "World", "replace": "PARI"})
+    edit_res = await registry.execute(
+        "edit_file",
+        {"path": "hello.txt", "search": "World", "replace": "PARI"},
+    )
     assert edit_res["status"] == "success"
 
     updated = await registry.execute("read_file", {"path": "hello.txt"})

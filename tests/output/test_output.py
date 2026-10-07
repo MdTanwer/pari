@@ -1,14 +1,17 @@
 """Unit tests for Layer 7 Output Handling & Context Hygiene."""
 
 from pathlib import Path
+
+from pari.output.parser import parse_test_failures
 from pari.output.spooler import ManagedOutputSpooler
 from pari.output.truncation import extract_head_tail
-from pari.output.parser import parse_test_failures
 
 
 def test_head_tail_truncation():
     long_output = "\n".join(f"line {i}" for i in range(500))
-    condensed, truncated = extract_head_tail(long_output, head_lines=10, tail_lines=20, sidecar_path="/tmp/out.log")
+    condensed, truncated = extract_head_tail(
+        long_output, head_lines=10, tail_lines=20, sidecar_path="/tmp/out.log"
+    )
     assert truncated is True
     assert "line 0" in condensed
     assert "line 499" in condensed

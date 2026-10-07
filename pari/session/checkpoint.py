@@ -7,7 +7,8 @@ Architectural Purpose:
     Allows resuming a session by reading backward to the most recent checkpoint.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
+
 from pari.session.logger import SessionLogger
 
 
@@ -19,6 +20,6 @@ class CheckpointManager:
         self.interval_turns = interval_turns
         # TODO: Track turn count
 
-    def record_turn(self, state_snapshot: Dict[str, Any]) -> Optional[str]:
+    def record_turn(self, state_snapshot: dict[str, Any]) -> str | None:
         """Increment turn counter and trigger checkpoint write if interval is met."""
         raise NotImplementedError

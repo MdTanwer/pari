@@ -6,7 +6,6 @@ Architectural Purpose:
 """
 
 from pathlib import Path
-from typing import List, Optional
 
 
 class RepoMapGenerator:
@@ -16,6 +15,6 @@ class RepoMapGenerator:
         self.workspace = workspace.resolve()
         self.max_tokens = max_tokens
 
-    def generate(self, focus_files: Optional[List[str]] = None) -> str:
+    def generate(self, focus_files: list[str] | None = None) -> str:
         """Scan workspace, extract symbols, and format condensed outline."""
         raise NotImplementedError

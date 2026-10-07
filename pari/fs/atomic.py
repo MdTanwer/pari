@@ -2,8 +2,10 @@
 
 Architectural Purpose:
     Closes Claude Code F1 & F3.
-    Writes content to a temporary file in the same directory (guaranteeing same filesystem device),
-    calls os.fsync() on the file descriptor, atomically replaces the target via os.replace(),
+    Writes content to a temporary file in the same directory (guaranteeing same
+    filesystem device),
+    calls os.fsync() on the file descriptor, atomically replaces the target via
+    os.replace(),
     and flushes the parent directory entry with fsync on POSIX.
 """
 
@@ -50,4 +52,3 @@ def atomic_write(target_path: Path, content: str) -> None:
 def read_file(file_path: Path) -> str:
     """Read full text content of a file."""
     return file_path.resolve().read_text(encoding="utf-8")
-

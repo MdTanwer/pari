@@ -6,11 +6,11 @@ forming an unbroken causal Merkle chain.
 """
 
 from dataclasses import dataclass
-from enum import Enum
-from typing import Any, Dict, Optional
+from enum import StrEnum
+from typing import Any
 
 
-class SessionEventType(str, Enum):
+class SessionEventType(StrEnum):
     SESSION_START = "session_start"
     USER_PROMPT = "user_prompt"
     ASSISTANT_RESPONSE = "assistant_response"
@@ -24,7 +24,7 @@ class SessionEventType(str, Enum):
 @dataclass
 class SessionEvent:
     """An individual event entry in the session Merkle DAG.
-    
+
     Fields:
         type: Event category
         payload: Event data dictionary
@@ -33,18 +33,19 @@ class SessionEvent:
         timestamp: Epoch timestamp
         crc32: Integrity checksum
     """
-    type: SessionEventType
-    payload: Dict[str, Any]
-    id: Optional[str] = None
-    parent_id: Optional[str] = None
-    timestamp: float = 0.0
-    crc32: Optional[int] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    type: SessionEventType
+    payload: dict[str, Any]
+    id: str | None = None
+    parent_id: str | None = None
+    timestamp: float = 0.0
+    crc32: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert event to serializable dictionary."""
         raise NotImplementedError
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SessionEvent":
+    def from_dict(cls, data: dict[str, Any]) -> "SessionEvent":
         """Reconstruct event from serialized dictionary."""
         raise NotImplementedError

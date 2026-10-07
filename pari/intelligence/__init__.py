@@ -7,7 +7,8 @@ Architectural Purpose:
 Subsystems:
     - search: Fast file globbing & ripgrep substring search (v1 primary navigation)
     - ast: Tree-sitter AST symbol extractor across Python, TypeScript, Go, Rust
-    - ppr: Personalized PageRank graph ranking with hub suppression (>50 inbound refs dampened)
+    - ppr: Personalized PageRank graph ranking with hub suppression (>50 inbound refs
+    dampened)
     - repomap: 2,048-token binary-search packing for the static context repo map
     - cache: Worktree-scoped SQLite symbol cache preventing lock collisions
 """

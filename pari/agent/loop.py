@@ -2,13 +2,16 @@
 
 Architectural Purpose:
     Outer loop: Session conversation interaction (waiting for user input).
-    Inner loop: Autonomous tool-calling turns until task is resolved or user feedback needed.
+    Inner loop: Autonomous tool-calling turns until task is resolved or user feedback
+    needed.
     Continuation Guard: If the model's stop_reason == "length" (e.g. output truncated),
-    automatically prompts a continuation message rather than executing broken partial syntax.
+    automatically prompts a continuation message rather than executing broken partial
+    syntax.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 
 @dataclass

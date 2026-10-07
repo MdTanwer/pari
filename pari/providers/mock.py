@@ -4,7 +4,8 @@ Enables offline testing of the agent loop, tool execution, session recovery,
 and diff review without requiring remote cloud API tokens.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage
 
 
@@ -16,11 +17,12 @@ class MockOfflineProvider(LLMProvider):
 
     async def complete(
         self,
-        messages: List[ProviderMessage],
-        tools: Optional[List[Dict[str, Any]]] = None,
+        messages: list[ProviderMessage],
+        tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.0,
     ) -> ModelResponse:
         """Simulate completion for local testing."""
+        _ = tools, temperature
         last_prompt = messages[-1].content if messages else ""
         lower_prompt = last_prompt.lower()
 
@@ -43,4 +45,3 @@ class MockOfflineProvider(LLMProvider):
             cached_tokens=0,
             stop_reason="end_turn",
         )
-

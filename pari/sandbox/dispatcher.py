@@ -15,7 +15,6 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Optional
 
 from pari.sandbox.base import SandboxLimits, SandboxRunner
 from pari.sandbox.bwrap import BwrapSandboxRunner
@@ -26,8 +25,8 @@ from pari.sandbox.seatbelt import MacOSSeatbeltSandboxRunner
 
 def get_sandbox_runner(
     workspace: Path,
-    limits: Optional[SandboxLimits] = None,
-    force_mode: Optional[str] = None,
+    limits: SandboxLimits | None = None,
+    force_mode: str | None = None,
 ) -> SandboxRunner:
     """Select and instantiate the appropriate sandbox runner for the current platform.
 

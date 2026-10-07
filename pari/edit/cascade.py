@@ -8,8 +8,6 @@ Architectural Purpose:
     Tier 4: Prefill continuation
 """
 
-from typing import Tuple
-
 
 class EditCascade:
     """Orchestrates multi-tier edit fallbacks."""
@@ -17,6 +15,6 @@ class EditCascade:
     def __init__(self, allow_fallbacks: bool = True):
         self.allow_fallbacks = allow_fallbacks
 
-    def apply(self, original: str, search: str, replace: str) -> Tuple[str, str]:
+    def apply(self, original: str, search: str, replace: str) -> tuple[str, str]:
         """Apply edit using cascade. Returns (new_content, tier_used)."""
         raise NotImplementedError

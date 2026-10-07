@@ -8,8 +8,10 @@ Architectural Purpose:
     caused by power loss or sudden SIGKILL.
 """
 
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any
+
 from pari.session.events import SessionEvent, SessionEventType
 
 
@@ -21,18 +23,21 @@ class SessionLogger:
         # TODO: Initialize file path and perform backward recovery scan for torn writes
 
     def _recover_and_index(self) -> None:
-        """Scan session file, recover from torn writes at EOF, and locate the last record ID."""
+        """Scan session file, recover from torn writes at EOF, and locate the last
+        record ID."""
         raise NotImplementedError("Torn write recovery placeholder.")
 
-    def log(self, event_type: SessionEventType, payload: Dict[str, Any]) -> SessionEvent:
+    def log(
+        self, event_type: SessionEventType, payload: dict[str, Any]
+    ) -> SessionEvent:
         """Append a new verified session event to disk with CRC32 checksum."""
         raise NotImplementedError("Session logging placeholder.")
 
-    def append_event(self, event_type: str, data: Dict[str, Any]) -> str:
+    def append_event(self, event_type: str, data: dict[str, Any]) -> str:
         """Legacy append API."""
         raise NotImplementedError
 
-    def read_events(self) -> List[Dict[str, Any]]:
+    def read_events(self) -> list[dict[str, Any]]:
         """Read all verified records from the session file."""
         raise NotImplementedError
 

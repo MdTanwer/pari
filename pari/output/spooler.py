@@ -10,7 +10,6 @@ Architectural Purpose:
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -25,7 +24,8 @@ class SpoolResult:
 class ManagedOutputSpooler:
     """Spools process output to disk sidecars and extracts safe context summaries."""
 
-    def __init__(self, spool_dir: Optional[Path] = None, max_bytes: int = 50 * 1024):
+    def __init__(self, spool_dir: Path | None = None, max_bytes: int = 50 * 1024):
+        self.spool_dir = spool_dir
         self.max_bytes = max_bytes
 
     def spool(self, raw_output: str, command_tag: str = "cmd") -> SpoolResult:

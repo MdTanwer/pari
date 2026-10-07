@@ -6,7 +6,9 @@ Allows running PARI via:
 """
 
 import sys
+
 from pari.cli import main
+
 
 if __name__ == "__main__":
     sys.exit(main())

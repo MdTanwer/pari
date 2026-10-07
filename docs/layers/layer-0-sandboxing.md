@@ -40,30 +40,25 @@ When PARI initializes an execution turn, the Layer 0 Dispatcher instantiates the
 import sys
 import os
 
+
 def get_sandbox_runner(config, workspace_dir: str):
     if config.mode == "cloud" or os.environ.get("PARI_SANDBOX") == "cloud":
         return E2BCloudSandboxRunner(
-            api_key=config.e2b_api_key,
-            template=config.cloud_template
+            api_key=config.e2b_api_key, template=config.cloud_template
         )
     elif sys.platform == "linux":
         # Natively handles both Linux bare-metal and Windows WSL2
         return BwrapSandboxRunner(
-            workspace=workspace_dir,
-            memory_max="2G",
-            cpu_weight=100
+            workspace=workspace_dir, memory_max="2G", cpu_weight=100
         )
     elif sys.platform == "darwin":
         # Native macOS XNU kernel sandbox
         return MacOSSeatbeltSandboxRunner(
-            workspace=workspace_dir,
-            profile="pari_rules.sb"
+            workspace=workspace_dir, profile="pari_rules.sb"
         )
     elif sys.platform == "win32":
         # Native Windows without WSL2
-        return WindowsSupervisedGuardrailRunner(
-            workspace=workspace_dir
-        )
+        return WindowsSupervisedGuardrailRunner(workspace=workspace_dir)
     else:
         raise RuntimeError(f"Unsupported operating system platform: {sys.platform}")
 ```

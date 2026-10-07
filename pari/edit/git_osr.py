@@ -6,9 +6,7 @@ Architectural Purpose:
     the search block as a base revision and attempts a 3-way context alignment.
 """
 
-from typing import Optional
 
-
-def apply_git_osr(original: str, search: str, replace: str) -> Optional[str]:
+def apply_git_osr(original: str, search: str, replace: str) -> str | None:
     """Attempt 3-way context alignment using line-based diff matching."""
     raise NotImplementedError

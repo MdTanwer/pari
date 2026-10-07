@@ -5,7 +5,8 @@ and spools large outputs through Layer 7 ManagedOutputSpooler.
 """
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
+
 from pari.tools.base import Tool, ToolDefinition
 
 
@@ -19,6 +20,6 @@ class BashTool(Tool):
     def definition(self) -> ToolDefinition:
         raise NotImplementedError
 
-    async def execute(self, command: str, timeout: float = 30.0) -> Dict[str, Any]:
+    async def execute(self, command: str, timeout: float = 30.0) -> dict[str, Any]:
         """Execute command inside sandbox with output spooling."""
         raise NotImplementedError

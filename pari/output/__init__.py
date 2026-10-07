@@ -2,7 +2,8 @@
 
 Architectural Purpose:
     Closes the #1 failure mode in the Failure Mode Atlas: Unbounded stdout poisoning.
-    Prevents large tool outputs (e.g. cat massive.log, npm install, pytest) from flooding
+    Prevents large tool outputs (e.g. cat massive.log, npm install, pytest) from
+    flooding
     the model's context window and displacing core instructions.
 
 Subsystems:

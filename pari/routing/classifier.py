@@ -6,12 +6,11 @@ Architectural Purpose:
     bypasses the Architect model entirely, saving both latency and token cost.
 """
 
-from enum import Enum
-from typing import List
+from enum import StrEnum
 
 
-class TaskComplexity(str, Enum):
-    SIMPLE_EDIT = "simple_edit"      # Bypass architect -> route directly to editor
+class TaskComplexity(StrEnum):
+    SIMPLE_EDIT = "simple_edit"  # Bypass architect -> route directly to editor
     ARCHITECTURAL = "architectural"  # Dual-model: Architect plan -> Editor diff
 
 
@@ -19,6 +18,6 @@ class TaskClassifier:
     """Classifies task complexity to select optimal routing pipeline."""
 
     @staticmethod
-    def classify(prompt: str, active_files: List[str]) -> TaskComplexity:
+    def classify(prompt: str, active_files: list[str]) -> TaskComplexity:
         """Classify task complexity based on intent keywords and scope."""
         raise NotImplementedError

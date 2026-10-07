@@ -14,9 +14,7 @@ def test_workspace_write_and_outside_path_hidden(tmp_path: Path):
     secret.write_text("top-secret")
     runner = get_sandbox_runner(workspace)
     quoted = shlex.quote(str(secret))
-    res = runner.run_command(
-        f"touch probe.txt && test ! -f {quoted} && echo hidden"
-    )
+    res = runner.run_command(f"touch probe.txt && test ! -f {quoted} && echo hidden")
     assert res.exit_code == 0, res.stderr
     assert "hidden" in res.stdout
     assert (workspace / "probe.txt").is_file()

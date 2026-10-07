@@ -463,7 +463,9 @@ while message:
         break
 
     if self.num_reflections >= self.max_reflections:
-        self.io.tool_warning(f"Only {self.max_reflections} reflections allowed, stopping.")
+        self.io.tool_warning(
+            f"Only {self.max_reflections} reflections allowed, stopping."
+        )
         return
 
     self.num_reflections += 1
@@ -525,14 +527,17 @@ with GitTemporaryDirectory() as dname:
     fname = Path(dname) / "file.txt"
 
     fname.write_text(original_text)
-    repo.git.add(str(fname)); repo.git.commit("-m", "original")
+    repo.git.add(str(fname))
+    repo.git.commit("-m", "original")
     original_hash = repo.head.commit.hexsha
 
     fname.write_text(search_text)
-    repo.git.add(str(fname)); repo.git.commit("-m", "search")
+    repo.git.add(str(fname))
+    repo.git.commit("-m", "search")
 
     fname.write_text(replace_text)
-    repo.git.add(str(fname)); repo.git.commit("-m", "replace")
+    repo.git.add(str(fname))
+    repo.git.commit("-m", "replace")
     replace_hash = repo.head.commit.hexsha
 
     repo.git.checkout(original_hash)
@@ -1013,6 +1018,7 @@ Automated regression evaluation harness for terminal coding agents.
 Runs a curated suite of real GitHub repository bugs and measures pass rates,
 token costs, and turn efficiency.
 """
+
 import asyncio
 import json
 import os
@@ -1023,6 +1029,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+
 @dataclass
 class EvalTask:
     task_id: str
@@ -1031,6 +1038,7 @@ class EvalTask:
     issue_description: str
     test_command: str
     test_file_path: str  # Agent must not modify this file!
+
 
 @dataclass
 class EvalResult:
@@ -1041,8 +1049,10 @@ class EvalResult:
     duration_seconds: float
     error_message: Optional[str] = None
 
+
 class MicroEvalRunner:
     """Automated evaluation harness running curated SWE-bench style issues."""
+
     def __init__(self, workspace_root: Path, results_dir: Path):
         self.workspace_root = workspace_root
         self.results_dir = results_dir
@@ -1054,9 +1064,18 @@ class MicroEvalRunner:
         repo_dir = self.workspace_root / task.task_id
         if repo_dir.exists():
             shutil.rmtree(repo_dir)
-            
-        subprocess.run(["git", "clone", task.repo_url, str(repo_dir)], check=True, capture_output=True)
-        subprocess.run(["git", "checkout", task.base_commit], cwd=str(repo_dir), check=True, capture_output=True)
+
+        subprocess.run(
+            ["git", "clone", task.repo_url, str(repo_dir)],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "checkout", task.base_commit],
+            cwd=str(repo_dir),
+            check=True,
+            capture_output=True,
+        )
         return repo_dir
 
     def _verify_test_untouched(self, repo_dir: Path, test_file_path: str) -> bool:
@@ -1065,14 +1084,14 @@ class MicroEvalRunner:
             ["git", "diff", "--name-only", test_file_path],
             cwd=str(repo_dir),
             capture_output=True,
-            text=True
+            text=True,
         )
         return len(diff.stdout.strip()) == 0
 
     async def run_task(self, task: EvalTask, agent_factory) -> EvalResult:
         repo_dir = self._setup_repo(task)
         start_time = time.time()
-        
+
         # Instantiate agent pointing to isolated test repository
         agent = agent_factory(workspace_dir=repo_dir)
         prompt = (
@@ -1081,7 +1100,7 @@ class MicroEvalRunner:
             f"Verify your solution passes: `{task.test_command}`. "
             f"DO NOT modify test files under {task.test_file_path}."
         )
-        
+
         turn_count = 0
         cost_usd = 0.0
         passed = False
@@ -1090,7 +1109,7 @@ class MicroEvalRunner:
         try:
             # Execute agent turn loop with a 25-turn budget
             await asyncio.wait_for(agent.run(prompt), timeout=300.0)
-            
+
             # Check if agent modified test files (disqualification check)
             if not self._verify_test_untouched(repo_dir, task.test_file_path):
                 return EvalResult(
@@ -1099,7 +1118,7 @@ class MicroEvalRunner:
                     turn_count=agent.turn_count,
                     cost_usd=agent.total_cost,
                     duration_seconds=time.time() - start_time,
-                    error_message="Disqualified: Agent modified test file."
+                    error_message="Disqualified: Agent modified test file.",
                 )
 
             # Run evaluation test command in the modified workspace
@@ -1108,9 +1127,9 @@ class MicroEvalRunner:
                 shell=True,
                 cwd=str(repo_dir),
                 capture_output=True,
-                text=True
+                text=True,
             )
-            passed = (test_proc.returncode == 0)
+            passed = test_proc.returncode == 0
             if not passed:
                 error_msg = f"Tests failed with exit code {test_proc.returncode}:\n{test_proc.stderr[:500]}"
 
@@ -1131,7 +1150,7 @@ class MicroEvalRunner:
             turn_count=turn_count,
             cost_usd=cost_usd,
             duration_seconds=duration,
-            error_message=error_msg
+            error_message=error_msg,
         )
 
     async def run_suite(self, tasks: List[EvalTask], agent_factory) -> Dict[str, Any]:
@@ -1142,7 +1161,9 @@ class MicroEvalRunner:
             res = await self.run_task(task, agent_factory)
             results.append(res)
             status = "PASSED" if res.passed else "FAILED"
-            print(f"    [{status}] in {res.duration_seconds:.1f}s ({res.turn_count} turns, ${res.cost_usd:.4f})")
+            print(
+                f"    [{status}] in {res.duration_seconds:.1f}s ({res.turn_count} turns, ${res.cost_usd:.4f})"
+            )
             if not res.passed and res.error_message:
                 print(f"    Reason: {res.error_message[:120]}")
 
@@ -1165,10 +1186,10 @@ class MicroEvalRunner:
                     "turn_count": r.turn_count,
                     "cost_usd": r.cost_usd,
                     "duration_seconds": r.duration_seconds,
-                    "error": r.error_message
+                    "error": r.error_message,
                 }
                 for r in results
-            ]
+            ],
         }
 
         summary_file = self.results_dir / f"eval_summary_{int(time.time())}.json"
@@ -1221,16 +1242,33 @@ To eliminate subjective drift, LLM judges must be constrained to a strict, struc
 aegis/eval/model_judge.py
 Structured LLM-as-a-Judge rubric evaluator for code architecture quality.
 """
+
 from typing import List, Literal
 from pydantic import BaseModel, Field
 
+
 class CodeQualityRubric(BaseModel):
-    builds_cleanly: bool = Field(description="Does the code compile without syntax or type errors?")
-    modularity_score: int = Field(ge=1, le=10, description="1-10 rating of separation of concerns and file structure.")
-    type_safety_score: int = Field(ge=1, le=10, description="1-10 rating: 10 = fully typed without 'any', 1 = untyped.")
-    unnecessary_tool_calls_detected: bool = Field(description="Did the agent read irrelevant files or execute redundant commands?")
+    builds_cleanly: bool = Field(
+        description="Does the code compile without syntax or type errors?"
+    )
+    modularity_score: int = Field(
+        ge=1,
+        le=10,
+        description="1-10 rating of separation of concerns and file structure.",
+    )
+    type_safety_score: int = Field(
+        ge=1,
+        le=10,
+        description="1-10 rating: 10 = fully typed without 'any', 1 = untyped.",
+    )
+    unnecessary_tool_calls_detected: bool = Field(
+        description="Did the agent read irrelevant files or execute redundant commands?"
+    )
     verdict: Literal["PASS", "FAIL", "NEEDS_REFACTOR"]
-    justification: str = Field(description="Concrete evidence from the diff explaining the scores.")
+    justification: str = Field(
+        description="Concrete evidence from the diff explaining the scores."
+    )
+
 
 JUDGE_SYSTEM_PROMPT = """
 You are an expert Principal Systems Architect judging code written by an AI coding agent.
@@ -1360,16 +1398,19 @@ Turn 20: "Fix the sorting icon on the name column"                       ──�
 aegis/eval/multiturn_benchmark.py
 Multi-turn conversational stress harness measuring feature retention across iterations.
 """
+
 from dataclasses import dataclass
 from typing import List
+
 
 @dataclass
 class ConversationStep:
     turn_index: int
     prompt: str
     target_file: str
-    expected_mutation: str          # What SHOULD change
-    forbidden_regressions: List[str] # Elements that MUST NOT be altered or broken
+    expected_mutation: str  # What SHOULD change
+    forbidden_regressions: List[str]  # Elements that MUST NOT be altered or broken
+
 
 MULTITURN_SUITE = [
     ConversationStep(
@@ -1377,21 +1418,25 @@ MULTITURN_SUITE = [
         prompt="Create a task manager with task creation, editing, and localStorage persistence.",
         target_file="src/App.tsx",
         expected_mutation="Initial App setup with CRUD operations",
-        forbidden_regressions=[]
+        forbidden_regressions=[],
     ),
     ConversationStep(
         turn_index=2,
         prompt="Add a dark mode toggle button in the top right header.",
         target_file="src/components/Header.tsx",
         expected_mutation="Theme toggle handler and Tailwind dark classes",
-        forbidden_regressions=["localStorage persistence", "task creation"]
+        forbidden_regressions=["localStorage persistence", "task creation"],
     ),
     ConversationStep(
         turn_index=3,
         prompt="Change the font size of the task title in TaskItem.tsx to text-sm.",
         target_file="src/components/TaskItem.tsx",
         expected_mutation="text-sm class applied to title element",
-        forbidden_regressions=["dark mode toggle", "delete button functionality", "localStorage"]
+        forbidden_regressions=[
+            "dark mode toggle",
+            "delete button functionality",
+            "localStorage",
+        ],
     ),
 ]
 ```
@@ -1553,11 +1598,18 @@ Writing a basic terminal coding agent is deceptively simple. Using standard Anth
 import openai, subprocess, json
 
 client = openai.OpenAI()
-messages = [{"role": "system", "content": "You are a terminal agent. Use run_bash to execute commands."}]
+messages = [
+    {
+        "role": "system",
+        "content": "You are a terminal agent. Use run_bash to execute commands.",
+    }
+]
+
 
 def run_bash(cmd: str) -> str:
     res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     return (res.stdout + res.stderr)[:2000]
+
 
 # ... 30 lines of basic while loop ...
 ```

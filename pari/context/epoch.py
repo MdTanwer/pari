@@ -5,11 +5,12 @@ Architectural Purpose:
     Freezes Tiers 1-4 (System Prompt, Tools, Static Repo Map, Project Rules)
     into an immutable baseline for the duration of the epoch.
     Mid-session file edits or dynamic user turns NEVER invalidate upstream cache
-    prefixes, preventing the catastrophic KV-cache invalidation cascades seen in Claude Code.
+    prefixes, preventing the catastrophic KV-cache invalidation cascades seen in Claude
+    Code.
 """
 
 from dataclasses import dataclass
-from typing import List
+
 from pari.context.chunks import ContextChunk
 
 
@@ -27,6 +28,6 @@ class ContextEpoch:
         """Freeze baseline tiers to lock KV cache prefix."""
         raise NotImplementedError
 
-    def get_baseline_chunks(self) -> List[ContextChunk]:
+    def get_baseline_chunks(self) -> list[ContextChunk]:
         """Assemble immutable baseline context chunks."""
         raise NotImplementedError

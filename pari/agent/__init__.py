@@ -1,7 +1,8 @@
 """PARI Layer 4: The Execution Loop (Agent Runtime).
 
 Architectural Purpose:
-    Implements the double-while execution loop with stop_reason == "length" truncation guard,
+    Implements the double-while execution loop with stop_reason == "length" truncation
+    guard,
     bounded reflection retry limits, and lightweight asyncio fiber-based subagents.
 
 Subsystems:

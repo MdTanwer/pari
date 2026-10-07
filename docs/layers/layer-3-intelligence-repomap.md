@@ -134,8 +134,10 @@ PARI utilizes `grep_ast.TreeContext` with binary search over the PageRank percen
 # src/security/crypto.py
 class TokenManager:
     """Handles JWT generation, verification, and rotation."""
+
     def verify_jwt(self, raw_token: str) -> Claims: ...
     def refresh_session(self, refresh_token: str) -> TokenPair: ...
+
 
 # src/controllers/auth.py
 class AuthController:

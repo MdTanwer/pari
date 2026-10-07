@@ -7,6 +7,7 @@ Architectural Purpose:
     of the search block and the replacement block, normalizing subsequent lines.
 """
 
+
 def normalize_relative_indentation(search_block: str, replace_block: str) -> str:
     """Normalize indentation of replacement block to match search block site."""
     raise NotImplementedError

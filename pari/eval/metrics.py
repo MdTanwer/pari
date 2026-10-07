@@ -4,7 +4,7 @@ Computes pass rate, mean cost per resolved task, mean turns, and duration.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any
 
 
 @dataclass
@@ -17,6 +17,6 @@ class EvalMetrics:
     mean_turns: float
 
 
-def calculate_eval_metrics(results: List[Dict[str, Any]]) -> EvalMetrics:
+def calculate_eval_metrics(results: list[dict[str, Any]]) -> EvalMetrics:
     """Compute aggregate benchmark metrics across test runs."""
     raise NotImplementedError

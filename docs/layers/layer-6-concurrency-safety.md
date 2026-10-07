@@ -58,6 +58,7 @@ import os
 from pathlib import Path
 from typing import Dict
 
+
 class FileMutationQueue:
     def __init__(self, workspace_root: str):
         self.workspace_root = os.path.realpath(workspace_root)
@@ -75,7 +76,9 @@ class FileMutationQueue:
 
         # 2. Enforce sandbox boundary: path traversal protection via Path.is_relative_to()
         try:
-            Path(canonical_path).resolve().relative_to(Path(self.workspace_root).resolve())
+            Path(canonical_path).resolve().relative_to(
+                Path(self.workspace_root).resolve()
+            )
         except ValueError:
             raise PermissionError(
                 f"Security violation: Path '{canonical_path}' is outside workspace '{self.workspace_root}'"
@@ -96,9 +99,10 @@ class FileMutationQueue:
 
     def _atomic_disk_write(self, target_path: str, content: str) -> None:
         import tempfile
+
         parent_dir = os.path.dirname(os.path.abspath(target_path))
         os.makedirs(parent_dir, exist_ok=True)
-        
+
         # Write to temporary file in same filesystem directory
         fd, temp_file = tempfile.mkstemp(dir=parent_dir, prefix=".pari_tmp_")
         try:

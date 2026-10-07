@@ -3,7 +3,7 @@
 Architectural Purpose:
     Uses macOS sandbox-exec with an explicit TinyScheme profile.
     Confines filesystem write operations strictly to the workspace directory.
-    Note: Expands explicit user home path since Seatbelt TinyScheme does not expand tilde (~).
+    Seatbelt does not expand '~', so home paths are absolute.
 """
 
 from __future__ import annotations
@@ -11,9 +11,15 @@ from __future__ import annotations
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Dict, Optional
 
-from pari.sandbox.base import SandboxLimits, SandboxResult, SandboxRunner, network_allowed, scrub_env
+from pari.sandbox.base import (
+    SandboxLimits,
+    SandboxResult,
+    SandboxRunner,
+    network_allowed,
+    scrub_env,
+)
+
 
 _SANDBOX_EXEC = "/usr/bin/sandbox-exec"
 
@@ -21,18 +27,22 @@ _SANDBOX_EXEC = "/usr/bin/sandbox-exec"
 class MacOSSeatbeltSandboxRunner(SandboxRunner):
     """Runs commands in an Apple Seatbelt sandbox via sandbox-exec."""
 
-    def __init__(self, workspace: Path, limits: Optional[SandboxLimits] = None):
+    def __init__(self, workspace: Path, limits: SandboxLimits | None = None):
         super().__init__(workspace, limits)
         if not Path(_SANDBOX_EXEC).is_file() and shutil.which("sandbox-exec") is None:
             raise FileNotFoundError("sandbox-exec is not available on this Mac")
-        self._sandbox_exec = _SANDBOX_EXEC if Path(_SANDBOX_EXEC).is_file() else shutil.which("sandbox-exec")
-        self._profile_path: Optional[Path] = None
+        self._sandbox_exec = (
+            _SANDBOX_EXEC
+            if Path(_SANDBOX_EXEC).is_file()
+            else shutil.which("sandbox-exec")
+        )
+        self._profile_path: Path | None = None
 
     def run_command(
         self,
         command: str,
-        env: Optional[Dict[str, str]] = None,
-        timeout: Optional[float] = None,
+        env: dict[str, str] | None = None,
+        timeout: float | None = None,
     ) -> SandboxResult:
         child_env = scrub_env(env, home="/private/tmp")
         profile = render_seatbelt_profile(
@@ -80,10 +90,18 @@ def render_seatbelt_profile(
     allow_network: bool,
     read_only: bool,
 ) -> str:
-    """Build the Layer 0 Seatbelt profile with absolute home and workspace paths."""
+    """Build the Layer 0 profile with absolute home and workspace paths."""
     workspace_s = _scheme_string(str(workspace))
     git_s = _scheme_string(str(workspace / ".git"))
-    write_rule = "" if read_only else f"(allow file-read* file-write* (subpath {workspace_s}))"
+    write_rule = (
+        "" if read_only else f"(allow file-read* file-write* (subpath {workspace_s}))"
+    )
+    ioctl_rule = (
+        "(allow file-ioctl "
+        '(literal "/dev/null") (literal "/dev/zero") '
+        '(literal "/dev/dtracehelper") (literal "/dev/random") '
+        '(literal "/dev/urandom"))'
+    )
     read_rule = f"(allow file-read* (subpath {workspace_s}))" if read_only else ""
     network_rule = ""
     if allow_network:
@@ -99,7 +117,7 @@ def render_seatbelt_profile(
 (allow process-fork)
 (allow signal (target self))
 (allow sysctl-read)
-(allow file-ioctl (literal "/dev/null") (literal "/dev/zero") (literal "/dev/dtracehelper") (literal "/dev/random") (literal "/dev/urandom"))
+{ioctl_rule}
 (allow file-read*
     (subpath "/usr")
     (subpath "/bin")

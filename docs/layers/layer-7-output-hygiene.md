@@ -62,16 +62,20 @@ When the model genuinely needs to inspect the interior lines of a truncated log 
 
 ```python
 # Tool definition (pari/tools/output_reader.py)
-async def read_tool_output(sidecar_path: str, offset_bytes: int = 0, limit_bytes: int = 45000) -> str:
+async def read_tool_output(
+    sidecar_path: str, offset_bytes: int = 0, limit_bytes: int = 45000
+) -> str:
     """Read a slice of a large tool output sidecar file."""
     # Enforce path containment within .pari/tool-outputs/
     safe_path = validate_sidecar_path(sidecar_path)
-    
+
     with open(safe_path, "r", encoding="utf-8", errors="replace") as f:
         f.seek(offset_bytes)
         content = f.read(limit_bytes)
-        
-    return f"[PAGED OUTPUT: offset={offset_bytes}, bytes_read={len(content)}]\n{content}"
+
+    return (
+        f"[PAGED OUTPUT: offset={offset_bytes}, bytes_read={len(content)}]\n{content}"
+    )
 ```
 
 * **Retention Policy**: Sidecar files are retained for 7 days in `.pari/tool-outputs/` and cleaned up by an asynchronous garbage collection task during idle sessions.

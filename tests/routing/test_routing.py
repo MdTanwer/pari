@@ -1,14 +1,15 @@
 """Unit tests for Layer 8 Dual-Model Routing & Anti-Verbosity Guard."""
 
-from pari.routing.classifier import TaskClassifier, TaskComplexity
 from pari.routing.anti_verbosity import enforce_planning_ceiling
+from pari.routing.classifier import TaskClassifier, TaskComplexity
 
 
 def test_task_classifier():
     c1 = TaskClassifier.classify("Fix typo in README", ["README.md"])
     assert c1 == TaskComplexity.SIMPLE_EDIT
 
-    c2 = TaskClassifier.classify("Redesign system architecture", ["a.py", "b.py", "c.py", "d.py"])
+    files = ["a.py", "b.py", "c.py", "d.py"]
+    c2 = TaskClassifier.classify("Redesign system architecture", files)
     assert c2 == TaskComplexity.ARCHITECTURAL
 
 

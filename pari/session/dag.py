@@ -2,20 +2,22 @@
 
 Architectural Purpose:
     Harvested from Pi's session-manager.ts.
-    Maintains session history as a Directed Acyclic Graph (DAG) using parentId references.
-    Enables non-linear branching, checkpoints, and causal traversal without in-memory state loss.
+    Maintains session history as a Directed Acyclic Graph (DAG) using parentId
+    references.
+    Enables non-linear branching, checkpoints, and causal traversal without in-memory
+    state loss.
 """
 
-from typing import Dict, List, Optional
 from pari.session.events import SessionEvent
 
 
 class DAGNode:
     """Represents a node in the causal event Merkle DAG."""
+
     def __init__(self, event: SessionEvent):
         self.event = event
-        self.parent: Optional["DAGNode"] = None
-        self.children: List["DAGNode"] = []
+        self.parent: DAGNode | None = None
+        self.children: list[DAGNode] = []
 
 
 class SessionDAG:
@@ -29,6 +31,7 @@ class SessionDAG:
         """Insert event into DAG and link parent/child pointers."""
         raise NotImplementedError
 
-    def get_lineage(self, leaf_id: Optional[str] = None) -> List[SessionEvent]:
-        """Traverse backwards from leaf to root to reconstruct the linear event thread."""
+    def get_lineage(self, leaf_id: str | None = None) -> list[SessionEvent]:
+        """Traverse backwards from leaf to root to reconstruct the linear event
+        thread."""
         raise NotImplementedError

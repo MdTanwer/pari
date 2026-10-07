@@ -8,6 +8,7 @@ Architectural Purpose:
     the partial plan, arresting recursive planning loops.
 """
 
+
 def enforce_planning_ceiling(plan_text: str, max_tokens: int = 4096) -> str:
     """Enforce token ceiling on architect reasoning output."""
     raise NotImplementedError

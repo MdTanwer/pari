@@ -13,7 +13,7 @@ Defines the structured tiers of context injected into the model:
 
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Any, Dict, List
+from typing import Any
 
 
 class ContextTier(IntEnum):
@@ -35,6 +35,6 @@ class ContextChunk:
     cache_control: bool = False
 
 
-def assemble_context(chunks: List[ContextChunk]) -> List[Dict[str, Any]]:
+def assemble_context(chunks: list[ContextChunk]) -> list[dict[str, Any]]:
     """Sort chunks by strict tier hierarchy and format for model payload."""
     raise NotImplementedError

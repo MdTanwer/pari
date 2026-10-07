@@ -9,7 +9,6 @@ import asyncio
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 from pari import __version__
 from pari.tui import TerminalApp
@@ -61,8 +60,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
-
-def main(argv: Optional[list] = None) -> int:
+def main(argv: list | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="pari",
         description="PARI — Next-generation terminal coding agent.",
@@ -71,49 +69,75 @@ def main(argv: Optional[list] = None) -> int:
         "-v", "--version", action="version", version=f"%(prog)s {__version__}"
     )
     parser.add_argument(
-        "-w", "--workspace", type=str, default=None,
-        help="Target project workspace directory (default: current working directory)"
+        "-w",
+        "--workspace",
+        type=str,
+        default=None,
+        help="Target project workspace directory (default: current working directory)",
     )
     parser.add_argument(
-        "--sandbox", type=str, choices=["auto", "bwrap", "seatbelt", "cloud", "none"],
-        default="auto", help="Execution sandbox backend (default: auto)"
+        "--sandbox",
+        type=str,
+        choices=["auto", "bwrap", "seatbelt", "cloud", "none"],
+        default="auto",
+        help="Execution sandbox backend (default: auto)",
     )
     parser.add_argument(
-        "--edit-fallback", type=str, choices=["none", "cascade"], default="none",
-        help="Edit engine fallback strategy when exact match fails (default: none)"
+        "--edit-fallback",
+        type=str,
+        choices=["none", "cascade"],
+        default="none",
+        help="Edit engine fallback strategy when exact match fails (default: none)",
     )
     parser.add_argument(
-        "--repomap", type=str, choices=["off", "ppr"], default="off",
-        help="Repository AST PageRank symbol map (default: off, uses v1 ripgrep/glob)"
+        "--repomap",
+        type=str,
+        choices=["off", "ppr"],
+        default="off",
+        help="Repository AST PageRank symbol map (default: off, uses v1 ripgrep/glob)",
     )
     parser.add_argument(
-        "--add", action="append", default=[], metavar="FILE",
-        help="Pin reference documentation or file into context epoch"
+        "--add",
+        action="append",
+        default=[],
+        metavar="FILE",
+        help="Pin reference documentation or file into context epoch",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
-        help="Validate environment configuration and exit without starting interactive loop"
+        "--dry-run",
+        action="store_true",
+        help="Validate environment and exit without starting the loop",
     )
 
     subparsers = parser.add_subparsers(dest="subcommand", help="Subcommands")
 
     # pari find
     find_parser = subparsers.add_parser("find", help="Find files matching pattern")
-    find_parser.add_argument("pattern", type=str, default="*", nargs="?", help="File glob pattern")
+    find_parser.add_argument(
+        "pattern", type=str, default="*", nargs="?", help="File glob pattern"
+    )
     find_parser.add_argument("-l", "--limit", type=int, default=100, help="Max results")
 
     # pari grep
-    grep_parser = subparsers.add_parser("grep", help="Search text across workspace files")
+    grep_parser = subparsers.add_parser(
+        "grep", help="Search text across workspace files"
+    )
     grep_parser.add_argument("query", type=str, help="Search string or regex")
-    grep_parser.add_argument("-r", "--regex", action="store_true", help="Treat query as regular expression")
-    grep_parser.add_argument("-f", "--filter", type=str, default="*", help="File path pattern filter")
+    grep_parser.add_argument(
+        "-r", "--regex", action="store_true", help="Treat query as a regular expression"
+    )
+    grep_parser.add_argument(
+        "-f", "--filter", type=str, default="*", help="File path pattern filter"
+    )
     grep_parser.add_argument("-l", "--limit", type=int, default=50, help="Max matches")
 
     # pari eval
     eval_parser = subparsers.add_parser("eval", help="Run benchmark evaluation suites")
     eval_parser.add_argument(
-        "--suite", type=str, default="./evals/micro_suite.json",
-        help="Path to evaluation benchmark suite JSON"
+        "--suite",
+        type=str,
+        default="./evals/micro_suite.json",
+        help="Path to evaluation benchmark suite JSON",
     )
 
     args = parser.parse_args(argv)

@@ -7,9 +7,10 @@ Architectural Purpose:
     the edit is rejected to prevent silent code corruption.
 """
 
-from typing import Optional
 
-
-def apply_dmp_fuzzy(original: str, search: str, replace: str, threshold: float = 0.8) -> Optional[str]:
-    """Find the best fuzzy match for search block and apply replacement if above threshold."""
+def apply_dmp_fuzzy(
+    original: str, search: str, replace: str, threshold: float = 0.8
+) -> str | None:
+    """Find the best fuzzy match for search block and apply replacement if above
+    threshold."""
     raise NotImplementedError

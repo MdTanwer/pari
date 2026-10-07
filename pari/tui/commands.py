@@ -5,17 +5,17 @@ Handles in-session slash commands:
     /diff     - Inspect pending or latest diffs
     /add      - Add a specific file into active context
     /model    - Inspect or switch active LLM model
-    /help     - Display available commands  
+    /help     - Display available commands
 """
 
-from typing import Callable, Dict, Optional, Tuple
+from collections.abc import Callable
 
 
 class SlashCommandHandler:
     """Dispatches slash commands entered by the developer."""
 
     def __init__(self):
-        self._handlers: Dict[str, Callable[[str], str]] = {}
+        self._handlers: dict[str, Callable[[str], str]] = {}
 
     def register(self, command: str, handler: Callable[[str], str]) -> None:
         """Register custom slash command handler."""
@@ -24,10 +24,11 @@ class SlashCommandHandler:
             cmd_name = f"/{cmd_name}"
         self._handlers[cmd_name] = handler
 
-    def handle(self, input_text: str) -> Optional[Tuple[str, str]]:
+    def handle(self, input_text: str) -> tuple[str, str] | None:
         """If input_text starts with '/', parse and execute command.
 
-        Returns (command_name, result_message) if handled, or None if not a slash command.
+        Returns (command_name, result_message) if handled, or None if not a slash
+        command.
         """
         text = input_text.strip()
         if not text.startswith("/"):
@@ -42,4 +43,3 @@ class SlashCommandHandler:
             return (cmd, output)
 
         return (cmd, f"Unknown command: '{cmd}'. Type `/help` for a list of commands.")
-

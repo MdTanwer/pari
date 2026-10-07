@@ -6,10 +6,10 @@ Architectural Purpose:
 """
 
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from typing import ClassVar
 
 
-@dataclass 
+@dataclass
 class TokenUsage:
     input_tokens: int = 0
     output_tokens: int = 0
@@ -24,7 +24,7 @@ class CostMeter:
     """Calculates and tracks real-time USD cost based on model pricing tiers."""
 
     # Pricing per million tokens: (input_per_m, output_per_m, cache_read_per_m)
-    PRICING_TIERS: Dict[str, Tuple[float, float, float]] = {
+    PRICING_TIERS: ClassVar[dict[str, tuple[float, float, float]]] = {
         "claude-3-7-sonnet": (3.00, 15.00, 0.30),
         "claude-3-5-sonnet": (3.00, 15.00, 0.30),
         "gpt-4o": (2.50, 10.00, 1.25),
@@ -43,7 +43,8 @@ class CostMeter:
 
     def calculate_cost_usd(self) -> float:
         """Compute estimated USD cost."""
-        rates = self.PRICING_TIERS.get(self.model_family, self.PRICING_TIERS["pari-core"])
+        default = self.PRICING_TIERS["pari-core"]
+        rates = self.PRICING_TIERS.get(self.model_family, default)
         in_cost = (self.usage.input_tokens / 1_000_000.0) * rates[0]
         out_cost = (self.usage.output_tokens / 1_000_000.0) * rates[1]
         cache_cost = (self.usage.cached_tokens / 1_000_000.0) * rates[2]
@@ -62,4 +63,3 @@ class CostMeter:
             token_str = f"{total} tokens"
 
         return f"{token_str} · ${cost:.3f}"
-
