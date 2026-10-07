@@ -1,26 +1,26 @@
 """PARI Layer 0: Sandbox Selection Dispatcher.
 
-Architectural Purpose:
-    Intelligently inspects the host platform and environment configuration
-    to select the most secure available sandbox engine:
-    1. Cloud mode -> E2B Firecracker MicroVM
-    2. Linux / WSL2 with bwrap -> Bubblewrap runner
-    3. macOS -> Apple Seatbelt runner
-    4. Fallback / Native Windows -> Supervised Process Group runner
+v1 selects Bubblewrap. Seatbelt, E2B, and the supervised process runner
+raise until those backends are implemented.
 """
 
 from __future__ import annotations
 
 import os
-import shutil
 import sys
 from pathlib import Path
 
 from pari.sandbox.base import SandboxLimits, SandboxRunner
 from pari.sandbox.bwrap import BwrapSandboxRunner
-from pari.sandbox.e2b import E2BCloudSandboxRunner
-from pari.sandbox.process import SupervisedProcessRunner
-from pari.sandbox.seatbelt import MacOSSeatbeltSandboxRunner
+
+
+_COMING_SOON = {
+    "cloud": "E2B cloud sandbox is coming soon.",
+    "seatbelt": "macOS Seatbelt sandbox is coming soon.",
+    "none": "Unsandboxed process mode is coming soon.",
+    "process": "Supervised process mode is coming soon.",
+    "supervised": "Supervised process mode is coming soon.",
+}
 
 
 def get_sandbox_runner(
@@ -28,12 +28,11 @@ def get_sandbox_runner(
     limits: SandboxLimits | None = None,
     force_mode: str | None = None,
 ) -> SandboxRunner:
-    """Select and instantiate the appropriate sandbox runner for the current platform.
+    """Select the sandbox runner.
 
     Mode comes from force_mode, then PARI_SANDBOX, then PARI_SANDBOX_MODE.
-    On Linux, auto fails closed: it uses Bubblewrap and does not silently run
-    the command on the host when bwrap is missing. The supervised runner is the
-    native Windows fallback, or an explicit none/process mode.
+    auto and bwrap use Bubblewrap. On a non-Linux host, auto raises instead
+    of running the command on the host.
     """
     mode = (
         force_mode
@@ -42,21 +41,12 @@ def get_sandbox_runner(
         or "auto"
     ).lower()
 
-    if mode == "cloud":
-        return E2BCloudSandboxRunner(workspace, limits=limits)
-    if mode == "bwrap":
+    if mode in {"auto", "bwrap"}:
+        if mode == "auto" and sys.platform != "linux":
+            raise NotImplementedError(
+                f"Sandbox support for {sys.platform} is coming soon."
+            )
         return BwrapSandboxRunner(workspace, limits=limits)
-    if mode == "seatbelt":
-        return MacOSSeatbeltSandboxRunner(workspace, limits=limits)
-    if mode in {"none", "process", "supervised"}:
-        return SupervisedProcessRunner(workspace, limits=limits)
-    if mode != "auto":
-        raise ValueError(f"Unknown sandbox mode: {mode}")
-
-    if sys.platform == "linux":
-        return BwrapSandboxRunner(workspace, limits=limits)
-    if sys.platform == "darwin":
-        if not shutil.which("sandbox-exec"):
-            raise FileNotFoundError("sandbox-exec is not available on this Mac")
-        return MacOSSeatbeltSandboxRunner(workspace, limits=limits)
-    return SupervisedProcessRunner(workspace, limits=limits)
+    if mode in _COMING_SOON:
+        raise NotImplementedError(_COMING_SOON[mode])
+    raise ValueError(f"Unknown sandbox mode: {mode}")

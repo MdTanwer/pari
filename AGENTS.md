@@ -52,8 +52,8 @@ A change to `pari/sandbox/bwrap.py` is covered by `tests/sandbox/`.
 These are the Layer 0 rules. Do not weaken them to make a test pass.
 
 - On Linux, automatic mode uses Bubblewrap. If `bwrap` is not installed, raise.
-  The supervised process runner is only for Windows, or for an explicit
-  `none` / `process` mode.
+  Seatbelt, E2B, and the supervised process runner raise `NotImplementedError`
+  (`coming soon`). v1 does not run the command on the host.
 - Take `bwrap` from `/usr/bin` or `/usr/local/bin`. Ignore a copy inside the
   workspace.
 - The workspace is the only writable mount. `/usr` and the other system paths
@@ -65,7 +65,7 @@ These are the Layer 0 rules. Do not weaken them to make a test pass.
   `poetry`, and `uv`). `pip install x; curl ...` does not get the network.
 - `SandboxResult.cgroup_applied` is true only when `memory.max`, `pids.max`,
   and `cpu.weight` were actually applied.
-- The macOS profile is `render_seatbelt_profile`. Home paths are absolute.
+- macOS Seatbelt is a TODO. When it lands, home paths are absolute.
   Seatbelt does not expand `~`.
 - Do not add a shell-command blocklist. Isolation is the kernel policy, not a
   string prefix check.
