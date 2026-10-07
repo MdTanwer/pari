@@ -9,19 +9,21 @@ Features:
       can be terminated cleanly as a unit (killpg).
     - Sets PR_SET_PDEATHSIG on Linux so child processes terminate if the parent crashes.
     - Prevents zombie process accumulation via signal handling and reaping.
+
+This runner does not create a mount namespace. Prefer BwrapSandboxRunner on Linux.
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional
-from pari.sandbox.base import SandboxLimits, SandboxResult, SandboxRunner
+from typing import Dict, Optional
+
+from pari.sandbox.base import SandboxLimits, SandboxResult, SandboxRunner, scrub_env
 
 
 class SupervisedProcessRunner(SandboxRunner):
-    """Supervised process runner using process-group tracking and path-guard boundaries."""
+    """Supervised process runner using process-group tracking and a workspace cwd."""
 
     def __init__(self, workspace: Path, limits: Optional[SandboxLimits] = None):
         super().__init__(workspace, limits)
-        # TODO: Initialize active PID tracking list
 
     def run_command(
         self,
@@ -29,10 +31,14 @@ class SupervisedProcessRunner(SandboxRunner):
         env: Optional[Dict[str, str]] = None,
         timeout: Optional[float] = None,
     ) -> SandboxResult:
-        # TODO: Execute command using subprocess.Popen with preexec_fn=os.setsid
-        # and enforce die-with-parent lifecycle + timeout handling
-        raise NotImplementedError("Supervised process runner placeholder.")
+        child_env = scrub_env(env, home=str(self.workspace))
+        shell = "/bin/sh" if Path("/bin/sh").exists() else "/usr/bin/sh"
+        return self._execute(
+            [shell, "-c", command],
+            cwd=self.workspace,
+            env=child_env,
+            timeout=timeout if timeout is not None else self.limits.timeout_seconds,
+        )
 
     def cleanup(self) -> None:
-        # TODO: Terminate all recorded active process groups
-        pass
+        self._cleanup_processes()

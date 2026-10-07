@@ -222,6 +222,9 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
+.next/
+website/.next/
+
 
 # PARI runtime state & temporary files
 .pari/*

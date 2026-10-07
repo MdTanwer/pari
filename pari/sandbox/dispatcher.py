@@ -9,9 +9,19 @@ Architectural Purpose:
     4. Fallback / Native Windows -> Supervised Process Group runner
 """
 
+from __future__ import annotations
+
+import os
+import shutil
+import sys
 from pathlib import Path
 from typing import Optional
+
 from pari.sandbox.base import SandboxLimits, SandboxRunner
+from pari.sandbox.bwrap import BwrapSandboxRunner
+from pari.sandbox.e2b import E2BCloudSandboxRunner
+from pari.sandbox.process import SupervisedProcessRunner
+from pari.sandbox.seatbelt import MacOSSeatbeltSandboxRunner
 
 
 def get_sandbox_runner(
@@ -20,12 +30,31 @@ def get_sandbox_runner(
     force_mode: Optional[str] = None,
 ) -> SandboxRunner:
     """Select and instantiate the appropriate sandbox runner for the current platform.
-    
-    TODO:
-    - Check force_mode or PARI_SANDBOX_MODE env var.
-    - If cloud -> E2BCloudSandboxRunner
-    - If Linux and bwrap in PATH -> BwrapSandboxRunner
-    - If macOS and sandbox-exec in PATH -> MacOSSeatbeltSandboxRunner
-    - Otherwise -> SupervisedProcessRunner fallback
+
+    Mode comes from force_mode, then PARI_SANDBOX, then PARI_SANDBOX_MODE.
+    auto picks bwrap on Linux when it is installed, Seatbelt on macOS, and the
+    supervised process runner otherwise.
     """
-    raise NotImplementedError("Sandbox selection dispatcher placeholder.")
+    mode = (
+        force_mode
+        or os.environ.get("PARI_SANDBOX")
+        or os.environ.get("PARI_SANDBOX_MODE")
+        or "auto"
+    ).lower()
+
+    if mode == "cloud":
+        return E2BCloudSandboxRunner(workspace, limits=limits)
+    if mode == "bwrap":
+        return BwrapSandboxRunner(workspace, limits=limits)
+    if mode == "seatbelt":
+        return MacOSSeatbeltSandboxRunner(workspace, limits=limits)
+    if mode in {"none", "process", "supervised"}:
+        return SupervisedProcessRunner(workspace, limits=limits)
+    if mode != "auto":
+        raise ValueError(f"Unknown sandbox mode: {mode}")
+
+    if sys.platform == "linux" and shutil.which("bwrap"):
+        return BwrapSandboxRunner(workspace, limits=limits)
+    if sys.platform == "darwin" and shutil.which("sandbox-exec"):
+        return MacOSSeatbeltSandboxRunner(workspace, limits=limits)
+    return SupervisedProcessRunner(workspace, limits=limits)

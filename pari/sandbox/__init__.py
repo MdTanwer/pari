@@ -13,4 +13,16 @@ Subsystems:
     - process: Process-group supervision, die-with-parent lifecycle, and zombie reaping
 """
 
-# Placeholder imports will be exported once implementations are added
+from pari.sandbox.base import SandboxLimits, SandboxResult, SandboxRunner
+from pari.sandbox.bwrap import BwrapSandboxRunner
+from pari.sandbox.dispatcher import get_sandbox_runner
+from pari.sandbox.process import SupervisedProcessRunner
+
+__all__ = [
+    "BwrapSandboxRunner",
+    "SandboxLimits",
+    "SandboxResult",
+    "SandboxRunner",
+    "SupervisedProcessRunner",
+    "get_sandbox_runner",
+]
