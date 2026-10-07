@@ -18,8 +18,26 @@ class CheckpointManager:
     def __init__(self, logger: SessionLogger, interval_turns: int = 50):
         self.logger = logger
         self.interval_turns = interval_turns
-        # TODO: Track turn count
+        self._turns = 0
 
     def record_turn(self, state_snapshot: dict[str, Any]) -> str | None:
         """Increment turn counter and trigger checkpoint write if interval is met."""
-        raise NotImplementedError
+        self._turns += 1
+        if self._turns % self.interval_turns != 0:
+            return None
+        chain = self.logger.record_ids
+        return self.logger.append_event(
+            "CHECKPOINT_INDEX",
+            {
+                "active_leaf_id": self.logger.last_record_id,
+                "ancestor_chain": chain,
+                "state": state_snapshot,
+            },
+        )
+
+    def latest_checkpoint(self) -> dict[str, Any] | None:
+        """Return the newest checkpoint record, scanning from the end of the log."""
+        for record in reversed(self.logger.read_events()):
+            if record["type"] == "CHECKPOINT_INDEX":
+                return record
+        return None

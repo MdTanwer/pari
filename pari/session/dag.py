@@ -24,14 +24,33 @@ class SessionDAG:
     """In-memory DAG index over the immutable session event stream."""
 
     def __init__(self):
-        # TODO: Initialize node map and head/root pointers
-        pass
+        self._nodes: dict[str, DAGNode] = {}
+        self.head: DAGNode | None = None
 
     def add_event(self, event: SessionEvent) -> DAGNode:
         """Insert event into DAG and link parent/child pointers."""
-        raise NotImplementedError
+        if event.id is None:
+            raise ValueError("Session event is missing an id.")
+        node = DAGNode(event)
+        self._nodes[event.id] = node
+        if event.parent_id is not None:
+            parent = self._nodes.get(event.parent_id)
+            if parent is not None:
+                node.parent = parent
+                parent.children.append(node)
+        self.head = node
+        return node
 
     def get_lineage(self, leaf_id: str | None = None) -> list[SessionEvent]:
         """Traverse backwards from leaf to root to reconstruct the linear event
         thread."""
-        raise NotImplementedError
+        if leaf_id is None:
+            node = self.head
+        else:
+            node = self._nodes[leaf_id]
+        chain: list[SessionEvent] = []
+        while node is not None:
+            chain.append(node.event)
+            node = node.parent
+        chain.reverse()
+        return chain

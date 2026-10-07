@@ -15,4 +15,18 @@ Subsystems:
     report
 """
 
-# Placeholder imports will be exported once implementations are added
+from pari.session.checkpoint import CheckpointManager
+from pari.session.dag import SessionDAG
+from pari.session.events import SessionEvent, SessionEventType
+from pari.session.logger import SessionLogger
+from pari.session.undo import GuardedUndoManager
+
+
+__all__ = [
+    "CheckpointManager",
+    "GuardedUndoManager",
+    "SessionDAG",
+    "SessionEvent",
+    "SessionEventType",
+    "SessionLogger",
+]
