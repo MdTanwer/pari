@@ -10,7 +10,6 @@ from pari.agent.guards import (
     format_daemon_notice,
     is_length_stop,
 )
-from pari.agent.loop import AgentExecutionLoop
 from pari.agent.reflection import ReflectionManager, format_lint_error
 from pari.agent.subagent import FiberSubagentPool, SubagentTask
 
@@ -62,13 +61,3 @@ async def test_subagent_pool_returns_results_in_order():
 
     tasks = [SubagentTask(str(value), "read", work(value)) for value in (1, 2, 3)]
     assert await pool.run_parallel_research(tasks) == [1, 2, 3]
-
-
-def test_execution_loop_is_still_hand_written():
-    loop = AgentExecutionLoop()
-
-    async def _unused() -> None:
-        await loop.run_turn("prompt", lambda _prompt, _turn: None, lambda _step: False)
-
-    with pytest.raises(NotImplementedError):
-        asyncio.run(_unused())

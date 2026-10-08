@@ -14,9 +14,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from pari.providers.base import LLMProvider, ProviderMessage
+from pari.agent.guards import is_length_stop
+from pari.agent.loop import AgentExecutionLoop
+from pari.agent.reflection import ReflectionManager
+from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage
 from pari.providers.mock import MockOfflineProvider
+from pari.session.logger import SessionLogger
 from pari.session.undo import GuardedUndoManager
+from pari.tools.registry import get_default_registry
 
 
 class AgentRuntime:
@@ -32,6 +37,7 @@ class AgentRuntime:
         self.session_file = session_file or (self.workspace / ".pari" / "session.jsonl")
         self.provider = provider or MockOfflineProvider()
         self.undo_manager = GuardedUndoManager(self.workspace)
+        self.tools = get_default_registry(self.workspace)
         self.pinned_files: list[str] = []
         self.session_id: str | None = None
         self.messages: list[ProviderMessage] = []
@@ -72,24 +78,54 @@ class AgentRuntime:
         if not self.session_id:
             self.start_session()
 
-        user_msg = ProviderMessage(role="user", content=prompt)
-        self.messages.append(user_msg)
+        schemas = self.tools.get_schemas()
 
-        resp = await self.provider.complete(self.messages)
-        assistant_msg = ProviderMessage(role="assistant", content=resp.text)
-        self.messages.append(assistant_msg)
+        async def step(context: str, _turn: int) -> ModelResponse:
+            self.messages.append(ProviderMessage(role="user", content=context))
+            resp = await self.provider.complete(self.messages, tools=schemas)
+            # Drop tool calls that were cut off so the next step cannot rerun them.
+            calls = [] if is_length_stop(resp.stop_reason) else resp.tool_calls
+            self.messages.append(
+                ProviderMessage(
+                    role="assistant",
+                    content=resp.text,
+                    tool_calls=calls or None,
+                )
+            )
+            return resp
 
-        # Log turn event
+        dag = self.workspace / ".pari" / "sessions" / f"{self.session_id}.jsonl"
+        loop = AgentExecutionLoop(
+            registry=self.tools,
+            reflection=ReflectionManager(),
+            logger=SessionLogger(dag),
+            on_tool_call=on_tool_call,
+        )
+        result = await loop.run_turn(
+            prompt,
+            step,
+            lambda response: is_length_stop(response.stop_reason),
+            active_files=self._pinned_contents(),
+        )
         turn_record = {
             "event": "turn_complete",
             "session_id": self.session_id,
             "user_prompt": prompt,
-            "response": resp.text,
-            "tokens_in": resp.tokens_in,
-            "tokens_out": resp.tokens_out,
+            "response": result.response_text,
+            "tokens": result.tokens_used,
+            "tool_calls": result.tool_calls_executed,
             "timestamp": time.time(),
         }
-        with open(self.session_file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(turn_record) + "\n")
+        with open(self.session_file, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(turn_record) + "\n")
+        return result.response_text
 
-        return resp.text
+    def _pinned_contents(self) -> list[tuple[str, str]]:
+        files: list[tuple[str, str]] = []
+        for rel in self.pinned_files:
+            path = self.workspace / rel
+            try:
+                files.append((rel, path.read_text(encoding="utf-8")))
+            except (OSError, UnicodeDecodeError):
+                continue
+        return files
