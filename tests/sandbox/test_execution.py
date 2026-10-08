@@ -31,6 +31,15 @@ def test_unknown_mode_rejected(tmp_path: Path):
         get_sandbox_runner(tmp_path, force_mode="docker")
 
 
+def test_daemon_idle_stops_a_command_that_does_not_exit(tmp_path: Path):
+    limits = SandboxLimits(timeout_seconds=30, daemon_idle_seconds=1)
+    runner = get_sandbox_runner(tmp_path, limits=limits)
+    res = runner.run_command("sleep 30")
+    assert res.daemon is True
+    assert res.timed_out is True
+    assert res.duration_seconds < 5
+
+
 def test_timeout_enforcement(tmp_path: Path):
     limits = SandboxLimits(timeout_seconds=0.5)
     runner = get_sandbox_runner(tmp_path, limits=limits)

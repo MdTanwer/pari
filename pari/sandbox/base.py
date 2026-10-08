@@ -95,6 +95,8 @@ class SandboxLimits:
         allow_network: Share the host network for every command.
         allow_package_network: Network for one package-install command only.
         read_only: Mount the workspace read-only.
+        daemon_idle_seconds: Stop waiting when a command is still running
+            after this many seconds. None keeps the hard timeout only.
     """
 
     timeout_seconds: float = 30.0
@@ -103,6 +105,7 @@ class SandboxLimits:
     allow_network: bool = False
     allow_package_network: bool = True
     read_only: bool = False
+    daemon_idle_seconds: float | None = None
 
 
 @dataclass
@@ -117,6 +120,7 @@ class SandboxResult:
         timed_out: True if terminated by timeout.
         truncated: True if output exceeded max_output_bytes.
         cgroup_applied: True when memory.max, pids.max, and cpu.weight were set.
+        daemon: True when the idle window ended the wait before the hard timeout.
     """
 
     exit_code: int
@@ -126,6 +130,7 @@ class SandboxResult:
     timed_out: bool = False
     truncated: bool = False
     cgroup_applied: bool = False
+    daemon: bool = False
 
 
 _PACKAGE_BINS = frozenset(
@@ -238,11 +243,24 @@ class SandboxRunner(ABC):
             thread.start()
 
         timed_out = False
+        daemon = False
         deadline = started + timeout
+        # Layer 4: a server that never exits must not freeze the turn.
+        # SIGINT is the Ctrl+C a PTY would send this process group.
+        # The hard timeout still kills the group if the command outlives it.
+        idle_at = None
+        if self.limits.daemon_idle_seconds is not None:
+            idle_at = started + self.limits.daemon_idle_seconds
         while proc.poll() is None:
-            if capture.truncated or time.monotonic() >= deadline:
-                timed_out = not capture.truncated and time.monotonic() >= deadline
+            now = time.monotonic()
+            if capture.truncated or now >= deadline:
+                timed_out = not capture.truncated and now >= deadline
                 self._kill_group(proc.pid)
+                break
+            if idle_at is not None and now >= idle_at:
+                daemon = True
+                timed_out = True
+                self._signal_group(proc.pid, signal.SIGINT)
                 break
             time.sleep(0.01)
 
@@ -268,6 +286,7 @@ class SandboxRunner(ABC):
             timed_out=timed_out,
             truncated=capture.truncated or stdout_cut or stderr_cut,
             cgroup_applied=cgroup_applied,
+            daemon=daemon,
         )
 
     def _drain(self, pipe, capture: _StreamCapture, key: str) -> None:
@@ -302,14 +321,17 @@ class SandboxRunner(ABC):
             truncated = True
         return data.decode("utf-8", errors="replace"), truncated
 
-    def _kill_group(self, pid: int) -> None:
+    def _signal_group(self, pid: int, sig: int) -> None:
         try:
-            os.killpg(pid, signal.SIGKILL)
+            os.killpg(pid, sig)
         except (ProcessLookupError, PermissionError, OSError):
             try:
-                os.kill(pid, signal.SIGKILL)
+                os.kill(pid, sig)
             except (ProcessLookupError, PermissionError, OSError):
                 pass
+
+    def _kill_group(self, pid: int) -> None:
+        self._signal_group(pid, signal.SIGKILL)
 
     def _place_in_cgroup(self, pid: int) -> bool:
         """Apply memory, pid, and cpu caps. False if the kernel refuses."""

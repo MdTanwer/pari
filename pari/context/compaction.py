@@ -18,17 +18,24 @@ def compact_context(
     max_tokens: int = 128000,
     compaction_threshold: float = 0.70,
 ) -> list[ContextChunk]:
-    """Replace turn history with a short summary once the window fills up.
+    """Summarize history older than the last five blocks once the window fills.
 
-    System prompt, repo map, and the current turn stay verbatim. Only Tier 6
-    is rewritten, so a compaction cannot drop the user's latest request.
+    System prompt, repo map, active files, and the current turn stay verbatim.
     """
     budget = max_tokens * compaction_threshold
     if _estimate_tokens(chunks) <= budget:
         return list(chunks)
+    # The last five history blocks stay verbatim. Older ones become a summary.
+    # Tiers 1-5 and the current turn are copied through unchanged.
+    recent = {
+        id(chunk)
+        for chunk in [item for item in chunks if item.tier == ContextTier.TURN_HISTORY][
+            -5:
+        ]
+    }
     compacted: list[ContextChunk] = []
     for chunk in chunks:
-        if chunk.tier != ContextTier.TURN_HISTORY:
+        if chunk.tier != ContextTier.TURN_HISTORY or id(chunk) in recent:
             compacted.append(chunk)
             continue
         summary = (

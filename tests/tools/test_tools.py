@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from pari.edit.exact import PatternNotFoundError
 from pari.tools.registry import get_default_registry
 
 
@@ -43,6 +44,40 @@ async def test_tool_registry_and_fs_tools(tmp_path: Path):
         await registry.execute(
             "write_file", {"path": "../outside.txt", "content": "nope"}
         )
+
+
+@pytest.mark.asyncio
+async def test_edit_fallback_none_refuses_indent_drift(tmp_path: Path):
+    path = tmp_path / "app.py"
+    path.write_text("def greet():\n    return 'hi'\n")
+    registry = get_default_registry(tmp_path)
+    with pytest.raises(PatternNotFoundError):
+        await registry.execute(
+            "edit_file",
+            {
+                "path": "app.py",
+                "search": "def greet():\n  return 'hi'\n",
+                "replace": "def greet():\n  return 'hello'\n",
+            },
+        )
+    assert "return 'hi'" in path.read_text()
+
+
+@pytest.mark.asyncio
+async def test_edit_fallback_cascade_aligns_indent(tmp_path: Path):
+    path = tmp_path / "app.py"
+    path.write_text("def greet():\n    return 'hi'\n")
+    registry = get_default_registry(tmp_path, edit_fallback="cascade")
+    result = await registry.execute(
+        "edit_file",
+        {
+            "path": "app.py",
+            "search": "def greet():\n  return 'hi'\n",
+            "replace": "def greet():\n  return 'hello'\n",
+        },
+    )
+    assert result["tier"] == "git_osr"
+    assert path.read_text().startswith("def greet():\n    return 'hello'\n")
 
 
 @pytest.mark.asyncio

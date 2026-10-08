@@ -15,12 +15,18 @@ Subsystems:
 from pari.context.cache import mark_cache_breakpoints
 from pari.context.chunks import ContextChunk, ContextTier, assemble_context
 from pari.context.compaction import compact_context
+from pari.context.epoch import ContextEpoch
+from pari.context.warmer import CacheWarmer, expected_savings, should_warm
 
 
 __all__ = [
+    "CacheWarmer",
     "ContextChunk",
+    "ContextEpoch",
     "ContextTier",
     "assemble_context",
     "compact_context",
+    "expected_savings",
     "mark_cache_breakpoints",
+    "should_warm",
 ]

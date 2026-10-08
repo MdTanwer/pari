@@ -16,4 +16,15 @@ Subsystems:
     planning loops
 """
 
-# Placeholder imports will be exported once implementations are added
+from pari.routing.anti_verbosity import enforce_planning_ceiling
+from pari.routing.classifier import TaskClassifier, TaskComplexity
+from pari.routing.router import DualModelRouter, router_for
+
+
+__all__ = [
+    "DualModelRouter",
+    "TaskClassifier",
+    "TaskComplexity",
+    "enforce_planning_ceiling",
+    "router_for",
+]

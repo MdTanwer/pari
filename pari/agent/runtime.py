@@ -17,8 +17,11 @@ from typing import Any
 from pari.agent.guards import is_length_stop
 from pari.agent.loop import AgentExecutionLoop
 from pari.agent.reflection import ReflectionManager
+from pari.intelligence.repomap import RepoMapGenerator
+from pari.providers import get_provider
 from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage
-from pari.providers.mock import MockOfflineProvider
+from pari.routing.router import DualModelRouter, router_for
+from pari.session.events import SessionEventType
 from pari.session.logger import SessionLogger
 from pari.session.undo import GuardedUndoManager
 from pari.tools.registry import get_default_registry
@@ -32,15 +35,63 @@ class AgentRuntime:
         workspace: Path,
         session_file: Path | None = None,
         provider: LLMProvider | None = None,
+        model_name: str = "pari-core",
+        edit_fallback: str = "none",
+        repomap: str = "off",
+        router: DualModelRouter | None = None,
     ):
         self.workspace = workspace.resolve()
         self.session_file = session_file or (self.workspace / ".pari" / "session.jsonl")
-        self.provider = provider or MockOfflineProvider()
+        self.model_name = model_name
+        self.edit_fallback = edit_fallback
+        self.repomap = repomap
+        # An explicit provider wins. Otherwise the model name selects one.
+        self.provider = provider if provider is not None else get_provider(model_name)
+        # A caller-supplied router is kept. Otherwise Haiku pairs with Sonnet.
+        self._owns_router = router is None
+        self.router = router if router is not None else router_for(self.provider)
         self.undo_manager = GuardedUndoManager(self.workspace)
-        self.tools = get_default_registry(self.workspace)
+        self.tools = get_default_registry(self.workspace, edit_fallback=edit_fallback)
         self.pinned_files: list[str] = []
         self.session_id: str | None = None
         self.messages: list[ProviderMessage] = []
+        self.turn_warning = ""
+        self.tokens_in = 0
+        self.tokens_out = 0
+        self.cached_tokens = 0
+
+    def set_model(self, model_name: str) -> None:
+        """Switch provider. The old model stays in place if selection fails."""
+        provider = get_provider(model_name)
+        self.provider = provider
+        self.model_name = model_name
+        if self._owns_router:
+            self.router = router_for(provider)
+
+    def save_snapshot(self, name: str) -> str:
+        """Write a named restore tag on the session DAG. Files are not copied."""
+        label = name.strip() or "manual"
+        if not self.session_id:
+            self.start_session()
+        self._dag_logger().append_event(
+            SessionEventType.SNAPSHOT.value, {"name": label}
+        )
+        return label
+
+    def reset_conversation(self) -> str:
+        """Clear the chat and start a new DAG root. Pinned files stay."""
+        self.messages.clear()
+        self.turn_warning = ""
+        self.session_id = None
+        session_id = self.start_session()
+        self._dag_logger().append_event(
+            SessionEventType.SESSION_START.value, {"session_id": session_id}
+        )
+        return session_id
+
+    def _dag_logger(self) -> SessionLogger:
+        dag = self.workspace / ".pari" / "sessions" / f"{self.session_id}.jsonl"
+        return SessionLogger(dag)
 
     def start_session(self) -> str:
         """Initialize session and emit start event to session.jsonl."""
@@ -78,12 +129,19 @@ class AgentRuntime:
         self.turn_warning = ""
         if not self.session_id:
             self.start_session()
+        self.router.begin_turn()
 
         schemas = self.tools.get_schemas()
 
         async def step(context: str, _turn: int) -> ModelResponse:
             self.messages.append(ProviderMessage(role="user", content=context))
-            resp = await self.provider.complete(self.messages, tools=schemas)
+            # Wide prompts plan once, with no tools. The editor runs the calls.
+            resp = await self.router.complete(
+                self.messages,
+                schemas,
+                prompt=prompt,
+                active_files=self.pinned_files,
+            )
             # Drop tool calls that were cut off so the next step cannot rerun them.
             calls = [] if is_length_stop(resp.stop_reason) else resp.tool_calls
             self.messages.append(
@@ -115,6 +173,7 @@ class AgentRuntime:
             step,
             lambda response: is_length_stop(response.stop_reason),
             active_files=self._pinned_contents(),
+            repo_map=self._repo_map(),
         )
         turn_record = {
             "event": "turn_complete",
@@ -127,7 +186,16 @@ class AgentRuntime:
         }
         with open(self.session_file, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(turn_record) + "\n")
+        self.tokens_in = result.tokens_in
+        self.tokens_out = result.tokens_out
+        self.cached_tokens = result.cached_tokens
         return result.response_text
+
+    def _repo_map(self) -> str:
+        """Tier 3 map. ``off`` leaves search tools as the only navigation."""
+        if self.repomap != "ppr":
+            return ""
+        return RepoMapGenerator(self.workspace).generate(self.pinned_files)
 
     def _pinned_contents(self) -> list[tuple[str, str]]:
         files: list[tuple[str, str]] = []

@@ -2,6 +2,9 @@
 
 from pathlib import Path
 
+import pytest
+
+from pari.providers.base import ProviderMessage
 from pari.tui.app import TerminalApp
 
 
@@ -13,6 +16,14 @@ def test_tui_process_message_greeting(tmp_path: Path):
     assert app.process_message("hi howr you") == "Good! How can I help you today?"
     assert app.process_message("how r you") == "Good! How can I help you today?"
     assert app.process_message("Hi How Are You?") == "Good! How can I help you today?"
+
+
+@pytest.mark.asyncio
+async def test_normal_prompt_runs_the_agent(tmp_path: Path):
+    app = TerminalApp(workspace=tmp_path)
+    text = await app.respond("Please find python files")
+    assert "PARI Agent" in text
+    assert app.process_message("Please find python files") is None
 
 
 def test_tui_process_message_help(tmp_path: Path):
@@ -34,8 +45,8 @@ def test_tui_slash_commands(tmp_path: Path):
     assert "pari-core" in model_res
 
     switch_res = app.process_message("/model gpt-4o")
-    assert "gpt-4o" in switch_res
-    assert app.model_name == "gpt-4o"
+    assert "No provider" in switch_res
+    assert app.model_name == "pari-core"
 
     # /undo command
     undo_res = app.process_message("/undo")
@@ -48,6 +59,43 @@ def test_tui_slash_commands(tmp_path: Path):
     assert "Added" in add_res or "Pinned" in add_res
 
 
+def test_claude_model_is_selected_when_the_key_is_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    app = TerminalApp(workspace=tmp_path)
+    switched = app.process_message("/model claude-3-7-sonnet-20250219")
+    assert "claude-3-7-sonnet-20250219" in switched
+    assert app.runtime.provider.model_name == "claude-3-7-sonnet-20250219"
+    assert app.runtime.provider.api_key == "test-key"
+
+
+@pytest.mark.asyncio
+async def test_turn_updates_the_cost_meter(tmp_path: Path):
+    app = TerminalApp(workspace=tmp_path)
+    await app.respond("Please find python files")
+    assert app.cost_meter.usage.input_tokens == 120
+    assert app.cost_meter.usage.output_tokens == 40
+    breakdown = app.process_message("/cost")
+    assert "Input: 120" in breakdown
+    assert "Output: 40" in breakdown
+
+
+def test_snapshot_and_reset(tmp_path: Path):
+    app = TerminalApp(workspace=tmp_path)
+    app.runtime.messages.append(ProviderMessage(role="user", content="hello"))
+    saved = app.process_message("/snapshot before-edit")
+    assert "before-edit" in saved
+    dag = tmp_path / ".pari" / "sessions" / f"{app.runtime.session_id}.jsonl"
+    assert "snapshot" in dag.read_text(encoding="utf-8")
+
+    cleared = app.process_message("/reset")
+    assert "Conversation cleared" in cleared
+    assert app.runtime.messages == []
+    new_dag = tmp_path / ".pari" / "sessions" / f"{app.runtime.session_id}.jsonl"
+    assert "session_start" in new_dag.read_text(encoding="utf-8")
+
+
 def test_cost_meter():
     from pari.tui.status import CostMeter
 
@@ -55,6 +103,9 @@ def test_cost_meter():
     meter.add_usage(in_tokens=1000, out_tokens=500)
     assert meter.usage.total_tokens == 1500
     assert meter.calculate_cost_usd() > 0
+    dated = CostMeter(model_family="claude-3-7-sonnet-20250219")
+    dated.add_usage(in_tokens=1_000_000, out_tokens=0)
+    assert dated.calculate_cost_usd() == pytest.approx(3.0)
     status = meter.format_status()
     assert "1.5k tokens" in status
     assert "$" in status
@@ -69,12 +120,24 @@ def test_slash_command_completer():
     completer = SlashCommandCompleter()
     event = CompleteEvent(completion_requested=False)
 
-    # 1. Typing '/' should return all 8 commands
+    # Typing '/' lists every slash command, including the session ones.
     doc_slash = Document("/")
     completions = list(completer.get_completions(doc_slash, event))
     texts = [c.text for c in completions]
-    assert len(completions) == 8
-    commands = ["/help", "/diff", "/undo", "/clear", "/model", "/add", "/exit", "/quit"]
+    commands = [
+        "/help",
+        "/diff",
+        "/undo",
+        "/clear",
+        "/model",
+        "/add",
+        "/snapshot",
+        "/cost",
+        "/reset",
+        "/exit",
+        "/quit",
+    ]
+    assert len(completions) == len(commands)
     for cmd in commands:
         assert cmd in texts
         # Ensure display and display_meta description exist

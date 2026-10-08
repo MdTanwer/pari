@@ -52,7 +52,16 @@ def cmd_run(args: argparse.Namespace) -> int:
         print("Self-check passed: environment and CLI options verified.")
         return 0
 
-    app = TerminalApp(workspace=workspace)
+    try:
+        app = TerminalApp(
+            workspace=workspace,
+            model_name=args.model,
+            edit_fallback=args.edit_fallback,
+            repomap=args.repomap,
+        )
+    except (RuntimeError, NotImplementedError) as exc:
+        print(exc, file=sys.stderr)
+        return 1
     try:
         asyncio.run(app.run_repl())
     except KeyboardInterrupt:
@@ -81,6 +90,12 @@ def main(argv: list | None = None) -> int:
         choices=["auto", "bwrap", "seatbelt", "cloud", "none"],
         default="auto",
         help="Execution sandbox backend (default: auto)",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=os.environ.get("PARI_MODEL", "pari-core"),
+        help="Model name (default: pari-core, or PARI_MODEL)",
     )
     parser.add_argument(
         "--edit-fallback",

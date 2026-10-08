@@ -8,7 +8,13 @@ Architectural Purpose:
     the partial plan, arresting recursive planning loops.
 """
 
+_CHARS_PER_TOKEN = 4
+_NOTICE = "[PARI ANTI-VERBOSITY GUARD: planning cut at the token ceiling]"
+
 
 def enforce_planning_ceiling(plan_text: str, max_tokens: int = 4096) -> str:
-    """Enforce token ceiling on architect reasoning output."""
-    raise NotImplementedError
+    """Cut a plan that ran past the ceiling. A short plan is returned whole."""
+    limit = max(0, max_tokens) * _CHARS_PER_TOKEN
+    if len(plan_text) <= limit:
+        return plan_text
+    return plan_text[:limit].rstrip() + "\n" + _NOTICE

@@ -43,12 +43,41 @@ class CostMeter:
 
     def calculate_cost_usd(self) -> float:
         """Compute estimated USD cost."""
-        default = self.PRICING_TIERS["pari-core"]
-        rates = self.PRICING_TIERS.get(self.model_family, default)
+        rates = self._rates()
         in_cost = (self.usage.input_tokens / 1_000_000.0) * rates[0]
         out_cost = (self.usage.output_tokens / 1_000_000.0) * rates[1]
         cache_cost = (self.usage.cached_tokens / 1_000_000.0) * rates[2]
         return in_cost + out_cost + cache_cost
+
+    def format_breakdown(self) -> str:
+        """Session totals for the /cost command."""
+        usage = self.usage
+        if usage.input_tokens:
+            hit = 100.0 * usage.cached_tokens / usage.input_tokens
+        else:
+            hit = 0.0
+        return (
+            f"Model: {self.model_family}\n"
+            f"Input: {usage.input_tokens}\n"
+            f"Output: {usage.output_tokens}\n"
+            f"Cached: {usage.cached_tokens}\n"
+            f"Cache hit: {hit:.1f}%\n"
+            f"Estimated cost: ${self.calculate_cost_usd():.3f}"
+        )
+
+    def _rates(self) -> tuple[float, float, float]:
+        """Match ``claude-3-7-sonnet-20250219`` to the ``claude-3-7-sonnet`` price."""
+        family = self.model_family
+        best: tuple[float, float, float] | None = None
+        best_len = -1
+        for name, rates in self.PRICING_TIERS.items():
+            if family == name or family.startswith(f"{name}-"):
+                if len(name) > best_len:
+                    best = rates
+                    best_len = len(name)
+        if best is None:
+            return self.PRICING_TIERS["pari-core"]
+        return best
 
     def format_status(self) -> str:
         """Format token and cost string for status bar."""

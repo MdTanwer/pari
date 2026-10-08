@@ -124,7 +124,13 @@ async def test_reflection_stops_after_the_budget():
 @pytest.mark.asyncio
 async def test_timed_out_command_is_reported_as_a_daemon():
     registry = RecordingRegistry(
-        result={"timed_out": True, "output": "listening", "exit_code": 124}
+        result={
+            "timed_out": True,
+            "output": "listening",
+            "exit_code": 124,
+            "timeout": 30,
+            "idle_seconds": 10,
+        }
     )
     seen: list[str] = []
 
@@ -141,6 +147,7 @@ async def test_timed_out_command_is_reported_as_a_daemon():
     loop = AgentExecutionLoop(registry=registry)
     result = await loop.run_turn("start the server", step, _not_truncated)
     assert "DAEMON DETECTED" in seen[1]
+    assert "10s" in seen[1]
     assert "npm run dev" in seen[1]
     assert "background task APIs" in seen[1]
     assert result.response_text == "noted"

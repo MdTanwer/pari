@@ -14,10 +14,20 @@ class TaskComplexity(StrEnum):
     ARCHITECTURAL = "architectural"  # Dual-model: Architect plan -> Editor diff
 
 
+# A prompt that says one of these, or that already touches three files,
+# goes to the architect. A one-file typo does not.
+_ARCHITECT_WORDS = ("architect", "refactor", "design", "how should")
+
+
 class TaskClassifier:
     """Classifies task complexity to select optimal routing pipeline."""
 
     @staticmethod
     def classify(prompt: str, active_files: list[str]) -> TaskComplexity:
-        """Classify task complexity based on intent keywords and scope."""
-        raise NotImplementedError
+        """Three or more files, or a design word, selects the architect."""
+        if len(active_files) >= 3:
+            return TaskComplexity.ARCHITECTURAL
+        text = prompt.lower()
+        if any(word in text for word in _ARCHITECT_WORDS):
+            return TaskComplexity.ARCHITECTURAL
+        return TaskComplexity.SIMPLE_EDIT

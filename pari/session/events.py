@@ -22,6 +22,7 @@ class SessionEventType(StrEnum):
     TOOL_RESULT = "tool_result"
     FILE_SNAPSHOT = "file_snapshot"
     CHECKPOINT = "checkpoint"
+    SNAPSHOT = "snapshot"
     SESSION_END = "session_end"
 
 

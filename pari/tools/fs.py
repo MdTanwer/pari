@@ -6,6 +6,7 @@ Integrates Layer 6 safe path resolution and atomic writes with Layer 5 exact edi
 from pathlib import Path
 from typing import Any
 
+from pari.edit.cascade import EditCascade
 from pari.edit.exact import apply_exact_edit
 from pari.fs.atomic import atomic_write, read_file
 from pari.fs.path import resolve_safe_path
@@ -94,9 +95,16 @@ class WriteFileTool(Tool):
 class EditFileTool(Tool):
     """Safely edits an existing file using exact search/replace."""
 
-    def __init__(self, workspace: Path, queue: FileMutationQueue | None = None):
+    def __init__(
+        self,
+        workspace: Path,
+        queue: FileMutationQueue | None = None,
+        edit_fallback: str = "none",
+    ):
         self.workspace = workspace
         self.queue = queue or FileMutationQueue(workspace)
+        # "cascade" is the only fallback. Every other value stays exact.
+        self.edit_fallback = edit_fallback
 
     @property
     def definition(self) -> ToolDefinition:
@@ -131,11 +139,21 @@ class EditFileTool(Tool):
         The lock covers the read and the replace together. A second edit of
         the same file waits, so the two search strings cannot tear the file.
         The file is unchanged when the match is not unique.
+        Exact mode also leaves it unchanged when the text is missing.
+        Cascade mode may then align whitespace or a close window.
         """
         target = resolve_safe_path(self.workspace, path)
         lock = await self.queue.get_lock(target)
         async with lock:
             original = read_file(target)
-            updated = apply_exact_edit(original, search, replace, filename=path)
+            updated, tier = self._apply(original, search, replace, path)
             atomic_write(target, updated)
-        return {"status": "success", "path": path}
+        return {"status": "success", "path": path, "tier": tier}
+
+    def _apply(
+        self, original: str, search: str, replace: str, path: str
+    ) -> tuple[str, str]:
+        if self.edit_fallback == "cascade":
+            return EditCascade().apply(original, search, replace, path)
+        updated = apply_exact_edit(original, search, replace, filename=path)
+        return updated, "exact"

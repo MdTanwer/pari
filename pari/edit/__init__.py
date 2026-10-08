@@ -17,19 +17,27 @@ Subsystems:
     - diff: Unified diff generation
 """
 
+from pari.edit.cascade import EditCascade
 from pari.edit.diff import generate_unified_diff
+from pari.edit.dmp import apply_dmp_fuzzy
 from pari.edit.exact import (
     AmbiguousMatchError,
     PatternNotFoundError,
     apply_exact_edit,
     preview_edit,
 )
+from pari.edit.git_osr import apply_git_osr
+from pari.edit.indenter import normalize_relative_indentation
 
 
 __all__ = [
     "AmbiguousMatchError",
+    "EditCascade",
     "PatternNotFoundError",
+    "apply_dmp_fuzzy",
     "apply_exact_edit",
+    "apply_git_osr",
     "generate_unified_diff",
+    "normalize_relative_indentation",
     "preview_edit",
 ]

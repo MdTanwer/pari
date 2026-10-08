@@ -48,7 +48,14 @@ class BashTool(Tool):
         return await asyncio.to_thread(self._run, command, timeout)
 
     def _run(self, command: str, timeout: float) -> dict[str, Any]:
-        limits = SandboxLimits(timeout_seconds=timeout)
+        # Imported here because this module is loaded while the agent package
+        # is still initializing.
+        from pari.agent.guards import DAEMON_IDLE_SECONDS
+
+        # A requested timeout shorter than 10s is the whole wait.
+        # A longer one still yields at 10s so a server cannot hold the turn.
+        idle = DAEMON_IDLE_SECONDS if timeout > DAEMON_IDLE_SECONDS else None
+        limits = SandboxLimits(timeout_seconds=timeout, daemon_idle_seconds=idle)
         runner = get_sandbox_runner(self.workspace, limits=limits)
         result = runner.run_command(command, timeout=timeout)
         raw = result.stdout
@@ -61,6 +68,7 @@ class BashTool(Tool):
             "output": spooled.context_text,
             "timed_out": result.timed_out,
             "timeout": timeout,
+            "idle_seconds": DAEMON_IDLE_SECONDS if result.daemon else timeout,
             "truncated": spooled.was_truncated,
             "sidecar_path": str(spooled.sidecar_path),
         }

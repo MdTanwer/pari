@@ -1,4 +1,3 @@
-import asyncio
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -15,9 +14,11 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
+from pari.agent.loop import workspace_diff
 from pari.agent.runtime import AgentRuntime
 from pari.tui.commands import SlashCommandHandler
 from pari.tui.diff_view import display_diff
+from pari.tui.status import CostMeter
 
 
 # Slash command metadata definitions
@@ -28,6 +29,9 @@ COMMAND_METADATA = [
     ("/clear", "Clear terminal screen"),
     ("/model", "Inspect or switch active LLM"),
     ("/add", "Pin reference file or glob into context"),
+    ("/snapshot", "Save a named restore point"),
+    ("/cost", "Show token and cost totals"),
+    ("/reset", "Clear the conversation"),
     ("/exit", "End interactive session"),
     ("/quit", "End interactive session"),
 ]
@@ -97,12 +101,25 @@ CLI_STYLE = Style.from_dict(
 class TerminalApp:
     """Manages developer interactions in the terminal REPL."""
 
-    def __init__(self, workspace: Path, model_name: str = "pari-core"):
+    def __init__(
+        self,
+        workspace: Path,
+        model_name: str = "pari-core",
+        edit_fallback: str = "none",
+        repomap: str = "off",
+    ):
         self.workspace = workspace.resolve()
         self.model_name = model_name
+        self.edit_fallback = edit_fallback
         self.console = Console()
-        self.runtime = AgentRuntime(self.workspace)
-        # self.cost_meter = CostMeter(model_family=self.model_name)  # later todo
+        # pari-core stays the offline mock. A claude name selects Anthropic.
+        self.runtime = AgentRuntime(
+            self.workspace,
+            model_name=model_name,
+            edit_fallback=edit_fallback,
+            repomap=repomap,
+        )
+        self.cost_meter = CostMeter(model_family=model_name)
         self.commands = SlashCommandHandler()
         self._register_commands()
 
@@ -165,6 +182,9 @@ class TerminalApp:
         self.commands.register("/undo", self._cmd_undo)
         self.commands.register("/model", self._cmd_model)
         self.commands.register("/add", self._cmd_add)
+        self.commands.register("/snapshot", self._cmd_snapshot)
+        self.commands.register("/cost", self._cmd_cost)
+        self.commands.register("/reset", self._cmd_reset)
 
     def _cmd_help(self, _args: str) -> str:
         return (
@@ -173,24 +193,20 @@ class TerminalApp:
             "- `/undo` - Revert the most recent file change\n"
             "- `/model [name]` - Inspect or switch active LLM\n"
             "- `/add [path]` - Pin reference file or glob into context\n"
+            "- `/snapshot [name]` - Save a named restore point\n"
+            "- `/cost` - Show token and cost totals\n"
+            "- `/reset` - Clear the conversation\n"
             "- `/clear` - Clear terminal screen\n"
             "- `/help` - Show this commands overview\n"
             "- `/exit` or `/quit` - End interactive session"
         )
 
     def _cmd_diff(self, _args: str) -> str:
-        # Display sample/active unified diff preview
-        sample_diff = (
-            "--- a/src/example.py\n"
-            "+++ b/src/example.py\n"
-            "@@ -1,3 +1,3 @@\n"
-            "-def hello():\n"
-            "-    return 'world'\n"
-            "+def hello() -> str:\n"
-            "+    return 'hello world from PARI!'"
-        )
-        display_diff(sample_diff, filename="src/example.py", console=self.console)
-        return "Inspecting diff preview for `src/example.py`."
+        diff = workspace_diff(self.workspace)
+        if not diff.strip():
+            return "No uncommitted diff."
+        display_diff(diff, filename=str(self.workspace), console=self.console)
+        return diff
 
     def _cmd_undo(self, _args: str) -> str:
         # TODO: res = self.runtime.undo_manager.undo()
@@ -202,13 +218,27 @@ class TerminalApp:
 
     def _cmd_model(self, args: str) -> str:
         if args:
-            self.model_name = args.strip()
-            # TODO: self.cost_meter.model_family = self.model_name.lower()
-            if hasattr(self, "cost_meter"):
-                self.cost_meter.model_family = self.model_name.lower()
+            name = args.strip()
+            try:
+                self.runtime.set_model(name)
+            except (RuntimeError, NotImplementedError) as exc:
+                return str(exc)
+            self.model_name = self.runtime.model_name
+            self.cost_meter.model_family = self.model_name.lower()
             return f"Switched active model to: `{self.model_name}`"
         tiers = "claude-3-7-sonnet, claude-3-5-sonnet, gpt-4o, pari-core"
         return f"Active model: `{self.model_name}` (Tiers: {tiers})"
+
+    def _cmd_snapshot(self, args: str) -> str:
+        label = self.runtime.save_snapshot(args)
+        return f"Saved snapshot `{label}`."
+
+    def _cmd_cost(self, _args: str) -> str:
+        return self.cost_meter.format_breakdown()
+
+    def _cmd_reset(self, _args: str) -> str:
+        session_id = self.runtime.reset_conversation()
+        return f"Conversation cleared. Session `{session_id}`."
 
     def _cmd_add(self, args: str) -> str:
         if not args:
@@ -298,32 +328,41 @@ class TerminalApp:
             ("class:bottom-toolbar.text", status_meta),
         ]
 
-    def process_message(self, user_msg: str) -> str:
-        """Process user message and generate a response."""
-        # 1. Check slash commands first
+    def process_message(self, user_msg: str) -> str | None:
+        """Handle a slash command or a short greeting.
+
+        Returns None when the text is a normal request. The caller then runs
+        an agent turn.
+        """
         cmd_result = self.commands.handle(user_msg)
         if cmd_result is not None:
             _, output = cmd_result
             return output
 
         normalized = user_msg.strip().lower()
-
-        # 2. Handle greetings like "hi how are you", "hi howr you", etc.
         greeting = (
             "are you" in normalized or "r you" in normalized or "howr" in normalized
         )
         if "how" in normalized and greeting:
             return "Good! How can I help you today?"
-        elif normalized in ("hi", "hello", "hey"):
+        if normalized in ("hi", "hello", "hey"):
             return "Hello! How can I assist you with your project?"
+        return None
 
-        # 3. Normal turn execution (TODO: self.cost_meter.add_usage)
-        if hasattr(self, "cost_meter"):
-            in_tokens = len(user_msg.split()) * 4 + 150
-            self.cost_meter.add_usage(in_tokens=in_tokens, out_tokens=60)
-        return (
-            f"Received: {user_msg}\n\n*(Agent core is ready for prompt orchestration)*"
+    async def respond(self, user_msg: str) -> str:
+        """Answer a slash command locally, or run one agent turn."""
+        quick = self.process_message(user_msg)
+        if quick is not None:
+            return quick
+        text = await self.runtime.execute_turn(user_msg)
+        self.cost_meter.add_usage(
+            self.runtime.tokens_in,
+            self.runtime.tokens_out,
+            self.runtime.cached_tokens,
         )
+        if self.runtime.turn_warning:
+            return f"{self.runtime.turn_warning}\n\n{text}"
+        return text
 
     async def run_repl(self):
         """Main interactive terminal read-eval-print loop."""
@@ -351,11 +390,9 @@ class TerminalApp:
                     self.print_welcome()
                     continue
 
-                # 3. Simulate thinking with Rich status spinner
                 status = "[bold cyan]PARI is thinking..."
                 with self.console.status(status, spinner="dots"):
-                    await asyncio.sleep(0.4)
-                    response = self.process_message(text)
+                    response = await self.respond(text)
 
                 # 4. Render response via Rich
                 self.console.print()

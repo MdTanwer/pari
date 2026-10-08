@@ -44,6 +44,9 @@ class TurnResult:
     requires_user_input: bool
     warning: str = ""
     diff: str = ""
+    tokens_in: int = 0
+    tokens_out: int = 0
+    cached_tokens: int = 0
 
 
 _TURN_LIMIT = "[Turn limit reached. Continue (+10 turns) | Revert | Stop]?"
@@ -83,6 +86,7 @@ class AgentExecutionLoop:
         step_fn: Callable[[str, int], Any],
         is_length_truncated: Callable[[Any], bool],
         active_files: list[tuple[str, str]] | None = None,
+        repo_map: str = "",
     ) -> TurnResult:
         """Execute autonomous steps for one user prompt.
 
@@ -95,13 +99,33 @@ class AgentExecutionLoop:
         pending = prompt
         history = ""
         executed = 0
-        tokens = 0
+        tokens_in = 0
+        tokens_out = 0
+        cached_tokens = 0
         response_text = ""
+
+        def finish(
+            text: str, count: int, needs_user: bool, *, capture_diff: bool = False
+        ) -> TurnResult:
+            return self._finish(
+                text,
+                count,
+                tokens_in + tokens_out,
+                needs_user,
+                capture_diff=capture_diff,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                cached_tokens=cached_tokens,
+            )
+
         for turn in range(1, self.max_autonomous_turns + 1):
             self._note_turn(turn)
-            context = _render_context(pending, history, active_files or [])
+            context = _render_context(pending, history, active_files or [], repo_map)
             step = await _resolve(step_fn(context, turn))
-            tokens += _tokens(step)
+            step_in, step_out, step_cached = _usage(step)
+            tokens_in += step_in
+            tokens_out += step_out
+            cached_tokens += step_cached
             response_text = _text(step)
             # A truncated tool call is discarded. The file is left untouched.
             if _truncated(step, is_length_truncated):
@@ -110,13 +134,13 @@ class AgentExecutionLoop:
                 continue
             calls = _calls(step)
             if not calls:
-                return self._finish(response_text, executed, tokens, False)
+                return finish(response_text, executed, False)
             feedback, executed, halt = await self._run_calls(calls, executed)
             if halt is not None:
-                return self._finish(halt, executed, tokens, True)
+                return finish(halt, executed, True)
             history = _append(history, response_text)
             pending = feedback
-        return self._finish(_TURN_LIMIT, executed, tokens, True, capture_diff=True)
+        return finish(_TURN_LIMIT, executed, True, capture_diff=True)
 
     async def _run_calls(
         self, calls: list[ToolCall], executed: int
@@ -190,6 +214,9 @@ class AgentExecutionLoop:
         needs_user: bool,
         *,
         capture_diff: bool = False,
+        tokens_in: int = 0,
+        tokens_out: int = 0,
+        cached_tokens: int = 0,
     ) -> TurnResult:
         diff = ""
         if capture_diff:
@@ -197,7 +224,17 @@ class AgentExecutionLoop:
             if diff and self.on_diff is not None:
                 self.on_diff(".", diff)
         self._log_assistant(text)
-        return TurnResult(text, executed, tokens, needs_user, self._warning, diff)
+        return TurnResult(
+            text,
+            executed,
+            tokens,
+            needs_user,
+            self._warning,
+            diff,
+            tokens_in,
+            tokens_out,
+            cached_tokens,
+        )
 
     def _read_rel(self, rel: str) -> str:
         if self.workspace is None:
@@ -225,9 +262,14 @@ class AgentExecutionLoop:
 
 
 def _render_context(
-    prompt: str, history: str, active_files: list[tuple[str, str]]
+    prompt: str,
+    history: str,
+    active_files: list[tuple[str, str]],
+    repo_map: str = "",
 ) -> str:
     chunks: list[ContextChunk] = []
+    if repo_map:
+        chunks.append(ContextChunk(ContextTier.STATIC_REPO_MAP, repo_map, "repomap"))
     if active_files:
         body = "\n".join(f"# {name}\n{content}" for name, content in active_files)
         chunks.append(ContextChunk(ContextTier.ACTIVE_FILES, body, "files"))
@@ -272,10 +314,10 @@ def _text(step: Any) -> str:
     raise TypeError("step_fn must return a string or ModelResponse")
 
 
-def _tokens(step: Any) -> int:
+def _usage(step: Any) -> tuple[int, int, int]:
     if isinstance(step, ModelResponse):
-        return step.tokens_in + step.tokens_out
-    return 0
+        return step.tokens_in, step.tokens_out, step.cached_tokens
+    return 0, 0, 0
 
 
 def _render_result(call: ToolCall, result: Any) -> str:
@@ -304,11 +346,13 @@ def _file_path(call: ToolCall) -> str | None:
 
 
 def _idle_seconds(result: Any) -> int:
+    """Prefer the daemon window over the tool's longer hard timeout."""
     if not isinstance(result, dict):
         return DAEMON_IDLE_SECONDS
-    raw = result.get("timeout")
-    if isinstance(raw, int | float):
-        return int(raw)
+    for key in ("idle_seconds", "timeout"):
+        raw = result.get(key)
+        if isinstance(raw, int | float):
+            return int(raw)
     return DAEMON_IDLE_SECONDS
 
 
