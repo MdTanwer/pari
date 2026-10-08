@@ -9,5 +9,10 @@ Architectural Purpose:
 
 
 def parse_test_failures(raw_output: str) -> list[str]:
-    """Parse failure lines from test runner output."""
-    raise NotImplementedError
+    """Return pytest FAILED summary lines, dropping the framework noise."""
+    failures: list[str] = []
+    for line in raw_output.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("FAILED "):
+            failures.append(stripped)
+    return failures

@@ -10,7 +10,7 @@ Architectural Purpose:
     intact.
 """
 
-from pari.context.chunks import ContextChunk
+from pari.context.chunks import ContextChunk, ContextTier
 
 
 def compact_context(
@@ -18,6 +18,34 @@ def compact_context(
     max_tokens: int = 128000,
     compaction_threshold: float = 0.70,
 ) -> list[ContextChunk]:
-    """Inspect total context volume and compact turn history if threshold is
-    exceeded."""
-    raise NotImplementedError
+    """Replace turn history with a short summary once the window fills up.
+
+    System prompt, repo map, and the current turn stay verbatim. Only Tier 6
+    is rewritten, so a compaction cannot drop the user's latest request.
+    """
+    budget = max_tokens * compaction_threshold
+    if _estimate_tokens(chunks) <= budget:
+        return list(chunks)
+    compacted: list[ContextChunk] = []
+    for chunk in chunks:
+        if chunk.tier != ContextTier.TURN_HISTORY:
+            compacted.append(chunk)
+            continue
+        summary = (
+            f"[compacted history {chunk.identifier}: "
+            f"{len(chunk.content)} chars omitted]"
+        )
+        compacted.append(
+            ContextChunk(
+                tier=chunk.tier,
+                content=summary,
+                identifier=chunk.identifier,
+                cache_control=chunk.cache_control,
+            )
+        )
+    return compacted
+
+
+def _estimate_tokens(chunks: list[ContextChunk]) -> int:
+    """Rough token count. Four characters is one token for this budget check."""
+    return sum(max(1, len(chunk.content) // 4) for chunk in chunks)

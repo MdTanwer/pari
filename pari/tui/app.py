@@ -15,6 +15,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
+from pari.agent.runtime import AgentRuntime
 from pari.tui.commands import SlashCommandHandler
 from pari.tui.diff_view import display_diff
 
@@ -100,8 +101,7 @@ class TerminalApp:
         self.workspace = workspace.resolve()
         self.model_name = model_name
         self.console = Console()
-        # TODO:
-        # self.runtime = runtime or AgentRuntime(self.workspace)
+        self.runtime = AgentRuntime(self.workspace)
         # self.cost_meter = CostMeter(model_family=self.model_name)  # later todo
         self.commands = SlashCommandHandler()
         self._register_commands()

@@ -13,6 +13,12 @@ Subsystems:
 
 from pari.fs.atomic import atomic_write, read_file
 from pari.fs.path import resolve_safe_path
+from pari.fs.queue import FileMutationQueue
 
 
-__all__ = ["resolve_safe_path", "atomic_write", "read_file"]
+__all__ = [
+    "FileMutationQueue",
+    "atomic_write",
+    "read_file",
+    "resolve_safe_path",
+]

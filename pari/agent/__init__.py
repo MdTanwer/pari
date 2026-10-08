@@ -12,4 +12,32 @@ Subsystems:
     - subagent: Fiber-based read-only research subagents (closing Pi F2 RAM bloat)
 """
 
-# Placeholder imports will be exported once implementations are added
+from pari.agent.guards import (
+    DAEMON_IDLE_SECONDS,
+    LENGTH_TRUNCATION_NOTICE,
+    MAX_TURNS,
+    TURN_WARNING,
+    format_daemon_notice,
+    is_length_stop,
+)
+from pari.agent.loop import AgentExecutionLoop, TurnResult
+from pari.agent.reflection import ReflectionManager, format_lint_error
+from pari.agent.runtime import AgentRuntime
+from pari.agent.subagent import FiberSubagentPool, SubagentTask
+
+
+__all__ = [
+    "DAEMON_IDLE_SECONDS",
+    "LENGTH_TRUNCATION_NOTICE",
+    "MAX_TURNS",
+    "TURN_WARNING",
+    "AgentExecutionLoop",
+    "AgentRuntime",
+    "FiberSubagentPool",
+    "ReflectionManager",
+    "SubagentTask",
+    "TurnResult",
+    "format_daemon_notice",
+    "format_lint_error",
+    "is_length_stop",
+]

@@ -12,4 +12,15 @@ Subsystems:
     - warmer: Background economic cache warmer maintaining prompt cache state
 """
 
-# Placeholder imports will be exported once implementations are added
+from pari.context.cache import mark_cache_breakpoints
+from pari.context.chunks import ContextChunk, ContextTier, assemble_context
+from pari.context.compaction import compact_context
+
+
+__all__ = [
+    "ContextChunk",
+    "ContextTier",
+    "assemble_context",
+    "compact_context",
+    "mark_cache_breakpoints",
+]

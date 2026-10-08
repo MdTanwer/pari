@@ -15,5 +15,15 @@ def extract_head_tail(
     tail_lines: int = 100,
     sidecar_path: str = "",
 ) -> tuple[str, bool]:
-    """Truncate text by extracting head and tail sections if line count is high."""
-    raise NotImplementedError
+    """Keep the launch header and the trailing traceback.
+
+    The middle is replaced by a notice that contains OMITTED and the sidecar
+    path. A caller can search for that word to tell a window from the full log.
+    """
+    lines = text.splitlines()
+    if len(lines) <= head_lines + tail_lines:
+        return text, False
+    omitted = len(lines) - head_lines - tail_lines
+    notice = f"... [OMITTED {omitted} lines. Full log: {sidecar_path}] ..."
+    window = lines[:head_lines] + [notice] + lines[-tail_lines:]
+    return "\n".join(window), True

@@ -6,9 +6,12 @@ Manages tool registration, schema exportation for model prompts, and dispatch ex
 from pathlib import Path
 from typing import Any
 
+from pari.fs.queue import FileMutationQueue
+from pari.output.spooler import ManagedOutputSpooler
 from pari.tools.base import Tool
 from pari.tools.bash import BashTool
 from pari.tools.fs import EditFileTool, ReadFileTool, WriteFileTool
+from pari.tools.output_reader import ReadToolOutputTool
 from pari.tools.search import FindFilesTool, GrepTool
 
 
@@ -41,13 +44,17 @@ class ToolRegistry:
 def get_default_registry(workspace: Path) -> ToolRegistry:
     """Instantiate and register the standard PARI tool suite for a given workspace."""
     registry = ToolRegistry()
+    # One queue so read, write, and edit of the same file share a lock.
+    queue = FileMutationQueue(workspace)
+    spool_dir = workspace / ".pari" / "tool-outputs"
     for tool in (
-        BashTool(workspace),
-        ReadFileTool(workspace),
-        WriteFileTool(workspace),
-        EditFileTool(workspace),
+        BashTool(workspace, spooler=ManagedOutputSpooler(spool_dir)),
+        ReadFileTool(workspace, queue=queue),
+        WriteFileTool(workspace, queue=queue),
+        EditFileTool(workspace, queue=queue),
         FindFilesTool(workspace),
         GrepTool(workspace),
+        ReadToolOutputTool(spool_dir),
     ):
         registry.register(tool)
     return registry

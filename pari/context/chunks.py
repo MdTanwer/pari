@@ -36,5 +36,18 @@ class ContextChunk:
 
 
 def assemble_context(chunks: list[ContextChunk]) -> list[dict[str, Any]]:
-    """Sort chunks by strict tier hierarchy and format for model payload."""
-    raise NotImplementedError
+    """Sort chunks by tier and format them for the model payload.
+
+    Lower tier numbers are the stable prefix. The loop appends the current
+    turn last so a cache breakpoint above it can stay warm.
+    """
+    ordered = sorted(chunks, key=lambda chunk: int(chunk.tier))
+    return [
+        {
+            "id": chunk.identifier,
+            "tier": int(chunk.tier),
+            "content": chunk.content,
+            "cache_control": chunk.cache_control,
+        }
+        for chunk in ordered
+    ]
