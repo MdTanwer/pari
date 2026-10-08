@@ -60,6 +60,7 @@ class BashTool(Tool):
             "exit_code": result.exit_code,
             "output": spooled.context_text,
             "timed_out": result.timed_out,
+            "timeout": timeout,
             "truncated": spooled.was_truncated,
             "sidecar_path": str(spooled.sidecar_path),
         }

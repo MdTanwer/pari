@@ -75,6 +75,7 @@ class AgentRuntime:
         """Execute conversational turn with autonomous tool execution."""
         self.on_tool_call = on_tool_call
         self.on_diff = on_diff
+        self.turn_warning = ""
         if not self.session_id:
             self.start_session()
 
@@ -95,11 +96,19 @@ class AgentRuntime:
             return resp
 
         dag = self.workspace / ".pari" / "sessions" / f"{self.session_id}.jsonl"
+
+        def remember_warning(text: str) -> None:
+            self.turn_warning = text
+
         loop = AgentExecutionLoop(
             registry=self.tools,
             reflection=ReflectionManager(),
             logger=SessionLogger(dag),
+            undo=self.undo_manager,
+            workspace=self.workspace,
             on_tool_call=on_tool_call,
+            on_diff=on_diff,
+            on_warning=remember_warning,
         )
         result = await loop.run_turn(
             prompt,

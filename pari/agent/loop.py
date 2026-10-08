@@ -7,22 +7,29 @@ prompt. The turn ends when the model stops asking for tools.
 """
 
 import json
+import subprocess
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol
 
 from pari.agent.guards import (
+    DAEMON_IDLE_SECONDS,
     LENGTH_TRUNCATION_NOTICE,
     MAX_TURNS,
     TURN_WARNING,
     format_daemon_notice,
     is_length_stop,
 )
+from pari.agent.lint import lint_python
 from pari.agent.reflection import ReflectionManager
 from pari.context.chunks import ContextChunk, ContextTier, assemble_context
 from pari.context.compaction import compact_context
+from pari.edit.diff import generate_unified_diff
+from pari.fs.path import resolve_safe_path
 from pari.providers.base import ModelResponse, ToolCall
 from pari.session.logger import SessionLogger
+from pari.session.undo import GuardedUndoManager
 
 
 class ToolExecutor(Protocol):
@@ -35,9 +42,12 @@ class TurnResult:
     tool_calls_executed: int
     tokens_used: int
     requires_user_input: bool
+    warning: str = ""
+    diff: str = ""
 
 
-_TURN_LIMIT = "Turn limit reached. Continue (+10 turns) | Revert | Stop?"
+_TURN_LIMIT = "[Turn limit reached. Continue (+10 turns) | Revert | Stop]?"
+_FILE_TOOLS = frozenset({"write_file", "edit_file"})
 
 
 class AgentExecutionLoop:
@@ -50,13 +60,22 @@ class AgentExecutionLoop:
         registry: ToolExecutor | None = None,
         reflection: ReflectionManager | None = None,
         logger: SessionLogger | None = None,
+        undo: GuardedUndoManager | None = None,
+        workspace: Path | None = None,
         on_tool_call: Callable[[str, dict[str, Any]], None] | None = None,
+        on_diff: Callable[[str, str], None] | None = None,
+        on_warning: Callable[[str], None] | None = None,
     ):
         self.max_autonomous_turns = max_autonomous_turns
         self.registry = registry
         self.reflection = reflection or ReflectionManager()
         self.logger = logger
+        self.undo = undo
+        self.workspace = workspace
         self.on_tool_call = on_tool_call
+        self.on_diff = on_diff
+        self.on_warning = on_warning
+        self._warning = ""
 
     async def run_turn(
         self,
@@ -79,8 +98,7 @@ class AgentExecutionLoop:
         tokens = 0
         response_text = ""
         for turn in range(1, self.max_autonomous_turns + 1):
-            if turn == TURN_WARNING:
-                pending = f"Turn {turn} of {self.max_autonomous_turns}.\n{pending}"
+            self._note_turn(turn)
             context = _render_context(pending, history, active_files or [])
             step = await _resolve(step_fn(context, turn))
             tokens += _tokens(step)
@@ -92,16 +110,13 @@ class AgentExecutionLoop:
                 continue
             calls = _calls(step)
             if not calls:
-                self._log_assistant(response_text)
-                return TurnResult(response_text, executed, tokens, False)
+                return self._finish(response_text, executed, tokens, False)
             feedback, executed, halt = await self._run_calls(calls, executed)
             if halt is not None:
-                self._log_assistant(halt)
-                return TurnResult(halt, executed, tokens, True)
+                return self._finish(halt, executed, tokens, True)
             history = _append(history, response_text)
             pending = feedback
-        self._log_assistant(_TURN_LIMIT)
-        return TurnResult(_TURN_LIMIT, executed, tokens, True)
+        return self._finish(_TURN_LIMIT, executed, tokens, True, capture_diff=True)
 
     async def _run_calls(
         self, calls: list[ToolCall], executed: int
@@ -109,16 +124,20 @@ class AgentExecutionLoop:
         """Run the calls in order. A failure stops the rest of this batch."""
         notes: list[str] = []
         for call in calls:
+            path = _file_path(call)
+            before = self._read_rel(path) if path is not None else ""
             try:
-                notes.append(await self._execute_call(call))
+                text = await self._execute_call(call)
             except Exception as exc:
-                note = self.reflection.record_failure(
-                    "turn", type(exc).__name__, str(exc)
-                )
-                if not self.reflection.should_retry("turn"):
-                    return note, executed, note
-                return note, executed, None
+                return self._fail(type(exc).__name__, str(exc), executed)
             executed += 1
+            if path is not None:
+                after = self._read_rel(path)
+                self._snapshot(path, before, after)
+                lint = lint_python(path, after)
+                if lint is not None:
+                    return self._fail("LINT ERROR", lint, executed)
+            notes.append(text)
         return "\n".join(notes), executed, None
 
     async def _execute_call(self, call: ToolCall) -> str:
@@ -140,6 +159,69 @@ class AgentExecutionLoop:
         if self.logger is None:
             return
         self.logger.append_event("ASSISTANT_TURN", {"text": text})
+
+    def _note_turn(self, turn: int) -> None:
+        """Warn the user at turn 30. The warning stays out of the model prompt."""
+        if turn != TURN_WARNING:
+            return
+        self._warning = f"Turn {turn} of {self.max_autonomous_turns}."
+        if self.on_warning is not None:
+            self.on_warning(self._warning)
+
+    def _fail(
+        self, kind: str, message: str, executed: int
+    ) -> tuple[str, int, str | None]:
+        note = self.reflection.record_failure("turn", kind, message)
+        if kind == "LINT ERROR":
+            shown = message
+        else:
+            shown = note
+        if self.reflection.should_retry("turn"):
+            return shown, executed, None
+        if kind == "LINT ERROR":
+            shown = f"{message}\nReflection limit reached. Stop and ask the user."
+        return shown, executed, shown
+
+    def _finish(
+        self,
+        text: str,
+        executed: int,
+        tokens: int,
+        needs_user: bool,
+        *,
+        capture_diff: bool = False,
+    ) -> TurnResult:
+        diff = ""
+        if capture_diff:
+            diff = workspace_diff(self.workspace)
+            if diff and self.on_diff is not None:
+                self.on_diff(".", diff)
+        self._log_assistant(text)
+        return TurnResult(text, executed, tokens, needs_user, self._warning, diff)
+
+    def _read_rel(self, rel: str) -> str:
+        if self.workspace is None:
+            return ""
+        try:
+            path = resolve_safe_path(self.workspace, rel)
+        except PermissionError:
+            return ""
+        if not path.is_file():
+            return ""
+        try:
+            return path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return ""
+
+    def _snapshot(self, rel: str, before: str, after: str) -> None:
+        if before == after:
+            return
+        if self.undo is not None:
+            self.undo.record_snapshot(rel, before, after)
+        if self.logger is not None:
+            self.logger.append_event("FILE_SNAPSHOT", {"path": rel})
+        if self.on_diff is not None:
+            self.on_diff(rel, generate_unified_diff(before, after, rel))
 
 
 def _render_context(
@@ -208,4 +290,41 @@ def _render_result(call: ToolCall, result: Any) -> str:
     if not timed_out:
         return text
     command = str(call.arguments.get("command", call.name))
-    return format_daemon_notice(command) + "\n" + text
+    seconds = _idle_seconds(result)
+    return format_daemon_notice(command, seconds) + "\n" + text
+
+
+def _file_path(call: ToolCall) -> str | None:
+    if call.name not in _FILE_TOOLS:
+        return None
+    path = call.arguments.get("path")
+    if not isinstance(path, str) or not path:
+        return None
+    return path
+
+
+def _idle_seconds(result: Any) -> int:
+    if not isinstance(result, dict):
+        return DAEMON_IDLE_SECONDS
+    raw = result.get("timeout")
+    if isinstance(raw, int | float):
+        return int(raw)
+    return DAEMON_IDLE_SECONDS
+
+
+def workspace_diff(workspace: Path | None) -> str:
+    """Return the working-tree diff, or an empty string when git cannot run."""
+    if workspace is None:
+        return ""
+    try:
+        completed = subprocess.run(
+            ["git", "diff", "--no-ext-diff", "--"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return completed.stdout

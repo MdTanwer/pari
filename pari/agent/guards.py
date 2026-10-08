@@ -22,11 +22,12 @@ def is_length_stop(stop_reason: str | None) -> bool:
     return stop_reason == "length"
 
 
-def format_daemon_notice(command: str) -> str:
+def format_daemon_notice(command: str, idle_seconds: int = DAEMON_IDLE_SECONDS) -> str:
     """Notice for a command that kept streaming past the idle window."""
     shown = command.strip() or "command"
     return (
         f"[DAEMON DETECTED]: Command '{shown}' did not exit after "
-        f"{DAEMON_IDLE_SECONDS}s. Process was backgrounded. "
-        "Stdout snapshot spooled to disk."
+        f"{idle_seconds}s. Process was backgrounded. "
+        "Stdout snapshot spooled to disk. "
+        "To manage background daemons, use background task APIs."
     )
