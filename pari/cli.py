@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 
 from pari import __version__
+from pari.auth.interactive import login_tty, logout_tty
+from pari.auth.login import sign_in, sign_out, status_text
 from pari.tui import TerminalApp
 
 
@@ -32,6 +34,50 @@ def cmd_grep(args: argparse.Namespace) -> int:
     """Search for query in workspace files."""
     # TODO: Implement substring/regex grep via Layer 3 intelligence
     print(f"Searching for '{args.query}' (placeholder)")
+    return 0
+
+
+def cmd_login(args: argparse.Namespace) -> int:
+    """Open the sign-in menus, or save one credential from flags."""
+    if args.api_key or args.account:
+        if not args.provider or bool(args.api_key) == bool(args.account):
+            print(
+                "Choose one: --api-key <key> or --account <token>.",
+                file=sys.stderr,
+            )
+            return 1
+        method = "api_key" if args.api_key else "account"
+        secret = args.api_key or args.account or ""
+        try:
+            print(sign_in(args.provider, secret, method))
+        except (ValueError, RuntimeError) as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        return 0
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        return login_tty(args.provider)
+    if args.provider:
+        print(
+            "Choose one: --api-key <key> or --account <token>.",
+            file=sys.stderr,
+        )
+        return 1
+    print(status_text())
+    print("pari login")
+    print("pari login <provider> --api-key <key>")
+    print("pari login <provider> --account <token>")
+    return 0
+
+
+def cmd_logout(args: argparse.Namespace) -> int:
+    """Remove one saved sign-in, or open the picker when no provider is named."""
+    if not args.provider:
+        return logout_tty()
+    try:
+        print(sign_out(args.provider))
+    except (ValueError, RuntimeError) as exc:
+        print(exc, file=sys.stderr)
+        return 1
     return 0
 
 
@@ -146,6 +192,26 @@ def main(argv: list | None = None) -> int:
     )
     grep_parser.add_argument("-l", "--limit", type=int, default=50, help="Max matches")
 
+    login_parser = subparsers.add_parser(
+        "login", help="Sign in with an API key or an account token"
+    )
+    login_parser.add_argument(
+        "provider",
+        nargs="?",
+        choices=["openai", "deepseek", "anthropic", "grok", "openrouter"],
+        help="Provider to sign in to",
+    )
+    login_parser.add_argument("--api-key", default=None, help="API key")
+    login_parser.add_argument("--account", default=None, help="Account token")
+
+    logout_parser = subparsers.add_parser("logout", help="Remove a saved sign-in")
+    logout_parser.add_argument(
+        "provider",
+        nargs="?",
+        choices=["openai", "deepseek", "anthropic", "grok", "openrouter"],
+        help="Provider to sign out of",
+    )
+
     # pari eval
     eval_parser = subparsers.add_parser("eval", help="Run benchmark evaluation suites")
     eval_parser.add_argument(
@@ -161,6 +227,10 @@ def main(argv: list | None = None) -> int:
         return cmd_find(args)
     elif args.subcommand == "grep":
         return cmd_grep(args)
+    elif args.subcommand == "login":
+        return cmd_login(args)
+    elif args.subcommand == "logout":
+        return cmd_logout(args)
     elif args.subcommand == "eval":
         return cmd_eval(args)
     else:

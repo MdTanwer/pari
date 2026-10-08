@@ -111,7 +111,8 @@ The limit is 88 characters.
 - Do not insert `sys.path` hacks to import `pari`.
 - Avoid `# type: ignore`. Fix the annotation, or add an assertion that makes
   the type clear.
-- Avoid inline imports unless there is a real circular import.
+- Put every import at the top of the module. Do not import inside a function
+  or a class. A real circular import is the only exception.
 - Avoid `getattr` / `hasattr` guards. Use a typed attribute.
 - Comments are for a non-obvious invariant, a kernel workaround, or an
   ordering constraint. Do not restate what the code already says, and do not

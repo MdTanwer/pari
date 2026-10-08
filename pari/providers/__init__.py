@@ -1,47 +1,65 @@
 """PARI Multi-Provider LLM Integration Layer.
 
-Architectural Purpose:
-    Closes Antigravity F5 (Hard Google API lock-in) and Claude Code Anthropic
-    exclusivity.
-    Provides unified model abstraction across Anthropic Claude, OpenAI, DeepSeek, local
-    Ollama,
-    and an offline fallback provider for local testing.
+Sign in with an API key or an account token. The supported providers are
+OpenAI, DeepSeek, Anthropic, Grok, and OpenRouter.
 """
 
 import os
 
+from pari.auth.login import resolve_secret, sign_in_hint
+from pari.auth.providers import info_for_model
 from pari.providers.anthropic import AnthropicProvider
 from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage, ToolCall
+from pari.providers.deepseek import DeepSeekProvider
+from pari.providers.grok import GrokProvider
 from pari.providers.mock import MockOfflineProvider
+from pari.providers.openai import OpenAIProvider
+from pari.providers.openrouter import OpenRouterProvider
+
+
+_BUILDERS = {
+    "openai": OpenAIProvider,
+    "deepseek": DeepSeekProvider,
+    "anthropic": AnthropicProvider,
+    "grok": GrokProvider,
+    "openrouter": OpenRouterProvider,
+}
 
 
 def get_provider(model_name: str | None = None) -> LLMProvider:
-    """Pick a provider from the model name and the environment.
+    """Pick a provider from the model name, the environment, and the saved sign-in.
 
-    ``pari-core`` is the offline model, even when an API key is present.
-    A Claude name uses Anthropic. A bare call uses Anthropic only when
+    ``pari-core`` stays the offline model. A bare call uses Anthropic only when
     ``ANTHROPIC_API_KEY`` is set and ``PARI_MODEL`` did not choose another name.
     """
     chosen = (model_name or os.environ.get("PARI_MODEL") or "").strip()
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    # The REPL default must stay usable with no key and no network.
     if chosen == "pari-core":
         return MockOfflineProvider()
-    if chosen.startswith("claude") or (not chosen and key):
-        if not key:
-            raise RuntimeError("ANTHROPIC_API_KEY is not set.")
-        model = chosen or "claude-3-7-sonnet-20250219"
-        return AnthropicProvider(model, key)
-    if not chosen:
-        return MockOfflineProvider()
-    raise NotImplementedError(f"No provider is implemented for {chosen}.")
+    info = info_for_model(chosen) if chosen else None
+    if info is None and not chosen and os.environ.get("ANTHROPIC_API_KEY"):
+        info = info_for_model("claude")
+        chosen = info.default_model if info is not None else ""
+    if info is None:
+        if not chosen:
+            return MockOfflineProvider()
+        raise NotImplementedError(f"No provider is implemented for {chosen}.")
+    model = chosen if chosen != info.id else info.default_model
+    key = resolve_secret(info)
+    if not key:
+        raise RuntimeError(sign_in_hint(info))
+    builder = _BUILDERS[info.id]
+    return builder(model, key)
 
 
 __all__ = [
     "AnthropicProvider",
+    "DeepSeekProvider",
+    "GrokProvider",
     "LLMProvider",
     "MockOfflineProvider",
     "ModelResponse",
+    "OpenAIProvider",
+    "OpenRouterProvider",
     "ProviderMessage",
     "ToolCall",
     "get_provider",

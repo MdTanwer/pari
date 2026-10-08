@@ -8,9 +8,14 @@ Architectural Purpose:
 
 Subsystems:
     - app: Interactive terminal session loop
-    - diff_view: Syntax-highlighted unified diff preview & approval prompt
-    - status: Token tracker & USD cost meter
-    - commands: Interactive slash commands (/undo, /diff, /model, /help)
+    - slash: Built-in slash commands
+    - completer: Slash-command suggestions
+    - keys: Completion-menu key bindings
+    - prompt: Welcome panel and status line
+    - style: Prompt and menu colors
+    - diff_view: Syntax-highlighted unified diff preview
+    - status: Token tracker and USD cost meter
+    - commands: Slash-command dispatcher
 """
 
 from pari.tui.app import TerminalApp

@@ -1,24 +1,29 @@
 """PARI Providers: OpenAI Adapter.
 
-Supports GPT-4o, o3-mini, and GPT-4.5 with function calling.
+Supports GPT-4o and the other OpenAI chat models with function calling.
 """
 
-from typing import Any
+import httpx
 
-from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage
+from pari.providers.openai_compat import OpenAICompatibleProvider
 
 
-class OpenAIProvider(LLMProvider):
-    """Adapter for OpenAI Chat Completions API."""
+class OpenAIProvider(OpenAICompatibleProvider):
+    """Adapter for the OpenAI Chat Completions API."""
 
-    def __init__(self, model_name: str = "gpt-4o", api_key: str | None = None):
-        super().__init__(model_name, api_key)
-
-    async def complete(
+    def __init__(
         self,
-        messages: list[ProviderMessage],
-        tools: list[dict[str, Any]] | None = None,
-        temperature: float = 0.0,
-    ) -> ModelResponse:
-        """Call OpenAI Chat Completions API."""
-        raise NotImplementedError
+        model_name: str = "gpt-4o",
+        api_key: str | None = None,
+        transport: httpx.BaseTransport | None = None,
+    ):
+        super().__init__(
+            model_name,
+            api_key,
+            "https://api.openai.com/v1/chat/completions",
+            transport,
+            missing_key_message=(
+                "Sign in to OpenAI: pari login openai --api-key <key> "
+                "or pari login openai --account <token>."
+            ),
+        )

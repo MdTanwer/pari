@@ -33,7 +33,9 @@ def test_tui_process_message_help(tmp_path: Path):
     assert "/exit" in res
 
 
-def test_tui_slash_commands(tmp_path: Path):
+def test_tui_slash_commands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("PARI_AUTH_FILE", str(tmp_path / "missing-auth.json"))
     app = TerminalApp(workspace=tmp_path)
 
     # /diff command
@@ -45,7 +47,7 @@ def test_tui_slash_commands(tmp_path: Path):
     assert "pari-core" in model_res
 
     switch_res = app.process_message("/model gpt-4o")
-    assert "No provider" in switch_res
+    assert "Sign in to OpenAI" in switch_res
     assert app.model_name == "pari-core"
 
     # /undo command
@@ -134,6 +136,8 @@ def test_slash_command_completer():
         "/snapshot",
         "/cost",
         "/reset",
+        "/login",
+        "/logout",
         "/exit",
         "/quit",
     ]

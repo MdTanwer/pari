@@ -1,105 +1,39 @@
-from collections.abc import Iterable
+"""REPL loop.
+
+Slash commands, the completion menu, key bindings, and the prompt chrome live
+in the neighbouring modules. This file owns the session and decides whether a
+line is a local command or a model turn.
+"""
+
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
-from prompt_toolkit.application.current import get_app
-from prompt_toolkit.completion import CompleteEvent, Completer, Completion
-from prompt_toolkit.document import Document
-from prompt_toolkit.filters import has_completions
 from prompt_toolkit.history import InMemoryHistory
-from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.shortcuts import CompleteStyle
-from prompt_toolkit.styles import Style
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
-from pari.agent.loop import workspace_diff
 from pari.agent.runtime import AgentRuntime
-from pari.tui.commands import SlashCommandHandler
-from pari.tui.diff_view import display_diff
-from pari.tui.status import CostMeter
-
-
-# Slash command metadata definitions
-COMMAND_METADATA = [
-    ("/help", "Show available slash commands and help"),
-    ("/diff", "Preview pending or latest unified diffs"),
-    ("/undo", "Revert the most recent file change"),
-    ("/clear", "Clear terminal screen"),
-    ("/model", "Inspect or switch active LLM"),
-    ("/add", "Pin reference file or glob into context"),
-    ("/snapshot", "Save a named restore point"),
-    ("/cost", "Show token and cost totals"),
-    ("/reset", "Clear the conversation"),
-    ("/exit", "End interactive session"),
-    ("/quit", "End interactive session"),
-]
-
-
-class SlashCommandCompleter(Completer):
-    """Autocompleter for slash commands with formatted descriptions and clean prefix
-    matching."""
-
-    def __init__(self, commands: list[tuple[str, str]] | None = None):
-        self.commands = commands or COMMAND_METADATA
-
-    def get_completions(
-        self, document: Document, complete_event: CompleteEvent
-    ) -> Iterable[Completion]:
-        text = document.text_before_cursor.lstrip()
-
-        # If the user already typed arguments, do not complete the slash command.
-        if " " in text:
-            return
-
-        # Complete on '/' or when Tab asks for completions on an empty line.
-        completion = complete_event.completion_requested and not text
-        if not text.startswith("/") and not completion:
-            return
-
-        query = text.lower()
-        for cmd, desc in self.commands:
-            if cmd.lower().startswith(query):
-                yield Completion(
-                    text=cmd,
-                    start_position=-len(text),
-                    display=cmd,
-                    display_meta=desc,
-                )
-
-
-# Modern CLI theme matching the completion dropdown menu & toolbar styling
-CLI_STYLE = Style.from_dict(
-    {
-        # Prompt & input
-        "prompt": "fg:#38bdf8 bold",
-        "": "fg:#f3f4f6",
-        "placeholder": "fg:#6b7280 italic",
-        # Completion Menu dropdown
-        "completion-menu": "bg:#18181b fg:#f4f4f5",
-        "completion-menu.completion": "bg:#18181b fg:#38bdf8",
-        "completion-menu.completion.current": "bg:#27272a fg:#38bdf8 bold",
-        "completion-menu.meta.completion": "bg:#18181b fg:#717882",
-        "completion-menu.meta.completion.current": "bg:#27272a fg:#e4e4e7",
-        "completion-menu.multi-column-meta": "bg:#18181b fg:#717882",
-        # Scrollbar
-        "scrollbar.background": "bg:#18181b",
-        "scrollbar.button": "bg:#3f3f46",
-        "scrollbar.arrow": "bg:#18181b fg:#717882",
-        # Bottom toolbar & navigation hint keys
-        "bottom-toolbar": "bg:default fg:#717882",
-        "bottom-toolbar.text": "bg:default fg:#717882",
-        "toolbar-key": "fg:#38bdf8 bold",
-        "toolbar-key-esc": "fg:#717882",
-        "toolbar-action": "fg:#717882",
-        "toolbar-dot": "fg:#4b5563",
-    }
+from pari.auth.interactive import login_tty, logout_tty
+from pari.tui.completer import SlashCommandCompleter
+from pari.tui.keys import create_key_bindings
+from pari.tui.prompt import (
+    placeholder_tokens,
+    prompt_tokens,
+    toolbar_tokens,
+    welcome_panel,
 )
+from pari.tui.slash import SessionCommands
+from pari.tui.status import CostMeter
+from pari.tui.style import CLI_STYLE
+
+
+__all__ = ["SlashCommandCompleter", "TerminalApp"]
 
 
 class TerminalApp:
-    """Manages developer interactions in the terminal REPL."""
+    """One workspace session: prompt, local commands, then the agent runtime."""
 
     def __init__(
         self,
@@ -120,240 +54,34 @@ class TerminalApp:
             repomap=repomap,
         )
         self.cost_meter = CostMeter(model_family=model_name)
-        self.commands = SlashCommandHandler()
-        self._register_commands()
-
-        self.completer = SlashCommandCompleter()
-        self.key_bindings = self._create_key_bindings()
+        self.commands = SessionCommands(self)
         self.session: PromptSession = PromptSession(
             history=InMemoryHistory(),
-            completer=self.completer,
+            completer=SlashCommandCompleter(),
             style=CLI_STYLE,
             complete_while_typing=True,
             complete_style=CompleteStyle.COLUMN,
             reserve_space_for_menu=10,
-            key_bindings=self.key_bindings,
+            key_bindings=create_key_bindings(),
         )
 
-    def _create_key_bindings(self) -> KeyBindings:
-        """Keybindings for autocomplete navigation: enter select, tab complete, esc
-        cancel."""
-        kb = KeyBindings()
-
-        @kb.add("enter", filter=has_completions)
-        def _handle_enter(event):
-            buff = event.current_buffer
-            if buff.complete_state and buff.complete_state.current_completion:
-                buff.apply_completion(buff.complete_state.current_completion)
-            else:
-                buff.validate_and_handle()
-
-        @kb.add("tab", filter=has_completions)
-        def _handle_tab(event):
-            buff = event.current_buffer
-            if buff.complete_state:
-                buff.complete_next()
-
-        @kb.add("s-tab", filter=has_completions)
-        def _handle_s_tab(event):
-            buff = event.current_buffer
-            if buff.complete_state:
-                buff.complete_previous()
-
-        @kb.add("down", filter=has_completions)
-        def _handle_down(event):
-            event.current_buffer.complete_next()
-
-        @kb.add("up", filter=has_completions)
-        def _handle_up(event):
-            event.current_buffer.complete_previous()
-
-        @kb.add("escape", filter=has_completions)
-        def _handle_escape(event):
-            buff = event.current_buffer
-            buff.cancel_completion()
-
-        return kb
-
-    def _register_commands(self) -> None:
-        """Register built-in slash commands."""
-        self.commands.register("/help", self._cmd_help)
-        self.commands.register("/diff", self._cmd_diff)
-        self.commands.register("/undo", self._cmd_undo)
-        self.commands.register("/model", self._cmd_model)
-        self.commands.register("/add", self._cmd_add)
-        self.commands.register("/snapshot", self._cmd_snapshot)
-        self.commands.register("/cost", self._cmd_cost)
-        self.commands.register("/reset", self._cmd_reset)
-
-    def _cmd_help(self, _args: str) -> str:
-        return (
-            "**Available Slash Commands:**\n\n"
-            "- `/diff` - Preview pending or latest unified diffs\n"
-            "- `/undo` - Revert the most recent file change\n"
-            "- `/model [name]` - Inspect or switch active LLM\n"
-            "- `/add [path]` - Pin reference file or glob into context\n"
-            "- `/snapshot [name]` - Save a named restore point\n"
-            "- `/cost` - Show token and cost totals\n"
-            "- `/reset` - Clear the conversation\n"
-            "- `/clear` - Clear terminal screen\n"
-            "- `/help` - Show this commands overview\n"
-            "- `/exit` or `/quit` - End interactive session"
-        )
-
-    def _cmd_diff(self, _args: str) -> str:
-        diff = workspace_diff(self.workspace)
-        if not diff.strip():
-            return "No uncommitted diff."
-        display_diff(diff, filename=str(self.workspace), console=self.console)
-        return diff
-
-    def _cmd_undo(self, _args: str) -> str:
-        # TODO: res = self.runtime.undo_manager.undo()
-        if hasattr(self, "runtime") and hasattr(self.runtime, "undo_manager"):
-            res = self.runtime.undo_manager.undo()
-            if res.reverted_files:
-                return f"Reverted files: {', '.join(res.reverted_files)}"
-        return "No previous file modifications in session history to undo."
-
-    def _cmd_model(self, args: str) -> str:
-        if args:
-            name = args.strip()
-            try:
-                self.runtime.set_model(name)
-            except (RuntimeError, NotImplementedError) as exc:
-                return str(exc)
-            self.model_name = self.runtime.model_name
-            self.cost_meter.model_family = self.model_name.lower()
-            return f"Switched active model to: `{self.model_name}`"
-        tiers = "claude-3-7-sonnet, claude-3-5-sonnet, gpt-4o, pari-core"
-        return f"Active model: `{self.model_name}` (Tiers: {tiers})"
-
-    def _cmd_snapshot(self, args: str) -> str:
-        label = self.runtime.save_snapshot(args)
-        return f"Saved snapshot `{label}`."
-
-    def _cmd_cost(self, _args: str) -> str:
-        return self.cost_meter.format_breakdown()
-
-    def _cmd_reset(self, _args: str) -> str:
-        session_id = self.runtime.reset_conversation()
-        return f"Conversation cleared. Session `{session_id}`."
-
-    def _cmd_add(self, args: str) -> str:
-        if not args:
-            return "Usage: `/add <file_or_glob>` (e.g. `/add pyproject.toml`)"
-        # TODO: self.runtime.add_pinned_file(args.strip())
-        if hasattr(self, "runtime"):
-            added = self.runtime.add_pinned_file(args.strip())
-            if added:
-                return f"Added {args.strip()} to active context."
-        target = (self.workspace / args.strip()).resolve()
-        if not target.exists():
-            return f"File not found: `{args}`"
-        try:
-            rel = target.relative_to(self.workspace)
-        except ValueError:
-            rel = target
-        return f"Added {rel} to active context."
-
-    def print_welcome(self):
-        """Display startup banner."""
-        welcome_text = (
-            f"[bold cyan]PARI v0.1.2[/bold cyan] — Coding Agent\n"
-            f"[dim]Website   :[/dim] [cyan]https://pari-cli.in[/cyan]\n"
-            f"[dim]Workspace :[/dim] [yellow]{self.workspace}[/yellow]\n"
-            f"[dim]Model     :[/dim] [green]{self.model_name}[/green]\n\n"
-            "[dim]Type your message, [/dim][bold cyan]/help[/bold cyan]"
-            "[dim] for commands, [/dim][bold cyan]/exit[/bold cyan]"
-            "[dim] to quit.[/dim]"
-        )
-        self.console.print(
-            Panel(
-                welcome_text,
-                title="[bold green]PARI[/bold green]",
-                border_style="dim cyan",
-                padding=(1, 2),
-            )
-        )
-
-    def get_prompt(self):
-        """Clean prompt indicator matching modern CLI design."""
-        return [
-            ("class:prompt", "> "),
-        ]
-
-    def get_placeholder(self):
-        """Placeholder text when input line is empty."""
-        return [("class:placeholder", "Ask PARI to do anything...")]
-
-    def get_bottom_toolbar(self):
-        """Dynamic toolbar showing key navigation hints during completion or session
-        status."""
-        try:
-            app = get_app()
-            buff = app.current_buffer
-            is_completing = bool(buff.complete_state) or (
-                buff.text.strip().startswith("/") and " " not in buff.text.strip()
-            )
-        except Exception:
-            is_completing = False
-
-        if is_completing:
-            return [
-                ("class:toolbar-key", "↑/↓"),
-                ("class:toolbar-action", " Navigate "),
-                ("class:toolbar-dot", "· "),
-                ("class:toolbar-key", "enter"),
-                ("class:toolbar-action", " Select "),
-                ("class:toolbar-dot", "· "),
-                ("class:toolbar-key", "tab"),
-                ("class:toolbar-action", " Complete\n"),
-                ("class:toolbar-key-esc", "esc"),
-                ("class:toolbar-action", " to cancel"),
-            ]
-
-        home = Path.home()
-        try:
-            rel_path = f"~/{self.workspace.relative_to(home)}"
-        except ValueError:
-            rel_path = str(self.workspace)
-
-        if hasattr(self, "cost_meter"):
-            cost_str = f" · {self.cost_meter.format_status()}"
-        else:
-            cost_str = ""
-        status_meta = f"  {self.model_name} default · {rel_path}{cost_str}"
-        return [
-            ("class:bottom-toolbar.text", status_meta),
-        ]
+    def print_welcome(self) -> None:
+        self.console.print(welcome_panel(self.workspace, self.model_name))
 
     def process_message(self, user_msg: str) -> str | None:
-        """Handle a slash command or a short greeting.
-
-        Returns None when the text is a normal request. The caller then runs
-        an agent turn.
-        """
-        cmd_result = self.commands.handle(user_msg)
-        if cmd_result is not None:
-            _, output = cmd_result
-            return output
-
-        normalized = user_msg.strip().lower()
-        greeting = (
-            "are you" in normalized or "r you" in normalized or "howr" in normalized
-        )
-        if "how" in normalized and greeting:
-            return "Good! How can I help you today?"
-        if normalized in ("hi", "hello", "hey"):
-            return "Hello! How can I assist you with your project?"
-        return None
+        """Return a local answer, or None when the line should run a model turn."""
+        quick = self.commands.handle(user_msg)
+        if quick is not None:
+            return quick[1]
+        return _greeting(user_msg)
 
     async def respond(self, user_msg: str) -> str:
         """Answer a slash command locally, or run one agent turn."""
         quick = self.process_message(user_msg)
         if quick is not None:
             return quick
+        # TODO: refuse this prompt until the user is signed in.
+        # /login and the other local commands stay available.
         text = await self.runtime.execute_turn(user_msg)
         self.cost_meter.add_usage(
             self.runtime.tokens_in,
@@ -364,47 +92,66 @@ class TerminalApp:
             return f"{self.runtime.turn_warning}\n\n{text}"
         return text
 
-    async def run_repl(self):
-        """Main interactive terminal read-eval-print loop."""
+    async def run_repl(self) -> None:
+        """Read lines until the user exits or the terminal closes."""
         self.print_welcome()
-
         while True:
             try:
                 user_input = await self.session.prompt_async(
-                    message=self.get_prompt,
-                    placeholder=self.get_placeholder,
-                    bottom_toolbar=self.get_bottom_toolbar,
+                    message=prompt_tokens,
+                    placeholder=placeholder_tokens,
+                    bottom_toolbar=lambda: toolbar_tokens(
+                        self.workspace, self.model_name, self.cost_meter
+                    ),
                 )
-
                 text = user_input.strip()
                 if not text:
                     continue
-
-                # 2. Built-in session commands
-                if text in ("/exit", "/quit", "exit", "quit"):
-                    self.console.print("[dim]Exiting PARI session. Goodbye![/dim]")
+                if not await self._turn(text):
                     break
-
-                if text == "/clear":
-                    self.console.clear()
-                    self.print_welcome()
-                    continue
-
-                status = "[bold cyan]PARI is thinking..."
-                with self.console.status(status, spinner="dots"):
-                    response = await self.respond(text)
-
-                # 4. Render response via Rich
-                self.console.print()
-                self.console.print(
-                    Panel(
-                        Markdown(response),
-                        title="[bold cyan]PARI Agent[/bold cyan]",
-                        border_style="dim",
-                    )
-                )
-                self.console.print()
-
             except (KeyboardInterrupt, EOFError):
                 self.console.print("\n[dim]Session interrupted. Goodbye![/dim]")
                 break
+
+    async def _turn(self, text: str) -> bool:
+        """Handle one line. Return False when the session should stop."""
+        if text in ("/exit", "/quit", "exit", "quit"):
+            self.console.print("[dim]Exiting PARI session. Goodbye![/dim]")
+            return False
+        # These menus draw on the raw terminal, so they stay outside the panel.
+        if text == "/login":
+            login_tty()
+            return True
+        if text == "/logout":
+            logout_tty()
+            return True
+        if text == "/clear":
+            self.console.clear()
+            self.print_welcome()
+            return True
+        status = "[bold cyan]PARI is thinking..."
+        with self.console.status(status, spinner="dots"):
+            response = await self.respond(text)
+        self._print_reply(response)
+        return True
+
+    def _print_reply(self, response: str) -> None:
+        self.console.print()
+        self.console.print(
+            Panel(
+                Markdown(response),
+                title="[bold cyan]PARI Agent[/bold cyan]",
+                border_style="dim",
+            )
+        )
+        self.console.print()
+
+
+def _greeting(user_msg: str) -> str | None:
+    normalized = user_msg.strip().lower()
+    greeting = "are you" in normalized or "r you" in normalized or "howr" in normalized
+    if "how" in normalized and greeting:
+        return "Good! How can I help you today?"
+    if normalized in ("hi", "hello", "hey"):
+        return "Hello! How can I assist you with your project?"
+    return None
