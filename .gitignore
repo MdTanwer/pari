@@ -214,6 +214,8 @@ resource/claude-code/
 resource/codex/
 resource/opencode/
 resource/pi/
+claude-code/
+pi/
 
 # Node & package dependencies
 node_modules/
