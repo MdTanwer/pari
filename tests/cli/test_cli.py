@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from pari.auth.login import NO_MODEL, sign_in
 from pari.cli import main
 
 
@@ -75,25 +76,57 @@ def test_missing_pinned_file_stops_startup(
 def test_sandbox_coming_soon_is_a_real_error(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
-    code = main(["--workspace", str(tmp_path), "--sandbox", "seatbelt", "--dry-run"])
+    code = main(
+        [
+            "--workspace",
+            str(tmp_path),
+            "--sandbox",
+            "seatbelt",
+            "--model",
+            "pari-core",
+            "--dry-run",
+        ]
+    )
     err = capsys.readouterr().err
     assert code == 1
     assert "coming soon" in err
     assert "placeholder" not in err
 
 
-def test_dry_run_reports_the_offline_model(
+def test_dry_run_without_a_model_asks_for_sign_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    monkeypatch.delenv("PARI_MODEL", raising=False)
+    monkeypatch.setenv("PARI_AUTH_FILE", str(tmp_path / "auth.json"))
+    for name in (
+        "OPENAI_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "XAI_API_KEY",
+        "OPENROUTER_API_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    code = main(["--workspace", str(tmp_path), "--dry-run"])
+    captured = capsys.readouterr()
+    assert code == 1
+    assert NO_MODEL in captured.err
+    assert "pari-core" not in captured.out
+    assert "pari-core" not in captured.err
+
+
+def test_dry_run_uses_the_signed_in_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     monkeypatch.delenv("PARI_SANDBOX", raising=False)
     monkeypatch.delenv("PARI_SANDBOX_MODE", raising=False)
+    monkeypatch.delenv("PARI_MODEL", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.setenv("PARI_AUTH_FILE", str(tmp_path / "auth.json"))
+    sign_in("deepseek", "sk-0123456789abcdefxyz", "api_key")
     code = main(["--workspace", str(tmp_path), "--dry-run"])
     captured = capsys.readouterr()
-    assert "placeholder" not in captured.out
-    assert "placeholder" not in captured.err
     if code == 0:
-        assert "Model: pari-core" in captured.out
-        assert "Sandbox: auto" in captured.out
-        assert "Self-check passed." in captured.out
+        assert "Model: deepseek-chat" in captured.out
+        assert "pari-core" not in captured.out
     else:
         assert "bubblewrap" in captured.err

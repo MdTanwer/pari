@@ -6,7 +6,7 @@ OpenAI, DeepSeek, Anthropic, Grok, and OpenRouter.
 
 import os
 
-from pari.auth.login import resolve_secret, sign_in_hint
+from pari.auth.login import NO_MODEL, resolve_secret, sign_in_hint
 from pari.auth.providers import info_for_model
 from pari.providers.anthropic import AnthropicProvider
 from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage, ToolCall
@@ -29,8 +29,8 @@ _BUILDERS = {
 def get_provider(model_name: str | None = None) -> LLMProvider:
     """Pick a provider from the model name, the environment, and the saved sign-in.
 
-    ``pari-core`` stays the offline model. A bare call uses Anthropic only when
-    ``ANTHROPIC_API_KEY`` is set and ``PARI_MODEL`` did not choose another name.
+    An explicit ``pari-core`` name stays the offline model. A call with no
+    model raises when ``PARI_MODEL`` is unset and no Anthropic key is present.
     """
     chosen = (model_name or os.environ.get("PARI_MODEL") or "").strip()
     if chosen == "pari-core":
@@ -41,7 +41,7 @@ def get_provider(model_name: str | None = None) -> LLMProvider:
         chosen = info.default_model if info is not None else ""
     if info is None:
         if not chosen:
-            return MockOfflineProvider()
+            raise RuntimeError(NO_MODEL)
         raise NotImplementedError(f"No provider is implemented for {chosen}.")
     model = chosen if chosen != info.id else info.default_model
     key = resolve_secret(info)

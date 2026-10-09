@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pari import __version__
 from pari.auth.interactive import login_tty, logout_tty
-from pari.auth.login import sign_in, sign_out, status_text
+from pari.auth.login import NO_MODEL, default_model_name, sign_in, sign_out, status_text
 from pari.intelligence.search import find_files, grep_search
 from pari.providers import get_provider
 from pari.sandbox.dispatcher import get_sandbox_runner
@@ -131,13 +131,21 @@ def cmd_run(args: argparse.Namespace) -> int:
     if pinned is not None:
         print(pinned, file=sys.stderr)
         return 1
+    try:
+        model = args.model or default_model_name()
+    except RuntimeError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    if not model:
+        print(NO_MODEL, file=sys.stderr)
+        return 1
     if args.dry_run:
-        return _dry_run(workspace, args.model, args.sandbox)
+        return _dry_run(workspace, model, args.sandbox)
 
     try:
         app = TerminalApp(
             workspace=workspace,
-            model_name=args.model,
+            model_name=model,
             edit_fallback=args.edit_fallback,
             repomap=args.repomap,
             sandbox_mode=args.sandbox,
@@ -219,8 +227,8 @@ def main(argv: list | None = None) -> int:
     parser.add_argument(
         "--model",
         type=str,
-        default=os.environ.get("PARI_MODEL", "pari-core"),
-        help="Model name (default: pari-core, or PARI_MODEL)",
+        default=None,
+        help="Model name (default: latest sign-in, or PARI_MODEL)",
     )
     parser.add_argument(
         "--edit-fallback",

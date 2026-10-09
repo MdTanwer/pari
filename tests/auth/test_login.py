@@ -7,7 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from pari.auth.login import resolve_secret, sign_in, sign_in_hint, sign_out, status_text
+from pari.auth.login import (
+    default_model_name,
+    resolve_secret,
+    sign_in,
+    sign_in_hint,
+    sign_out,
+    status_text,
+)
 from pari.auth.providers import get_info
 from pari.auth.store import AuthStore
 from pari.cli import main
@@ -66,6 +73,37 @@ def test_cli_login_does_not_print_the_key(tmp_path: Path, monkeypatch, capsys):
     assert "OpenRouter" in output
     assert "sk-or-v1-0123456789abcd" not in output
     assert "API key" in output
+
+
+def test_no_credential_selects_no_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.delenv("PARI_MODEL", raising=False)
+    for name in (
+        "OPENAI_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "XAI_API_KEY",
+        "OPENROUTER_API_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    assert default_model_name(AuthStore(tmp_path / "auth.json")) is None
+
+
+def test_latest_sign_in_is_the_default_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.delenv("PARI_MODEL", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    store = AuthStore(tmp_path / "auth.json")
+    sign_in("openai", "sk-proj-0123456789abcdef", "api_key", store)
+    sign_in("deepseek", "sk-0123456789abcdefxyz", "api_key", store)
+    assert default_model_name(store) == "deepseek-chat"
+    sign_in("openai", "sk-proj-0123456789abcdef", "api_key", store)
+    assert default_model_name(store) == "gpt-4o"
+    monkeypatch.setenv("PARI_MODEL", "claude-3-7-sonnet-20250219")
+    assert default_model_name(store) == "claude-3-7-sonnet-20250219"
 
 
 def test_empty_and_unknown_sign_in_are_rejected(tmp_path: Path):

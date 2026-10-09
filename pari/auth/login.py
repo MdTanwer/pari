@@ -55,6 +55,8 @@ def sign_in(
     expires = (extra or {}).get("expires")
     if isinstance(expires, int):
         row["expires"] = expires
+    # Latest sign-in is the session default, so it has to be last.
+    data.pop(info.id, None)
     data[info.id] = row
     auth.save(data)
     label = "API key" if method == "api_key" else "account"
@@ -145,6 +147,46 @@ def resolve_secret(info: ProviderInfo, store: AuthStore | None = None) -> str | 
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
+
+
+NO_MODEL = (
+    "No model selected. Sign in with `pari-cli login`, "
+    "or pass --model, or set PARI_MODEL."
+)
+
+
+def default_model_name(store: AuthStore | None = None) -> str | None:
+    """Model used when the CLI was started without ``--model``.
+
+    ``PARI_MODEL`` wins. Otherwise the latest saved sign-in is used, then an
+    API key already in the environment. Nothing is chosen when no credential
+    is available.
+    """
+    chosen = os.environ.get("PARI_MODEL", "").strip()
+    if chosen:
+        return chosen
+    saved = _saved_provider_ids((store or AuthStore()).load())
+    if saved:
+        return get_info(saved[-1]).default_model
+    for info in PROVIDERS:
+        if os.environ.get(info.env, "").strip():
+            return info.default_model
+    return None
+
+
+def _saved_provider_ids(data: dict) -> list[str]:
+    ids: list[str] = []
+    for key, row in data.items():
+        if not isinstance(key, str) or not isinstance(row, dict):
+            continue
+        secret = row.get("secret")
+        if not isinstance(secret, str) or not secret.strip():
+            continue
+        try:
+            ids.append(get_info(key).id)
+        except ValueError:
+            continue
+    return ids
 
 
 def sign_in_hint(info: ProviderInfo) -> str:

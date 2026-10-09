@@ -95,11 +95,11 @@ async def test_missing_key_refuses_the_call(monkeypatch: pytest.MonkeyPatch):
         await provider.complete([ProviderMessage(role="user", content="hi")])
 
 
-def test_get_provider_uses_mock_without_a_key(monkeypatch: pytest.MonkeyPatch):
+def test_get_provider_refuses_without_a_model(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("PARI_MODEL", raising=False)
-    provider = get_provider()
-    assert isinstance(provider, MockOfflineProvider)
+    with pytest.raises(RuntimeError, match="No model selected"):
+        get_provider()
 
 
 def test_pari_core_stays_offline_when_a_key_is_set(monkeypatch: pytest.MonkeyPatch):
