@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#EEF1F4" />
+  <title>Coming soon — PARI CLI</title>
+  <style>
+    :root {
+      --mist: #EEF1F4;
+      --ink: #111B1E;
+      --muted: #52606F;
+      --soft-muted: #788593;
+      --moss: #687B60;
+      --moss-dark: #43563D;
+      --line: #CFD7DD;
+      --terminal: #172124;
+      --lime: #A7DB69;
+      --shadow: 0 22px 70px rgba(50, 67, 75, .08);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      background:
+        radial-gradient(ellipse at 63% 22%, rgba(255,255,255,.78), transparent 34%),
+        linear-gradient(120deg, #E9EEF2 0%, var(--mist) 49%, #EAF0F3 100%);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; }
+    .page {
+      width: min(1440px, calc(100% - 64px));
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .nav {
+      min-height: 77px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 26px;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand { display: flex; align-items: baseline; gap: 8px; flex-shrink: 0; }
+    .brand-name { font-size: 39px; font-weight: 750; letter-spacing: -2.8px; line-height: 1; }
+    .brand-dot { color: var(--moss); }
+    .brand-cli { color: var(--muted); font: 12px/1.2 "SFMono-Regular", Consolas, monospace; letter-spacing: .04em; }
+    .nav-links { display: flex; align-items: center; gap: clamp(20px, 3vw, 48px); font-size: 13px; color: #263138; }
+    .nav-links a, .footer-links a { transition: color .2s ease; }
+    .nav-links a:hover, .footer-links a:hover { color: var(--moss); }
+    .nav-right { display: flex; align-items: center; gap: 20px; }
+    .theme-toggle {
+      width: 36px; height: 36px; border: 0; background: transparent; color: #56656B;
+      display: grid; place-items: center; cursor: pointer; border-radius: 50%;
+    }
+    .theme-toggle:hover { background: rgba(255,255,255,.7); }
+    .theme-toggle svg { width: 18px; height: 18px; display: block; }
+    .theme-toggle .icon-sun { display: none; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 13px;
+      border: 1px solid transparent; border-radius: 7px; padding: 15px 22px;
+      font-size: 14px; font-weight: 550; cursor: pointer;
+      transition: transform .2s ease, background .2s ease;
+      white-space: nowrap;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-dark { background: #202A2B; color: white; box-shadow: 0 4px 10px rgba(15, 26, 29, .08); }
+    .btn-dark:hover { background: #30403D; }
+    .arrow { font-size: 19px; line-height: 10px; font-weight: 300; }
+
+    .soon {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, .9fr) minmax(280px, .7fr);
+      gap: 48px;
+      align-items: center;
+      padding: 56px 0 40px;
+    }
+    .eyebrow {
+      color: var(--moss-dark);
+      font: 12px/1.4 "SFMono-Regular", Consolas, monospace;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+    h1 {
+      font-size: clamp(52px, 6vw, 84px);
+      letter-spacing: -.065em;
+      line-height: 1.02;
+      font-weight: 590;
+      margin: 22px 0 18px;
+    }
+    h1 span { color: var(--moss); }
+    .lead { color: var(--muted); font-size: 18px; line-height: 1.5; max-width: 460px; margin: 0; }
+    .back {
+      display: inline-flex;
+      margin-top: 28px;
+      color: var(--moss-dark);
+      font: 12px "SFMono-Regular", Consolas, monospace;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .back:hover { color: var(--ink); }
+
+    .panel {
+      border: 1px solid #D5DDE2;
+      border-radius: 8px;
+      background: rgba(255,255,255,.28);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .panel-title {
+      color: var(--moss-dark);
+      font: 12px "SFMono-Regular", Consolas, monospace;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+    .panel-list { display: flex; flex-direction: column; }
+    .panel-row {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .panel-row:last-child { border-bottom: 0; }
+    .panel-num { color: var(--moss-dark); font: 12px "SFMono-Regular", Consolas, monospace; }
+    .panel-row strong { display: block; font-size: 14px; font-weight: 590; }
+    .panel-row span { display: block; margin-top: 4px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+    .status {
+      color: var(--moss-dark);
+      font: 11px "SFMono-Regular", Consolas, monospace;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 22px 0 28px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .footer-links { display: flex; gap: 22px; }
+
+    body.dark {
+      --mist: #121819; --ink: #E8EEED; --muted: #A8B4B6; --soft-muted: #829092;
+      --moss: #A4C58D; --moss-dark: #B3CBA2; --line: #354143;
+      background: radial-gradient(ellipse at 63% 22%, rgba(59,75,73,.25), transparent 36%), #121819;
+    }
+    body.dark .nav-links, body.dark .panel-row strong { color: #E0E8E6; }
+    body.dark .brand-cli { color: #A8B4B6; }
+    body.dark .btn-dark { background: #DCE9D5; color: #17201B; }
+    body.dark .btn-dark:hover { background: #C6DDBA; }
+    body.dark .panel { background: rgba(255,255,255,.03); border-color: #354143; }
+    body.dark .theme-toggle { color: #D5DEDC; }
+    body.dark .theme-toggle:hover { background: rgba(255,255,255,.08); }
+    body.dark .theme-toggle .icon-moon { display: none; }
+    body.dark .theme-toggle .icon-sun { display: block; }
+    body.dark .back:hover { color: #E0E8E6; }
+
+    @media (max-width: 900px) {
+      .page { width: min(100% - 40px, 1000px); }
+      .soon { grid-template-columns: 1fr; gap: 28px; padding-top: 36px; }
+      .lead { max-width: 640px; }
+    }
+    @media (max-width: 720px) {
+      .page { width: calc(100% - 32px); }
+      .nav { min-height: 68px; }
+      .brand-name { font-size: 32px; }
+      .nav-links { display: none; }
+      .nav-right { gap: 8px; }
+      .nav-right .btn { padding: 12px 13px; font-size: 12px; }
+      h1 { font-size: clamp(44px, 12vw, 64px); }
+      .lead { font-size: 16px; }
+      .panel-row { grid-template-columns: 24px 1fr; }
+      .status { grid-column: 2; }
+      .footer { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="nav">
+      <a class="brand" href="/" aria-label="PARI CLI home">
+        <span class="brand-name">pari<span class="brand-dot">.</span></span>
+        <span class="brand-cli">CLI</span>
+      </a>
+      <nav class="nav-links" aria-label="Main navigation">
+        <a href="/#overview">Overview</a>
+        <a href="/coming-soon">Benchmarks</a>
+        <a href="/coming-soon">Docs</a>
+        <a href="/coming-soon">GitHub</a>
+      </nav>
+      <div class="nav-right">
+        <button class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a7 7 0 0 0 11.5 11.5z"/></svg>
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        </button>
+        <a class="btn btn-dark" href="/#get-started">Get Started <span class="arrow">→</span></a>
+      </div>
+    </header>
+
+    <main class="soon">
+      <div>
+        <div class="eyebrow">PARI CLI</div>
+        <h1>Coming<br /><span>soon.</span></h1>
+        <p class="lead">This part of the site is not ready yet. The overview and install commands are already on the homepage.</p>
+        <a class="back" href="/">← Back to overview</a>
+      </div>
+      <aside class="panel" aria-label="What is coming soon">
+        <div class="panel-head">
+          <div class="panel-title">In progress</div>
+        </div>
+        <div class="panel-list">
+          <div class="panel-row">
+            <span class="panel-num">01</span>
+            <div><strong>Documentation</strong><span>Guides and reference pages.</span></div>
+            <span class="status">Coming soon</span>
+          </div>
+          <div class="panel-row">
+            <span class="panel-num">02</span>
+            <div><strong>Benchmarks</strong><span>Published results with a reproducible harness.</span></div>
+            <span class="status">Coming soon</span>
+          </div>
+          <div class="panel-row">
+            <span class="panel-num">03</span>
+            <div><strong>GitHub</strong><span>Public source and release notes.</span></div>
+            <span class="status">Coming soon</span>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      <span>© <span id="year"></span> PARI CLI · Engineered for dependable code changes.</span>
+      <div class="footer-links">
+        <a href="/coming-soon">Architecture</a>
+        <a href="/coming-soon">Benchmarks</a>
+        <a href="/coming-soon">Documentation</a>
+        <a href="/coming-soon">GitHub ↗</a>
+      </div>
+    </footer>
+  </div>
+  <script>
+    const toggle = document.getElementById("themeToggle");
+    toggle.addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+      const label = document.body.classList.contains("dark")
+        ? "Switch to light mode"
+        : "Switch to dark mode";
+      toggle.setAttribute("aria-label", label);
+      toggle.setAttribute("title", label);
+    });
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>

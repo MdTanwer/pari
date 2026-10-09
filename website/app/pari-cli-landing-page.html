@@ -57,8 +57,12 @@
       display: grid; place-items: center; cursor: pointer; border-radius: 50%;
     }
     .theme-toggle:hover { background: rgba(255,255,255,.7); }
-    .sun { width: 18px; height: 18px; border: 1.5px solid currentColor; border-radius: 50%; position: relative; transform: scale(.58); }
-    .sun::before { content:""; position:absolute; inset:-9px; border:1.5px dashed currentColor; border-radius:50%; }
+    .theme-toggle svg { width: 18px; height: 18px; display: block; }
+    .theme-toggle .icon-sun { display: none; }
+    body.dark .theme-toggle { color: #D5DEDC; }
+    body.dark .theme-toggle:hover { background: rgba(255,255,255,.08); }
+    body.dark .theme-toggle .icon-moon { display: none; }
+    body.dark .theme-toggle .icon-sun { display: block; }
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 13px;
       border: 1px solid transparent; border-radius: 7px; padding: 15px 22px;
@@ -161,7 +165,46 @@
     .metric-label { font: 12px/1.55 "SFMono-Regular", Consolas, monospace; text-transform: uppercase; margin-top: 8px; color: #1E2A30; }
     .metric p { color: var(--muted); font-size: 12px; line-height: 1.55; margin: auto 0 0; padding-top: 12px; }
 
-    .failure-section { margin: 34px 0 0; padding-bottom: 38px; }
+    .failure-section { margin: 34px 0 0; padding-bottom: 8px; }
+    .install {
+      margin: 28px 0 46px; scroll-margin-top: 24px;
+    }
+    .install-grid {
+      display: grid; grid-template-columns: minmax(220px, .62fr) minmax(0, 1.5fr);
+      gap: 36px; align-items: start; margin-top: 26px;
+    }
+    .install h2 {
+      font-size: clamp(32px, 3.2vw, 46px); letter-spacing: -.05em; font-weight: 590;
+      line-height: 1.05; margin: 0 0 14px;
+    }
+    .install-lead { color: var(--muted); font-size: 16px; line-height: 1.55; margin: 0; max-width: 340px; }
+    .install-steps { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    .install-step {
+      border: 1px solid #D5DDE2; border-radius: 8px; background: rgba(255,255,255,.28);
+      min-width: 0;
+    }
+    .install-step header {
+      display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+      padding: 14px 16px 0;
+    }
+    .install-name { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+    .install-num { color: var(--moss-dark); font: 12px "SFMono-Regular", Consolas, monospace; letter-spacing: .04em; }
+    .install-step h3 { margin: 0; font-size: 14px; font-weight: 590; letter-spacing: -.01em; }
+    .install-meta {
+      color: var(--soft-muted); font: 11px "SFMono-Regular", Consolas, monospace;
+      letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+    }
+    .cmd {
+      margin: 12px; padding: 12px 14px; border-radius: 6px;
+      background: linear-gradient(145deg, #1D292C, var(--terminal));
+      color: #E7EEF0; border: 1px solid rgba(255,255,255,.08);
+      font: 13px/1.7 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      overflow-x: auto;
+    }
+    .cmd-row { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; }
+    .cmd-row code { font: inherit; white-space: nowrap; }
+    .cmd .prompt { color: var(--lime); }
+    .cmd .note { color: #8EA0A4; white-space: nowrap; }
     .section-head { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding-bottom: 11px; border-bottom: 1px solid var(--line); }
     .section-title { color: var(--moss-dark); font: 12px "SFMono-Regular", Consolas, monospace; letter-spacing: .07em; text-transform: uppercase; }
     .learn-more { color: #7D8D92; font: 11px "SFMono-Regular", Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
@@ -193,7 +236,9 @@
     body.dark .brand-cli { color:#A8B4B6; }
     body.dark .btn-dark { background:#DCE9D5; color:#17201B; }
     body.dark .btn-dark:hover { background:#C6DDBA; }
-    body.dark .failure-num, body.dark .failure h3, body.dark .layer-note strong { color:#E0E8E6; }
+    body.dark .failure-num, body.dark .failure h3, body.dark .layer-note strong,
+    body.dark .install-step h3 { color:#E0E8E6; }
+    body.dark .install-step { background: rgba(255,255,255,.03); border-color: #354143; }
 
     @media (max-width: 1120px) {
       .page { width:min(100% - 40px, 1000px); }
@@ -207,6 +252,8 @@
       .metric { min-height:190px; }
       .failure-grid { grid-template-columns: repeat(3,minmax(0,1fr)); row-gap: 10px; }
       .failure:nth-child(3) { border-right:0; }
+      .install-grid { grid-template-columns: 1fr; gap: 22px; }
+      .install-lead { max-width: 640px; }
     }
     @media (max-width: 720px) {
       .page { width: calc(100% - 32px); }
@@ -239,6 +286,9 @@
       .failure { margin-right:12px; padding-right:10px; }
       .failure:nth-child(2n) { border-right:0; margin-right:0; }
       .failure:nth-child(3) { border-right:1px solid var(--line); }
+      .install-step header { align-items:flex-start; flex-direction:column; gap:4px; }
+      .cmd { font-size:12px; margin:10px; }
+      .cmd-row { flex-direction:column; gap:0; }
       .section-head { align-items:flex-start; }
       .section-title { max-width:230px; line-height:1.5; }
       .learn-more { white-space:nowrap; }
@@ -258,13 +308,15 @@
       </a>
       <nav class="nav-links" aria-label="Main navigation">
         <a href="#overview">Overview</a>
-        <a href="#architecture">Architecture</a>
-        <a href="#benchmarks">Benchmarks</a>
-        <a href="#docs">Docs</a>
-        <a href="https://github.com/" target="_blank" rel="noreferrer">GitHub</a>
+        <a href="/coming-soon">Benchmarks</a>
+        <a href="/coming-soon">Docs</a>
+        <a href="/coming-soon">GitHub</a>
       </nav>
       <div class="nav-right">
-        <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark mode"><span class="sun"></span></button>
+        <button class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a7 7 0 0 0 11.5 11.5z"/></svg>
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        </button>
         <a class="btn btn-dark" href="#get-started">Get Started <span class="arrow">→</span></a>
       </div>
     </header>
@@ -277,7 +329,6 @@
           <p class="hero-desc">PARI CLI is a coding agent built around the systems that make autonomous software development dependable. Agent failure is a systems engineering problem, not a reasoning problem.</p>
           <div class="hero-actions">
             <a class="btn btn-dark" href="#get-started"><span aria-hidden="true">›_</span> Get started <span class="arrow">→</span></a>
-            <a class="btn btn-outline" href="#architecture">View architecture</a>
           </div>
           <div class="platforms" aria-label="Platform support">
             <span class="platform">
@@ -402,7 +453,7 @@
       <section class="failure-section" id="docs">
         <div class="section-head">
           <div class="section-title">The six failure modes we eliminate</div>
-          <a class="learn-more" href="#architecture">Explore architecture <span>→</span></a>
+          <a class="learn-more" href="/coming-soon">Explore architecture <span>→</span></a>
         </div>
         <div class="failure-grid">
           <article class="failure">
@@ -431,18 +482,62 @@
           </article>
         </div>
       </section>
+
+      <section class="install" id="get-started">
+        <div class="section-head">
+          <div class="section-title">Get started</div>
+          <div class="learn-more">Python 3.11 or newer</div>
+        </div>
+        <div class="install-grid">
+          <div>
+            <h2>Install PARI CLI.</h2>
+            <p class="install-lead">Run the shell installer, or install the package with pipx, uv, or pip.</p>
+          </div>
+          <div class="install-steps">
+            <article class="install-step">
+              <header>
+                <div class="install-name"><span class="install-num">01</span><h3>macOS and Linux</h3></div>
+                <span class="install-meta">curl</span>
+              </header>
+              <div class="cmd"><div class="cmd-row"><code><span class="prompt">$</span> curl -fsSL https://pari-cli.in/install.sh | bash</code></div></div>
+            </article>
+            <article class="install-step">
+              <header>
+                <div class="install-name"><span class="install-num">02</span><h3>Windows</h3></div>
+                <span class="install-meta">PowerShell</span>
+              </header>
+              <div class="cmd"><div class="cmd-row"><code><span class="prompt">PS&gt;</span> irm https://www.pari-cli.in/install.ps1 | iex</code></div></div>
+            </article>
+            <article class="install-step">
+              <header>
+                <div class="install-name"><span class="install-num">03</span><h3>Python package</h3></div>
+                <span class="install-meta">pipx, uv, pip</span>
+              </header>
+              <div class="cmd">
+                <div class="cmd-row"><code><span class="prompt">$</span> pipx install pari-cli</code><span class="note">recommended</span></div>
+                <div class="cmd-row"><code><span class="prompt">$</span> uv tool install pari-cli</code><span class="note">fast</span></div>
+                <div class="cmd-row"><code><span class="prompt">$</span> pip install pari-cli</code><span class="note">standard</span></div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
     </main>
 
-    <footer class="footer" id="get-started">
+    <footer class="footer">
       <span>© <span id="year"></span> PARI CLI · Engineered for dependable code changes.</span>
-      <div class="footer-links"><a href="#architecture">Architecture</a><a href="#benchmarks">Benchmarks</a><a href="#docs">Documentation</a><a href="https://github.com/" target="_blank" rel="noreferrer">GitHub ↗</a></div>
+      <div class="footer-links"><a href="/coming-soon">Architecture</a><a href="/coming-soon">Benchmarks</a><a href="/coming-soon">Documentation</a><a href="/coming-soon">GitHub ↗</a></div>
     </footer>
   </div>
   <script>
     const toggle = document.getElementById("themeToggle");
     toggle.addEventListener("click", () => {
       document.body.classList.toggle("dark");
-      toggle.setAttribute("aria-label", document.body.classList.contains("dark") ? "Switch to light mode" : "Switch to dark mode");
+      const label = document.body.classList.contains("dark")
+        ? "Switch to light mode"
+        : "Switch to dark mode";
+      toggle.setAttribute("aria-label", label);
+      toggle.setAttribute("title", label);
     });
     document.getElementById("year").textContent = new Date().getFullYear();
   </script>
