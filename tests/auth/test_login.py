@@ -211,8 +211,8 @@ def test_a_saved_row_without_a_secret_is_ignored(tmp_path: Path):
 
 def test_sign_in_hint_names_the_command():
     hint = sign_in_hint(get_info("openai"))
-    assert "pari login openai --api-key" in hint
-    assert "pari login openai --account" in hint
+    assert "pari-cli login openai --api-key" in hint
+    assert "pari-cli login openai --account" in hint
 
 
 def _openai_row(secret: str, refresh: str, expires: int) -> dict:

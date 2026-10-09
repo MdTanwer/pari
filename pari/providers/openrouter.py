@@ -23,7 +23,7 @@ class OpenRouterProvider(OpenAICompatibleProvider):
             "https://openrouter.ai/api/v1/chat/completions",
             transport,
             missing_key_message=(
-                "Sign in to OpenRouter: pari login openrouter --api-key <key> "
-                "or pari login openrouter --account <token>."
+                "Sign in to OpenRouter: pari-cli login openrouter --api-key <key> "
+                "or pari-cli login openrouter --account <token>."
             ),
         )

@@ -38,7 +38,7 @@ if (Get-Command uv -ErrorAction SilentlyContinue) {
             return
         }
     }
-    Write-Host "`n[✓] PARI installed successfully! Type 'pari' to start." -ForegroundColor Cyan
+    Write-Host "`n[✓] PARI installed successfully! Type 'pari-cli' to start." -ForegroundColor Cyan
     return
 }
 
@@ -54,7 +54,7 @@ if (Get-Command pipx -ErrorAction SilentlyContinue) {
             return
         }
     }
-    Write-Host "`n[✓] PARI installed successfully! Type 'pari' to start." -ForegroundColor Cyan
+    Write-Host "`n[✓] PARI installed successfully! Type 'pari-cli' to start." -ForegroundColor Cyan
     return
 }
 
@@ -133,13 +133,13 @@ if ($sessionPaths -notcontains $ScriptsDir) {
 }
 
 # Verify binary resolution / check for shadowing
-$resolved = Get-Command pari -ErrorAction SilentlyContinue
+$resolved = Get-Command pari-cli -ErrorAction SilentlyContinue
 if ($resolved) {
     $resolvedDir = Split-Path $resolved.Source -Parent
     if ($resolvedDir -ne $ScriptsDir) {
-        Write-Host "[!] Note: 'pari' command currently resolves to: $($resolved.Source)" -ForegroundColor Yellow
+        Write-Host "[!] Note: 'pari-cli' command currently resolves to: $($resolved.Source)" -ForegroundColor Yellow
     }
 }
 
 Write-Host "`n[✓] PARI installed successfully!" -ForegroundColor Green
-Write-Host "Run 'pari' to get started!" -ForegroundColor Cyan
+Write-Host "Run 'pari-cli' to get started!" -ForegroundColor Cyan

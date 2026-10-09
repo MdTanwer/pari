@@ -67,7 +67,6 @@ dev = [
 ]
 
 [project.scripts]
-pari = "pari.cli:main"
 pari-cli = "pari.cli:main"
 
 [tool.setuptools.packages.find]

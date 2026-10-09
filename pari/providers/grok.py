@@ -23,7 +23,7 @@ class GrokProvider(OpenAICompatibleProvider):
             "https://api.x.ai/v1/chat/completions",
             transport,
             missing_key_message=(
-                "Sign in to Grok: pari login grok --api-key <key> "
-                "or pari login grok --account <token>."
+                "Sign in to Grok: pari-cli login grok --api-key <key> "
+                "or pari-cli login grok --account <token>."
             ),
         )

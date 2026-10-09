@@ -65,31 +65,31 @@ export PARI_SANDBOX="auto"
 ### Interactive Terminal Session
 To launch an interactive coding session inside your current repository:
 ```bash
-pari
+pari-cli
 ```
 
 ### Verify CLI Installation
 ```bash
 # View all available CLI flags and options
-pari --help
+pari-cli --help
 
 # Run self-check to verify environment and sandbox availability
-pari --dry-run
+pari-cli --dry-run
 ```
 
 ### Common CLI Options
 ```bash
 # Launch with explicit active reference files loaded into Tier 4 Context
-pari --add src/auth/service.py --add docs/api_spec.md
+pari-cli --add src/auth/service.py --add docs/api_spec.md
 
 # Specify target workspace explicitly
-pari --workspace /path/to/project
+pari-cli --workspace /path/to/project
 
 # Enable optional v2 AST PageRank context fallback
-pari --repomap ppr
+pari-cli --repomap ppr
 
 # Enable optional edit fallback cascade
-pari --edit-fallback cascade
+pari-cli --edit-fallback cascade
 ```
 
 ---
@@ -121,7 +121,7 @@ To verify that the PARI v1 core CLI and environment are functioning properly on 
 
 ```bash
 # Run environment self-check
-pari --dry-run
+pari-cli --dry-run
 ```
 
 This will:

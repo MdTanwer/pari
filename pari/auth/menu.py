@@ -1,4 +1,4 @@
-"""Keyboard menus for ``pari login``.
+"""Keyboard menus for ``pari-cli login``.
 
 The first screen picks an account or an API key. The next screen picks a
 provider. Radius is not a choice.

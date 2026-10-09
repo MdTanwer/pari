@@ -145,8 +145,8 @@ def _now_ms() -> int:
 def sign_in_hint(info: ProviderInfo) -> str:
     return (
         f"Sign in to {info.label}: "
-        f"pari login {info.id} --api-key <key> "
-        f"or pari login {info.id} --account <token>."
+        f"pari-cli login {info.id} --api-key <key> "
+        f"or pari-cli login {info.id} --account <token>."
     )
 
 

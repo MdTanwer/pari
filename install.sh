@@ -34,7 +34,7 @@ if command -v uv >/dev/null 2>&1; then
     fi
     echo ""
     echo "${GREEN}${BOLD}✓ PARI installed successfully!${RESET}"
-    echo "Run ${CYAN}pari${RESET} to get started."
+    echo "Run ${CYAN}pari-cli${RESET} to get started."
     exit 0
 fi
 
@@ -47,7 +47,7 @@ if command -v pipx >/dev/null 2>&1; then
     fi
     echo ""
     echo "${GREEN}${BOLD}✓ PARI installed successfully!${RESET}"
-    echo "Run ${CYAN}pari${RESET} to get started."
+    echo "Run ${CYAN}pari-cli${RESET} to get started."
     exit 0
 fi
 
@@ -76,7 +76,7 @@ if command -v python3 >/dev/null 2>&1; then
     fi
 
     # Create symlink in ~/.local/bin
-    ln -sf "$INSTALL_DIR/venv/bin/pari" "$BIN_DIR/pari"
+    ln -sf "$INSTALL_DIR/venv/bin/pari-cli" "$BIN_DIR/pari-cli"
 
     # Ensure ~/.local/bin is in user PATH
     SHELL_CONFIG=""
@@ -98,7 +98,7 @@ if command -v python3 >/dev/null 2>&1; then
                 if command -v fish >/dev/null 2>&1; then
                     fish -c "fish_add_path '$BIN_DIR'" 2>/dev/null || true
                 fi
-                echo "${YELLOW}Fish shell detected: run 'fish_add_path ~/.local/bin' if 'pari' is not found.${RESET}"
+                echo "${YELLOW}Fish shell detected: run 'fish_add_path ~/.local/bin' if 'pari-cli' is not found.${RESET}"
                 ;;
             *)
                 echo "${YELLOW}Please add ~/.local/bin to your PATH in your shell configuration.${RESET}"
@@ -114,19 +114,19 @@ if command -v python3 >/dev/null 2>&1; then
     fi
 
     # Check for binary shadowing
-    if command -v pari >/dev/null 2>&1; then
-        RESOLVED_PARI="$(command -v pari)"
-        if [ "$RESOLVED_PARI" != "$BIN_DIR/pari" ]; then
-            echo "${YELLOW}Note: 'pari' is currently resolving to $RESOLVED_PARI${RESET}"
+    if command -v pari-cli >/dev/null 2>&1; then
+        RESOLVED_PARI="$(command -v pari-cli)"
+        if [ "$RESOLVED_PARI" != "$BIN_DIR/pari-cli" ]; then
+            echo "${YELLOW}Note: 'pari-cli' is currently resolving to $RESOLVED_PARI${RESET}"
         fi
     fi
 
     echo ""
-    echo "${GREEN}${BOLD}✓ PARI installed successfully in ~/.local/bin/pari!${RESET}"
+    echo "${GREEN}${BOLD}✓ PARI installed successfully in ~/.local/bin/pari-cli!${RESET}"
     if [ -n "$SHELL_CONFIG" ]; then
-        echo "To start immediately, run: ${CYAN}source $SHELL_CONFIG && pari${RESET}"
+        echo "To start immediately, run: ${CYAN}source $SHELL_CONFIG && pari-cli${RESET}"
     else
-        echo "Run ${CYAN}pari${RESET} (or restart your terminal if needed)."
+        echo "Run ${CYAN}pari-cli${RESET} (or restart your terminal if needed)."
     fi
     exit 0
 else

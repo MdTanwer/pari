@@ -23,7 +23,7 @@ class OpenAIProvider(OpenAICompatibleProvider):
             "https://api.openai.com/v1/chat/completions",
             transport,
             missing_key_message=(
-                "Sign in to OpenAI: pari login openai --api-key <key> "
-                "or pari login openai --account <token>."
+                "Sign in to OpenAI: pari-cli login openai --api-key <key> "
+                "or pari-cli login openai --account <token>."
             ),
         )

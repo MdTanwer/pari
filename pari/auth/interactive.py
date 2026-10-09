@@ -1,4 +1,4 @@
-"""``pari login`` screens: method, provider, then the sign-in itself."""
+"""``pari-cli login`` screens: method, provider, then the sign-in itself."""
 
 import base64
 import getpass
@@ -86,7 +86,7 @@ def logout_tty() -> int:
             print("\n".join(f"{row.name}{row.status}" for row in rows))
         else:
             print("No saved sign-in to remove.")
-        print("pari logout <provider>")
+        print("pari-cli logout <provider>")
         return 0
     ui = TerminalLogin()
     try:

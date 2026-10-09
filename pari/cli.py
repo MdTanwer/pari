@@ -63,9 +63,9 @@ def cmd_login(args: argparse.Namespace) -> int:
         )
         return 1
     print(status_text())
-    print("pari login")
-    print("pari login <provider> --api-key <key>")
-    print("pari login <provider> --account <token>")
+    print("pari-cli login")
+    print("pari-cli login <provider> --api-key <key>")
+    print("pari-cli login <provider> --account <token>")
     return 0
 
 
@@ -117,7 +117,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 def main(argv: list | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="pari",
+        prog="pari-cli",
         description="PARI — Next-generation terminal coding agent.",
     )
     parser.add_argument(

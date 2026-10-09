@@ -122,7 +122,7 @@ pip install pari-cli
 export ANTHROPIC_API_KEY="sk-ant-..."
 
 # Launch PARI anywhere in your project workspace
-pari
+pari-cli
 ```
 
 ---
