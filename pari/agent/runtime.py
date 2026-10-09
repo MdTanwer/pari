@@ -14,8 +14,13 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from pari.agent.guards import is_length_stop
-from pari.agent.loop import AgentExecutionLoop
+from pari.agent.guards import (
+    MAX_TURNS,
+    TURN_EXTENSION,
+    TURN_LIMIT_PROMPT,
+    is_length_stop,
+)
+from pari.agent.loop import AgentExecutionLoop, TurnResult
 from pari.agent.reflection import ReflectionManager
 from pari.intelligence.repomap import RepoMapGenerator
 from pari.providers import get_provider
@@ -39,6 +44,7 @@ class AgentRuntime:
         edit_fallback: str = "none",
         repomap: str = "off",
         router: DualModelRouter | None = None,
+        sandbox_mode: str | None = None,
     ):
         self.workspace = workspace.resolve()
         self.session_file = session_file or (self.workspace / ".pari" / "session.jsonl")
@@ -51,7 +57,13 @@ class AgentRuntime:
         self._owns_router = router is None
         self.router = router if router is not None else router_for(self.provider)
         self.undo_manager = GuardedUndoManager(self.workspace)
-        self.tools = get_default_registry(self.workspace, edit_fallback=edit_fallback)
+        self.tools = get_default_registry(
+            self.workspace,
+            edit_fallback=edit_fallback,
+            sandbox_mode=sandbox_mode,
+        )
+        self.awaiting_limit = False
+        self.last_result: TurnResult | None = None
         self.pinned_files: list[str] = []
         self.session_id: str | None = None
         self.messages: list[ProviderMessage] = []
@@ -110,18 +122,27 @@ class AgentRuntime:
     def add_pinned_file(self, rel_path: str) -> bool:
         """Pin reference file into active context."""
         file_path = (self.workspace / rel_path).resolve()
-        if not file_path.exists():
+        if not file_path.is_file():
             return False
-        clean_rel = str(file_path.relative_to(self.workspace))
+        try:
+            clean_rel = str(file_path.relative_to(self.workspace))
+        except ValueError:
+            return False
         if clean_rel not in self.pinned_files:
             self.pinned_files.append(clean_rel)
         return True
+
+    async def continue_turn(self) -> str:
+        """Run another block of turns after the user chooses Continue."""
+        return await self.execute_turn("Continue.", max_turns=TURN_EXTENSION)
 
     async def execute_turn(
         self,
         prompt: str,
         on_tool_call: Callable[[str, dict[str, Any]], None] | None = None,
         on_diff: Callable[[str, str], None] | None = None,
+        *,
+        max_turns: int | None = None,
     ) -> str:
         """Execute conversational turn with autonomous tool execution."""
         self.on_tool_call = on_tool_call
@@ -159,6 +180,7 @@ class AgentRuntime:
             self.turn_warning = text
 
         loop = AgentExecutionLoop(
+            max_turns if max_turns is not None else MAX_TURNS,
             registry=self.tools,
             reflection=ReflectionManager(),
             logger=SessionLogger(dag),
@@ -189,6 +211,8 @@ class AgentRuntime:
         self.tokens_in = result.tokens_in
         self.tokens_out = result.tokens_out
         self.cached_tokens = result.cached_tokens
+        self.last_result = result
+        self.awaiting_limit = result.response_text == TURN_LIMIT_PROMPT
         return result.response_text
 
     def _repo_map(self) -> str:

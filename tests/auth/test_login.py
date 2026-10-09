@@ -215,6 +215,16 @@ def test_sign_in_hint_names_the_command():
     assert "pari-cli login openai --account" in hint
 
 
+def test_deepseek_account_sign_in_is_rejected(tmp_path: Path):
+    store = AuthStore(tmp_path / "auth.json")
+    with pytest.raises(ValueError, match="no account sign-in"):
+        sign_in("deepseek", "ds-account", "account", store)
+    assert store.load() == {}
+    hint = sign_in_hint(get_info("deepseek"))
+    assert hint == "Sign in to DeepSeek: pari-cli login deepseek --api-key <key>."
+    assert "--account" not in hint
+
+
 def _openai_row(secret: str, refresh: str, expires: int) -> dict:
     return {
         "openai": {

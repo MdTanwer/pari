@@ -9,7 +9,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from pari.auth.account import CallbackServer, openai_authorize_url, sign_in_account
+from pari.auth.account import CallbackServer, openai_authorize_url
 from pari.auth.interactive import read_menu_key, run_login, run_logout
 from pari.auth.login import sign_in
 from pari.auth.menu import (
@@ -242,13 +242,42 @@ def test_grok_account_login_shows_the_device_code(tmp_path, monkeypatch):
     assert store.load()["grok"]["secret"] == "grok-access"
 
 
-def test_deepseek_account_is_a_pasted_token(tmp_path):
+def test_deepseek_is_absent_from_the_account_menu(tmp_path):
     store = AuthStore(tmp_path / "auth.json")
-    ui = _Scripted(METHOD_ACCOUNT, "deepseek", secret="ds-account")
-    message = sign_in_account("deepseek", ui, store)
-    assert "account" in message
-    assert "ds-account" not in message
-    assert store.load()["deepseek"]["secret"] == "ds-account"
+    rows = provider_rows("account", store)
+    assert "deepseek" not in [row.id for row in rows]
+    assert "deepseek" in [row.id for row in provider_rows("api_key", store)]
+
+
+def test_deepseek_account_choice_does_not_ask_for_a_token(tmp_path):
+    store = AuthStore(tmp_path / "auth.json")
+
+    class UI:
+        def __init__(self):
+            self.errors: list[str] = []
+            self.asked = False
+
+        def choose(self, title, options):
+            if self.errors:
+                return None
+            return METHOD_ACCOUNT
+
+        def read_line(self, prompt):
+            self.asked = True
+            return "token"
+
+        def read_secret(self, prompt):
+            self.asked = True
+            return "token"
+
+        def show_error(self, message):
+            self.errors.append(message)
+
+    ui = UI()
+    assert run_login(ui, store, provider_id="deepseek") == ""
+    assert ui.asked is False
+    assert "no account sign-in" in ui.errors[0]
+    assert store.load() == {}
 
 
 def test_authorize_url_uses_the_fixed_redirect():
@@ -351,7 +380,7 @@ def test_search_types_letters_and_cancel_leaves_the_login(tmp_path):
 
     plain = ProviderMenu(provider_rows("account", store), search=False)
     plain.on_key("j")
-    assert plain.lines()[1] == "→ DeepSeek • not configured"
+    assert plain.lines()[1] == "→ Grok • not configured"
 
     class Cancel:
         def choose(self, title, options):

@@ -17,8 +17,14 @@ from pari.tools.base import Tool, ToolDefinition
 class BashTool(Tool):
     """Executes a shell command inside the kernel sandbox."""
 
-    def __init__(self, workspace: Path, spooler: ManagedOutputSpooler | None = None):
+    def __init__(
+        self,
+        workspace: Path,
+        spooler: ManagedOutputSpooler | None = None,
+        sandbox_mode: str | None = None,
+    ):
         self.workspace = workspace
+        self.sandbox_mode = sandbox_mode
         spool_dir = workspace / ".pari" / "tool-outputs"
         self.spooler = spooler or ManagedOutputSpooler(spool_dir)
 
@@ -56,7 +62,9 @@ class BashTool(Tool):
         # A longer one still yields at 10s so a server cannot hold the turn.
         idle = DAEMON_IDLE_SECONDS if timeout > DAEMON_IDLE_SECONDS else None
         limits = SandboxLimits(timeout_seconds=timeout, daemon_idle_seconds=idle)
-        runner = get_sandbox_runner(self.workspace, limits=limits)
+        runner = get_sandbox_runner(
+            self.workspace, limits=limits, force_mode=self.sandbox_mode
+        )
         result = runner.run_command(command, timeout=timeout)
         raw = result.stdout
         if result.stderr:

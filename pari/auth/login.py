@@ -35,6 +35,11 @@ def sign_in(
     if method not in ("api_key", "account"):
         raise ValueError("Sign in with an API key or an account token.")
     info = get_info(provider_id)
+    if method == "account" and info.id == "deepseek":
+        raise ValueError(
+            "DeepSeek has no account sign-in. "
+            "Use pari-cli login deepseek --api-key <key>."
+        )
     token = secret.strip()
     if not token:
         raise ValueError("The credential is empty.")
@@ -143,6 +148,8 @@ def _now_ms() -> int:
 
 
 def sign_in_hint(info: ProviderInfo) -> str:
+    if info.id == "deepseek":
+        return "Sign in to DeepSeek: pari-cli login deepseek --api-key <key>."
     return (
         f"Sign in to {info.label}: "
         f"pari-cli login {info.id} --api-key <key> "

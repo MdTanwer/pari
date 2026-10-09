@@ -5,7 +5,9 @@ The loop itself decides when to stop. These values are the limits it checks.
 
 MAX_TURNS = 40
 TURN_WARNING = 30
+TURN_EXTENSION = 10
 DAEMON_IDLE_SECONDS = 10
+TURN_LIMIT_PROMPT = "[Turn limit reached. Continue (+10 turns) | Revert | Stop]?"
 
 # Shown when stop_reason is "length". The loop must drop the pending tool
 # calls before it appends this notice. A truncated edit must not touch disk.

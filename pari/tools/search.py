@@ -3,6 +3,7 @@
 Routes globbing and text grep queries through Layer 3 intelligence search.
 """
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -64,11 +65,34 @@ class GrepTool(Tool):
                         "type": "integer",
                         "description": "Maximum number of matching lines.",
                     },
+                    "is_regex": {
+                        "type": "boolean",
+                        "description": "Treat query as a regular expression.",
+                    },
+                    "path_filter": {
+                        "type": "string",
+                        "description": "Glob that limits which files are searched.",
+                    },
                 },
                 "required": ["query"],
             },
         )
 
-    async def execute(self, query: str, max_matches: int = 50) -> list[dict[str, Any]]:
+    async def execute(
+        self,
+        query: str,
+        max_matches: int = 50,
+        is_regex: bool = False,
+        path_filter: str = "*",
+    ) -> list[dict[str, Any]]:
         """Search file contents for pattern."""
-        return grep_search(self.workspace, query, max_matches=max_matches)
+        try:
+            return grep_search(
+                self.workspace,
+                query,
+                is_regex=is_regex,
+                path_filter=path_filter,
+                max_matches=max_matches,
+            )
+        except re.error as exc:
+            raise ValueError(f"Invalid regular expression: {exc}") from exc

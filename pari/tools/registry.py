@@ -41,7 +41,11 @@ class ToolRegistry:
         return await tool.execute(**arguments)
 
 
-def get_default_registry(workspace: Path, edit_fallback: str = "none") -> ToolRegistry:
+def get_default_registry(
+    workspace: Path,
+    edit_fallback: str = "none",
+    sandbox_mode: str | None = None,
+) -> ToolRegistry:
     """Instantiate and register the standard PARI tool suite for a given workspace.
 
     edit_fallback is ``none`` or ``cascade``. Exact replacement stays the default.
@@ -51,7 +55,11 @@ def get_default_registry(workspace: Path, edit_fallback: str = "none") -> ToolRe
     queue = FileMutationQueue(workspace)
     spool_dir = workspace / ".pari" / "tool-outputs"
     for tool in (
-        BashTool(workspace, spooler=ManagedOutputSpooler(spool_dir)),
+        BashTool(
+            workspace,
+            spooler=ManagedOutputSpooler(spool_dir),
+            sandbox_mode=sandbox_mode,
+        ),
         ReadFileTool(workspace, queue=queue),
         WriteFileTool(workspace, queue=queue),
         EditFileTool(workspace, queue=queue, edit_fallback=edit_fallback),

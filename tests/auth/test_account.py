@@ -32,14 +32,14 @@ class _Paste:
         return self._pasted
 
 
-def test_blank_deepseek_account_token_cancels(tmp_path):
+def test_deepseek_account_does_not_ask_for_a_token(tmp_path):
     store = AuthStore(tmp_path / "auth.json")
 
     class UI:
         def read_line(self, prompt):
-            return "  "
+            raise AssertionError(prompt)
 
-    with pytest.raises(LoginCancelled):
+    with pytest.raises(ValueError, match="no account sign-in"):
         sign_in_account("deepseek", UI(), store)
     assert store.load() == {}
 

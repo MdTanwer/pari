@@ -17,6 +17,7 @@ from pari.agent.guards import (
     DAEMON_IDLE_SECONDS,
     LENGTH_TRUNCATION_NOTICE,
     MAX_TURNS,
+    TURN_LIMIT_PROMPT,
     TURN_WARNING,
     format_daemon_notice,
     is_length_stop,
@@ -49,7 +50,6 @@ class TurnResult:
     cached_tokens: int = 0
 
 
-_TURN_LIMIT = "[Turn limit reached. Continue (+10 turns) | Revert | Stop]?"
 _FILE_TOOLS = frozenset({"write_file", "edit_file"})
 
 
@@ -140,7 +140,7 @@ class AgentExecutionLoop:
                 return finish(halt, executed, True)
             history = _append(history, response_text)
             pending = feedback
-        return finish(_TURN_LIMIT, executed, True, capture_diff=True)
+        return finish(TURN_LIMIT_PROMPT, executed, True, capture_diff=True)
 
     async def _run_calls(
         self, calls: list[ToolCall], executed: int

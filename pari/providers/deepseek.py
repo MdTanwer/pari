@@ -23,7 +23,6 @@ class DeepSeekProvider(OpenAICompatibleProvider):
             "https://api.deepseek.com/chat/completions",
             transport,
             missing_key_message=(
-                "Sign in to DeepSeek: pari-cli login deepseek --api-key <key> "
-                "or pari-cli login deepseek --account <token>."
+                "Sign in to DeepSeek: pari-cli login deepseek --api-key <key>."
             ),
         )

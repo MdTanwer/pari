@@ -121,10 +121,6 @@ class SessionCommands:
         if added:
             return f"Added {args.strip()} to active context."
         target = (self.host.workspace / args.strip()).resolve()
-        if not target.exists():
+        if not target.is_file():
             return f"File not found: `{args}`"
-        try:
-            rel = target.relative_to(self.host.workspace)
-        except ValueError:
-            rel = target
-        return f"Added {rel} to active context."
+        return f"File is outside the workspace: `{args}`"

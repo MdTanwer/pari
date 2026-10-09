@@ -139,6 +139,12 @@ def _finish(kind: str, provider_id: str, ui: AccountUI, store: AuthStore) -> str
     try:
         if kind == "api_key":
             return _read_api_key(ui, info, store)
+        if info.id == "deepseek":
+            ui.show_error(
+                "DeepSeek has no account sign-in. "
+                "Use pari-cli login deepseek --api-key <key>."
+            )
+            return None
         return sign_in_account(info.id, ui, store)
     except LoginCancelled:
         return None

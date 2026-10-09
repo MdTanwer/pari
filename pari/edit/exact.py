@@ -38,7 +38,11 @@ def apply_exact_edit(
         raise PatternNotFoundError("Search string is empty.")
     count = original.count(search)
     if count == 0:
-        raise PatternNotFoundError(f"Search target not found in '{filename}'.")
+        raise PatternNotFoundError(
+            f"Search target not found in '{filename}'. "
+            "No changes were written. "
+            "Read the file and retry with the exact text."
+        )
     if count > 1:
         raise AmbiguousMatchError(count, search, filename)
     return original.replace(search, replace, 1)

@@ -30,6 +30,8 @@ def provider_rows(method: str, store: AuthStore | None = None) -> list[ProviderC
     """Providers in name order, each with a status that does not include the secret."""
     data = (store or AuthStore()).load()
     infos = sorted(PROVIDERS, key=lambda item: item.label.lower())
+    if method == "account":
+        infos = [info for info in infos if info.id != "deepseek"]
     return [
         ProviderChoice(info.id, info.label, _status(info, method, data))
         for info in infos

@@ -1,8 +1,9 @@
-"""Account sign-in for the five providers.
+"""Account sign-in for providers that have a browser or device login.
 
 OpenAI, Anthropic, and OpenRouter open a browser and accept the redirect URL
 if the local callback does not finish. Grok uses a device code. DeepSeek has
-no browser login, so the account token is pasted. Radius is not a provider.
+no account login, so that path does not ask for a token. Radius is not a
+provider.
 """
 
 import base64
@@ -89,10 +90,10 @@ def sign_in_account(provider_id: str, ui: AccountUI, store: AuthStore) -> str:
     """Run that provider's account login and store the credential."""
     info = get_info(provider_id)
     if info.id == "deepseek":
-        token = ui.read_line("Paste your DeepSeek account token:")
-        if not token or not token.strip():
-            raise LoginCancelled()
-        return sign_in(info.id, token, "account", store)
+        raise ValueError(
+            "DeepSeek has no account sign-in. "
+            "Use pari-cli login deepseek --api-key <key>."
+        )
     if info.id == "openai":
         cred = _login_openai(ui, store)
     elif info.id == "anthropic":

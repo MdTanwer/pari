@@ -7,12 +7,16 @@ and launching the interactive agent REPL.
 import argparse
 import asyncio
 import os
+import re
 import sys
 from pathlib import Path
 
 from pari import __version__
 from pari.auth.interactive import login_tty, logout_tty
 from pari.auth.login import sign_in, sign_out, status_text
+from pari.intelligence.search import find_files, grep_search
+from pari.providers import get_provider
+from pari.sandbox.dispatcher import get_sandbox_runner
 from pari.tui import TerminalApp
 
 
@@ -25,15 +29,35 @@ def print_banner():
 
 def cmd_find(args: argparse.Namespace) -> int:
     """Find files matching pattern in workspace."""
-    # TODO: Implement workspace file search via Layer 3 intelligence
-    print(f"Finding files matching '{args.pattern}' (placeholder)")
+    workspace = _workspace(args)
+    pattern = args.pattern or "*"
+    matches = find_files(workspace, pattern, args.limit)
+    if not matches:
+        print(f"No files matched '{pattern}'.", file=sys.stderr)
+        return 1
+    print("\n".join(matches))
     return 0
 
 
 def cmd_grep(args: argparse.Namespace) -> int:
     """Search for query in workspace files."""
-    # TODO: Implement substring/regex grep via Layer 3 intelligence
-    print(f"Searching for '{args.query}' (placeholder)")
+    workspace = _workspace(args)
+    try:
+        matches = grep_search(
+            workspace,
+            args.query,
+            is_regex=args.regex,
+            path_filter=args.filter,
+            max_matches=args.limit,
+        )
+    except re.error as exc:
+        print(f"Invalid regular expression: {exc}", file=sys.stderr)
+        return 2
+    if not matches:
+        print(f"No matches for '{args.query}'.", file=sys.stderr)
+        return 1
+    for hit in matches:
+        print(f"{hit['file']}:{hit['line']}:{hit['content']}")
     return 0
 
 
@@ -56,6 +80,12 @@ def cmd_login(args: argparse.Namespace) -> int:
         return 0
     if sys.stdin.isatty() and sys.stdout.isatty():
         return login_tty(args.provider)
+    if args.provider == "deepseek":
+        print(
+            "DeepSeek has no account sign-in. pari-cli login deepseek --api-key <key>",
+            file=sys.stderr,
+        )
+        return 1
     if args.provider:
         print(
             "Choose one: --api-key <key> or --account <token>.",
@@ -82,21 +112,27 @@ def cmd_logout(args: argparse.Namespace) -> int:
 
 
 def cmd_eval(args: argparse.Namespace) -> int:
-    """Run local micro-eval benchmark suite."""
-    # TODO: Implement micro-eval benchmark via Layer 10 harness
-    print(f"Running evaluation suite '{args.suite}' (placeholder)")
-    return 0
+    """Refuse a suite run until the evaluation harness exists."""
+    suite = Path(args.suite)
+    if not suite.is_file():
+        print(f"Evaluation suite not found: {suite}", file=sys.stderr)
+        return 1
+    print(
+        "The evaluation harness is not available yet.",
+        file=sys.stderr,
+    )
+    return 1
 
 
 def cmd_run(args: argparse.Namespace) -> int:
     """Main interactive REPL agent execution."""
-    workspace = Path(args.workspace or os.getcwd()).resolve()
-
+    workspace = _workspace(args)
+    pinned = _pin_error(workspace, args.add)
+    if pinned is not None:
+        print(pinned, file=sys.stderr)
+        return 1
     if args.dry_run:
-        print_banner()
-        print(f"Workspace: {workspace}")
-        print("Self-check passed: environment and CLI options verified.")
-        return 0
+        return _dry_run(workspace, args.model, args.sandbox)
 
     try:
         app = TerminalApp(
@@ -104,14 +140,57 @@ def cmd_run(args: argparse.Namespace) -> int:
             model_name=args.model,
             edit_fallback=args.edit_fallback,
             repomap=args.repomap,
+            sandbox_mode=args.sandbox,
         )
-    except (RuntimeError, NotImplementedError) as exc:
+    except (RuntimeError, NotImplementedError, FileNotFoundError) as exc:
         print(exc, file=sys.stderr)
         return 1
+    for rel in args.add:
+        app.runtime.add_pinned_file(rel)
     try:
         asyncio.run(app.run_repl())
     except KeyboardInterrupt:
         pass
+    return 0
+
+
+def _workspace(args: argparse.Namespace) -> Path:
+    return Path(args.workspace or os.getcwd()).resolve()
+
+
+def _pin_error(workspace: Path, paths: list[str]) -> str | None:
+    for raw in paths:
+        target = (workspace / raw).resolve()
+        try:
+            target.relative_to(workspace)
+        except ValueError:
+            return f"File is outside the workspace: {raw}"
+        if not target.is_file():
+            return f"File not found: {raw}"
+    return None
+
+
+def _dry_run(workspace: Path, model: str, sandbox: str | None) -> int:
+    """Check the workspace, sandbox, and model. Do not start a turn."""
+    print_banner()
+    print(f"Workspace: {workspace}")
+    if not workspace.is_dir():
+        print(f"Workspace does not exist: {workspace}", file=sys.stderr)
+        return 1
+    try:
+        get_sandbox_runner(workspace, force_mode=sandbox)
+    except (NotImplementedError, FileNotFoundError, ValueError) as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    mode = sandbox or os.environ.get("PARI_SANDBOX") or "auto"
+    print(f"Sandbox: {mode}")
+    try:
+        get_provider(model)
+    except (RuntimeError, NotImplementedError) as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    print(f"Model: {model}")
+    print("Self-check passed.")
     return 0
 
 
@@ -134,8 +213,8 @@ def main(argv: list | None = None) -> int:
         "--sandbox",
         type=str,
         choices=["auto", "bwrap", "seatbelt", "cloud", "none"],
-        default="auto",
-        help="Execution sandbox backend (default: auto)",
+        default=None,
+        help="Execution sandbox backend (default: auto, or PARI_SANDBOX)",
     )
     parser.add_argument(
         "--model",

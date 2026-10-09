@@ -81,6 +81,13 @@ async def test_edit_fallback_cascade_aligns_indent(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_grep_rejects_a_bad_regular_expression(tmp_path: Path):
+    registry = get_default_registry(tmp_path)
+    with pytest.raises(ValueError, match="Invalid regular expression"):
+        await registry.execute("grep_search", {"query": "(", "is_regex": True})
+
+
+@pytest.mark.asyncio
 async def test_bash_tool_sandboxed(tmp_path: Path):
     registry = get_default_registry(tmp_path)
     res = await registry.execute("bash", {"command": "echo 'running bash tool'"})

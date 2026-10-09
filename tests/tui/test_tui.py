@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 
 from pari.providers.base import ProviderMessage
-from pari.tui.app import TerminalApp
+from pari.providers.openai import OpenAIProvider
+from pari.tui.app import TerminalApp, _model_refusal
 
 
 def test_tui_process_message_greeting(tmp_path: Path):
@@ -59,6 +60,8 @@ def test_tui_slash_commands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     test_file.write_text("print('test')")
     add_res = app.process_message(f"/add {test_file.name}")
     assert "Added" in add_res or "Pinned" in add_res
+    missing = app.process_message("/add missing.py")
+    assert "not found" in missing.lower()
 
 
 def test_claude_model_is_selected_when_the_key_is_set(
@@ -96,6 +99,43 @@ def test_snapshot_and_reset(tmp_path: Path):
     assert app.runtime.messages == []
     new_dag = tmp_path / ".pari" / "sessions" / f"{app.runtime.session_id}.jsonl"
     assert "session_start" in new_dag.read_text(encoding="utf-8")
+
+
+def test_offline_model_does_not_require_sign_in(tmp_path: Path):
+    app = TerminalApp(workspace=tmp_path)
+    assert _model_refusal(app.model_name, app.runtime.provider) is None
+
+
+def test_cloud_model_without_a_key_asks_for_sign_in():
+    text = _model_refusal("gpt-4o", OpenAIProvider("gpt-4o", None))
+    assert text is not None
+    assert "pari-cli login openai --api-key" in text
+
+
+@pytest.mark.asyncio
+async def test_turn_limit_choice_continues_reverts_or_stops(tmp_path: Path):
+    app = TerminalApp(workspace=tmp_path)
+    app.runtime.awaiting_limit = True
+    assert await app.apply_limit_choice("later") is None
+    assert app.runtime.awaiting_limit is True
+
+    continued = await app.apply_limit_choice("continue")
+    assert continued is not None
+    assert "PARI Agent" in continued
+    assert app.runtime.awaiting_limit is False
+
+    app.runtime.awaiting_limit = True
+    assert await app.apply_limit_choice("stop") == "Stopped."
+    assert app.runtime.awaiting_limit is False
+
+    target = tmp_path / "hello.py"
+    target.write_text("val = 2\n")
+    app.runtime.undo_manager.record_snapshot("hello.py", "val = 1\n", "val = 2\n")
+    app.runtime.awaiting_limit = True
+    reverted = await app.apply_limit_choice("revert")
+    assert reverted is not None
+    assert "hello.py" in reverted
+    assert target.read_text() == "val = 1\n"
 
 
 def test_cost_meter():
