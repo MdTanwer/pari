@@ -1,8 +1,5 @@
 # PARI — Next-Generation Terminal Coding Agent
 
-> *A Synthesis Architecture That Surpasses Claude Code, OpenAI Codex, OpenCode, Pi, Aider, Cursor, and Google Antigravity.*  
-> *(Named by a college friend, built for world-class systems engineering performance.)*
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Architecture: 11-Layer Stack](https://img.shields.io/badge/architecture-11--layer-green.svg)](docs/architecture/overview.md)
