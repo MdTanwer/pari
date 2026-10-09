@@ -5,12 +5,13 @@ from pathlib import Path
 from prompt_toolkit.application.current import get_app
 from rich.panel import Panel
 
+from pari import __version__
 from pari.tui.status import CostMeter
 
 
 def welcome_panel(workspace: Path, model_name: str) -> Panel:
     welcome_text = (
-        f"[bold cyan]PARI v0.1.2[/bold cyan] — Coding Agent\n"
+        f"[bold cyan]PARI v{__version__}[/bold cyan] — Coding Agent\n"
         f"[dim]Website   :[/dim] [cyan]https://pari-cli.in[/cyan]\n"
         f"[dim]Workspace :[/dim] [yellow]{workspace}[/yellow]\n"
         f"[dim]Model     :[/dim] [green]{model_name}[/green]\n\n"
