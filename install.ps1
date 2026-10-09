@@ -16,45 +16,33 @@ $InstallDir = Join-Path $env:USERPROFILE ".pari"
 $VenvDir = Join-Path $InstallDir "venv"
 $ScriptsDir = Join-Path $VenvDir "Scripts"
 
-Write-Host @"
-  ___   _   ___ ___ 
- | _ \ /_\ | _ \_ _|
- |  _// _ \|   /| | 
- |_| /_/ \_\_|_\___|
-"@ -ForegroundColor Cyan
-
-Write-Host "Installing PARI — Terminal Coding Agent on Windows..." -ForegroundColor Green
-Write-Host ""
-
 # 1. Prefer uv if available (fastest)
 if (Get-Command uv -ErrorAction SilentlyContinue) {
-    Write-Host "[+] Found uv. Installing pari-cli via uv tool..." -ForegroundColor Green
-    & uv tool install --force pari-cli
+    & uv tool install --force pari-cli > $null
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "[*] PyPI install failed; attempting fallback to GitHub repository..." -ForegroundColor Yellow
-        & uv tool install --force "git+$RepoUrl"
+        Write-Host "PyPI install failed; attempting fallback to GitHub repository..." -ForegroundColor Yellow
+        & uv tool install --force "git+$RepoUrl" > $null
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "[-] Error: Installation via uv failed." -ForegroundColor Red
+            Write-Host "Error: Installation via uv failed." -ForegroundColor Red
             return
         }
     }
-    Write-Host "`n[✓] PARI installed successfully! Type 'pari-cli' to start." -ForegroundColor Cyan
+    Write-Output "pari-cli installed"
     return
 }
 
 # 2. Prefer pipx if available (isolated)
 if (Get-Command pipx -ErrorAction SilentlyContinue) {
-    Write-Host "[+] Found pipx. Installing pari-cli via pipx..." -ForegroundColor Green
-    & pipx install --force pari-cli
+    & pipx install --quiet --force pari-cli > $null
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "[*] PyPI install failed; attempting fallback to GitHub repository..." -ForegroundColor Yellow
-        & pipx install --force "git+$RepoUrl"
+        Write-Host "PyPI install failed; attempting fallback to GitHub repository..." -ForegroundColor Yellow
+        & pipx install --quiet --force "git+$RepoUrl" > $null
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "[-] Error: Installation via pipx failed." -ForegroundColor Red
+            Write-Host "Error: Installation via pipx failed." -ForegroundColor Red
             return
         }
     }
-    Write-Host "`n[✓] PARI installed successfully! Type 'pari-cli' to start." -ForegroundColor Cyan
+    Write-Output "pari-cli installed"
     return
 }
 
@@ -141,5 +129,4 @@ if ($resolved) {
     }
 }
 
-Write-Host "`n[✓] PARI installed successfully!" -ForegroundColor Green
-Write-Host "Run 'pari-cli' to get started!" -ForegroundColor Cyan
+Write-Output "pari-cli installed"

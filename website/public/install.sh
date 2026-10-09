@@ -16,38 +16,23 @@ YELLOW="$(tput setaf 3 2>/dev/null || echo '')"
 RED="$(tput setaf 1 2>/dev/null || echo '')"
 RESET="$(tput sgr0 2>/dev/null || echo '')"
 
-echo "${CYAN}${BOLD}"
-echo "  ___   _   ___ ___ "
-echo " | _ \ /_\ | _ \_ _|"
-echo " |  _// _ \|   /| | "
-echo " |_| /_/ \_\_|_\___|"
-echo "${RESET}"
-echo "Installing ${BOLD}PARI — Terminal Coding Agent${RESET}..."
-echo ""
-
 # 1. Prefer uv if installed (fastest)
 if command -v uv >/dev/null 2>&1; then
-    echo "${GREEN}✓ Found uv.${RESET} Installing pari-cli via uv tool..."
-    if ! uv tool install --force pari-cli; then
-        echo "${YELLOW}PyPI package install failed; falling back to GitHub source...${RESET}"
-        uv tool install --force "git+${REPO_URL}"
+    if ! uv tool install --force pari-cli >/dev/null; then
+        echo "${YELLOW}PyPI package install failed; falling back to GitHub source...${RESET}" >&2
+        uv tool install --force "git+${REPO_URL}" >/dev/null
     fi
-    echo ""
-    echo "${GREEN}${BOLD}✓ PARI installed successfully!${RESET}"
-    echo "Run ${CYAN}pari-cli${RESET} to get started."
+    echo "pari-cli installed"
     exit 0
 fi
 
 # 2. Prefer pipx if installed (isolated)
 if command -v pipx >/dev/null 2>&1; then
-    echo "${GREEN}✓ Found pipx.${RESET} Installing pari-cli via pipx..."
-    if ! pipx install --force pari-cli; then
-        echo "${YELLOW}PyPI package install failed; falling back to GitHub source...${RESET}"
-        pipx install --force "git+${REPO_URL}"
+    if ! pipx install --quiet --force pari-cli >/dev/null; then
+        echo "${YELLOW}PyPI package install failed; falling back to GitHub source...${RESET}" >&2
+        pipx install --quiet --force "git+${REPO_URL}" >/dev/null
     fi
-    echo ""
-    echo "${GREEN}${BOLD}✓ PARI installed successfully!${RESET}"
-    echo "Run ${CYAN}pari-cli${RESET} to get started."
+    echo "pari-cli installed"
     exit 0
 fi
 
@@ -121,13 +106,7 @@ if command -v python3 >/dev/null 2>&1; then
         fi
     fi
 
-    echo ""
-    echo "${GREEN}${BOLD}✓ PARI installed successfully in ~/.local/bin/pari-cli!${RESET}"
-    if [ -n "$SHELL_CONFIG" ]; then
-        echo "To start immediately, run: ${CYAN}source $SHELL_CONFIG && pari-cli${RESET}"
-    else
-        echo "Run ${CYAN}pari-cli${RESET} (or restart your terminal if needed)."
-    fi
+    echo "pari-cli installed"
     exit 0
 else
     echo "${RED}Error: Python 3.11+ is required but not found on your system.${RESET}"
