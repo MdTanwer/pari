@@ -1,14 +1,25 @@
 """``pari-cli login`` screens: method, provider, then the sign-in itself."""
 
 import base64
+import ctypes
 import getpass
 import os
 import select
 import sys
-import termios
 import time
-import tty
 import webbrowser
+
+
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None
+try:
+    import termios
+    import tty
+except ImportError:
+    termios = None
+    tty = None
 
 from pari.auth.account import AccountUI, LoginCancelled, sign_in_account
 from pari.auth.login import sign_in, sign_out, status_text
@@ -279,6 +290,10 @@ class TerminalLogin:
         if self._raw:
             return
         self._fd = sys.stdin.fileno()
+        if termios is None or tty is None:
+            _enable_windows_vt()
+            self._raw = True
+            return
         current = termios.tcgetattr(self._fd)
         self._term = _copy_mode(current)
         # cbreak, not raw: raw turns off newline output, so each row is drawn
@@ -393,7 +408,17 @@ def read_menu_key(fd: int, pending: bytes, timeout: float | None) -> tuple[str, 
             return key, pending
 
 
+_WIN_ARROWS = {
+    "H": b"\x1b[A",
+    "P": b"\x1b[B",
+    "K": b"\x1b[D",
+    "M": b"\x1b[C",
+}
+
+
 def _read_chunk(fd: int, timeout: float | None) -> bytes:
+    if msvcrt is not None:
+        return _read_windows(timeout)
     if timeout is not None:
         ready, _, _ = select.select([fd], [], [], timeout)
         if not ready:
@@ -402,6 +427,35 @@ def _read_chunk(fd: int, timeout: float | None) -> bytes:
         return os.read(fd, 32)
     except OSError:
         return b""
+
+
+def _read_windows(timeout: float | None) -> bytes:
+    if timeout is not None and not _windows_ready(timeout):
+        return b""
+    char = msvcrt.getwch()
+    if char in ("\x00", "\xe0"):
+        return _WIN_ARROWS.get(msvcrt.getwch(), b"")
+    return char.encode("utf-8")
+
+
+def _windows_ready(timeout: float) -> bool:
+    deadline = time.monotonic() + timeout
+    while not msvcrt.kbhit():
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.01)
+    return True
+
+
+def _enable_windows_vt() -> None:
+    if msvcrt is None:
+        return
+    kernel = ctypes.windll.kernel32
+    handle = kernel.GetStdHandle(-11)
+    mode = ctypes.c_uint()
+    if not kernel.GetConsoleMode(handle, ctypes.byref(mode)):
+        return
+    kernel.SetConsoleMode(handle, mode.value | 0x0004)
 
 
 def _split_sequence(buf: bytes) -> tuple[bytes | None, bytes]:
