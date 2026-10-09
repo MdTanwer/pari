@@ -17,7 +17,7 @@ export default function HomePage() {
 
   const installCommands = {
     curl: 'curl -fsSL https://pari-cli.in/install.sh | bash',
-    irm: 'irm https://pari-cli.in/install.ps1 | iex',
+    irm: 'irm https://www.pari-cli.in/install.ps1 | iex',
     pip: 'pip install pari-cli',
     uv: 'uv tool install pari-cli'
   };
@@ -271,10 +271,10 @@ export default function HomePage() {
               Native PowerShell installer with WindowsApps stub bypass & automatic PATH config.
             </p>
             <div className="install-snippet">
-              <code>irm https://pari-cli.in/install.ps1 | iex</code>
+              <code>irm https://www.pari-cli.in/install.ps1 | iex</code>
               <button
                 className="btn-copy"
-                onClick={() => handleCopy('irm-card', 'irm https://pari-cli.in/install.ps1 | iex')}
+                onClick={() => handleCopy('irm-card', 'irm https://www.pari-cli.in/install.ps1 | iex')}
               >
                 {copiedTab === 'irm-card' ? 'Copied' : <Copy style={{ width: 14, height: 14 }} />}
               </button>

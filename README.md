@@ -99,7 +99,7 @@ curl -fsSL https://pari-cli.in/install.sh | bash
 
 ### 2. Windows (`irm` in PowerShell)
 ```powershell
-irm https://pari-cli.in/install.ps1 | iex
+irm https://www.pari-cli.in/install.ps1 | iex
 ```
 
 ### 3. Via `pip` / `pipx` / `uv`

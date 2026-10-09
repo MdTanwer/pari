@@ -1,5 +1,5 @@
 # PARI Installer for Windows (PowerShell)
-# Usage: irm https://pari-cli.in/install.ps1 | iex
+# Usage: irm https://www.pari-cli.in/install.ps1 | iex
 # (Alternative: irm https://raw.githubusercontent.com/MdTanwer/pari/main/install.ps1 | iex)
 #
 # If running this script directly from a local file and encountering ExecutionPolicy errors:
