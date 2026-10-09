@@ -18,7 +18,9 @@ def auth_path() -> Path:
 
 class AuthStore:
     def __init__(self, path: Path | None = None):
-        self.path = path or auth_path()
+        if path is None:
+            path = auth_path()
+        self.path = path
 
     def load(self) -> dict:
         if not self.path.exists():

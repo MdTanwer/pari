@@ -18,6 +18,7 @@ from pari.auth.menu import (
     METHOD_API_KEY,
     NAV_HINT,
     ChoiceMenu,
+    ProviderChoice,
     ProviderMenu,
     provider_rows,
     signed_in_rows,
@@ -338,6 +339,53 @@ def test_cli_logout_removes_one_provider(tmp_path, monkeypatch, capsys):
     assert "openrouter" not in AuthStore(tmp_path / "auth.json").load()
 
 
+def test_search_types_letters_and_cancel_leaves_the_login(tmp_path):
+    store = AuthStore(tmp_path / "auth.json")
+    menu = ProviderMenu(provider_rows("api_key", store), search=True)
+    menu.on_key("j")
+    assert menu.query == "j"
+    assert "No matching providers" in "\n".join(menu.lines())
+    menu.on_key("backspace")
+    assert menu.query == ""
+    assert menu.on_key("cancel") == "cancel"
+
+    plain = ProviderMenu(provider_rows("account", store), search=False)
+    plain.on_key("j")
+    assert plain.lines()[1] == "→ DeepSeek • not configured"
+
+    class Cancel:
+        def choose(self, title, options):
+            return None
+
+    assert run_login(Cancel(), store) == ""
+
+
+def test_provider_menu_windows_a_long_list():
+    rows = [
+        ProviderChoice(f"p{index}", f"Provider {index}", " • not configured")
+        for index in range(10)
+    ]
+    menu = ProviderMenu(rows, search=False)
+    for _ in range(9):
+        menu.on_key("down")
+    text = "\n".join(menu.lines())
+    assert "→ Provider 9 • not configured" in text
+    assert "Provider 0 • not configured" not in text
+    assert "(10/10)" in text
+
+
+def test_logout_cancel_keeps_the_saved_sign_in(tmp_path):
+    store = AuthStore(tmp_path / "auth.json")
+    sign_in("openai", "sk-proj-hidden0123456789ab", "api_key", store)
+
+    class Picker:
+        def choose_provider(self, method, rows):
+            return None
+
+    assert run_logout(Picker(), store) == ""
+    assert store.load()["openai"]["secret"] == "sk-proj-hidden0123456789ab"
+
+
 def test_callback_records_the_code_and_ignores_a_bad_state():
     server = CallbackServer(
         "127.0.0.1",
@@ -355,6 +403,13 @@ def test_callback_records_the_code_and_ignores_a_bad_state():
             urllib.request.urlopen(f"{base}?code=nope&state=other&client_id=x")
         except urllib.error.HTTPError as exc:
             assert exc.code == 400
+        try:
+            urllib.request.urlopen(f"{base}?error=%3Cscript%3E&state=state-1")
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode()
+            assert exc.code == 400
+            assert "<script>" not in body
+            assert "&lt;script&gt;" in body
         assert server.code is None
         urllib.request.urlopen(f"{base}?code=abc&state=state-1&client_id=issued")
         assert server.done.wait(2)
