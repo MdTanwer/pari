@@ -66,6 +66,7 @@ class AgentExecutionLoop:
         undo: GuardedUndoManager | None = None,
         workspace: Path | None = None,
         on_tool_call: Callable[[str, dict[str, Any]], None] | None = None,
+        on_tool_result: Callable[[ToolCall, str], None] | None = None,
         on_diff: Callable[[str, str], None] | None = None,
         on_warning: Callable[[str], None] | None = None,
     ):
@@ -76,6 +77,7 @@ class AgentExecutionLoop:
         self.undo = undo
         self.workspace = workspace
         self.on_tool_call = on_tool_call
+        self.on_tool_result = on_tool_result
         self.on_diff = on_diff
         self.on_warning = on_warning
         self._warning = ""
@@ -147,12 +149,14 @@ class AgentExecutionLoop:
     ) -> tuple[str, int, str | None]:
         """Run the calls in order. A failure stops the rest of this batch."""
         notes: list[str] = []
-        for call in calls:
+        for index, call in enumerate(calls):
             path = _file_path(call)
             before = self._read_rel(path) if path is not None else ""
             try:
                 text = await self._execute_call(call)
             except Exception as exc:
+                self._report_result(call, f"{type(exc).__name__}: {exc}")
+                self._skip_rest(calls[index + 1 :])
                 return self._fail(type(exc).__name__, str(exc), executed)
             executed += 1
             if path is not None:
@@ -160,7 +164,10 @@ class AgentExecutionLoop:
                 self._snapshot(path, before, after)
                 lint = lint_python(path, after)
                 if lint is not None:
+                    self._report_result(call, lint)
+                    self._skip_rest(calls[index + 1 :])
                     return self._fail("LINT ERROR", lint, executed)
+            self._report_result(call, text)
             notes.append(text)
         return "\n".join(notes), executed, None
 
@@ -178,6 +185,14 @@ class AgentExecutionLoop:
         if self.logger is not None:
             self.logger.append_event("TOOL_RESULT", {"tool": call.name, "output": text})
         return text
+
+    def _report_result(self, call: ToolCall, text: str) -> None:
+        if self.on_tool_result is not None:
+            self.on_tool_result(call, text)
+
+    def _skip_rest(self, calls: list[ToolCall]) -> None:
+        for call in calls:
+            self._report_result(call, "Skipped because an earlier call failed.")
 
     def _log_assistant(self, text: str) -> None:
         if self.logger is None:

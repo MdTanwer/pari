@@ -24,7 +24,7 @@ from pari.agent.loop import AgentExecutionLoop, TurnResult
 from pari.agent.reflection import ReflectionManager
 from pari.intelligence.repomap import RepoMapGenerator
 from pari.providers import get_provider
-from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage
+from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage, ToolCall
 from pari.routing.router import DualModelRouter, router_for
 from pari.session.events import SessionEventType
 from pari.session.logger import SessionLogger
@@ -64,6 +64,7 @@ class AgentRuntime:
         )
         self.awaiting_limit = False
         self.last_result: TurnResult | None = None
+        self._tool_followup = False
         self.pinned_files: list[str] = []
         self.session_id: str | None = None
         self.messages: list[ProviderMessage] = []
@@ -148,6 +149,7 @@ class AgentRuntime:
         self.on_tool_call = on_tool_call
         self.on_diff = on_diff
         self.turn_warning = ""
+        self._tool_followup = False
         if not self.session_id:
             self.start_session()
         self.router.begin_turn()
@@ -155,7 +157,11 @@ class AgentRuntime:
         schemas = self.tools.get_schemas()
 
         async def step(context: str, _turn: int) -> ModelResponse:
-            self.messages.append(ProviderMessage(role="user", content=context))
+            # After a tool call, the results are already on the transcript.
+            # A new user message here would hide them from the model.
+            if not self._tool_followup:
+                self.messages.append(ProviderMessage(role="user", content=context))
+            self._tool_followup = False
             # Wide prompts plan once, with no tools. The editor runs the calls.
             resp = await self.router.complete(
                 self.messages,
@@ -164,7 +170,11 @@ class AgentRuntime:
                 active_files=self.pinned_files,
             )
             # Drop tool calls that were cut off so the next step cannot rerun them.
-            calls = [] if is_length_stop(resp.stop_reason) else resp.tool_calls
+            calls = [] if is_length_stop(resp.stop_reason) else list(resp.tool_calls)
+            for index, call in enumerate(calls):
+                if not call.id:
+                    call.id = f"call_{index}"
+            self._tool_followup = bool(calls)
             self.messages.append(
                 ProviderMessage(
                     role="assistant",
@@ -173,6 +183,11 @@ class AgentRuntime:
                 )
             )
             return resp
+
+        def remember_result(call: ToolCall, text: str) -> None:
+            self.messages.append(
+                ProviderMessage(role="tool", content=text, tool_call_id=call.id)
+            )
 
         dag = self.workspace / ".pari" / "sessions" / f"{self.session_id}.jsonl"
 
@@ -187,6 +202,7 @@ class AgentRuntime:
             undo=self.undo_manager,
             workspace=self.workspace,
             on_tool_call=on_tool_call,
+            on_tool_result=remember_result,
             on_diff=on_diff,
             on_warning=remember_warning,
         )

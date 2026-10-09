@@ -61,13 +61,29 @@ class OpenAICompatibleProvider(LLMProvider):
         return _parse(response.json())
 
 
-def _message(message: ProviderMessage) -> dict[str, str]:
+def _message(message: ProviderMessage) -> dict[str, Any]:
+    """One chat message. Tool calls stay structured so the model can answer them."""
+    if message.role == "tool":
+        return {
+            "role": "tool",
+            "tool_call_id": message.tool_call_id or "",
+            "content": message.content or "",
+        }
     role = message.role if message.role in ("system", "assistant") else "user"
-    text = message.content
-    if message.tool_calls:
-        names = ", ".join(call.name for call in message.tool_calls)
-        text = f"{text}\n[tools: {names}]" if text else f"[tools: {names}]"
-    return {"role": role, "content": text or "."}
+    payload: dict[str, Any] = {"role": role, "content": message.content or ""}
+    if role == "assistant" and message.tool_calls:
+        payload["tool_calls"] = [
+            {
+                "id": call.id,
+                "type": "function",
+                "function": {
+                    "name": call.name,
+                    "arguments": json.dumps(call.arguments),
+                },
+            }
+            for call in message.tool_calls
+        ]
+    return payload
 
 
 def _tools(tools: list[dict[str, Any]] | None) -> list[dict[str, Any]]:

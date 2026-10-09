@@ -6,6 +6,7 @@ import pytest
 
 from pari.agent.runtime import AgentRuntime
 from pari.fs.atomic import atomic_write, read_file
+from pari.providers.base import LLMProvider, ModelResponse, ToolCall
 from pari.providers.mock import MockOfflineProvider
 from pari.tui.app import TerminalApp
 
@@ -24,6 +25,34 @@ async def test_agent_runtime_turn_execution(tmp_path: Path):
     session_log = tmp_path / ".pari" / "session.jsonl"
     assert session_log.exists()
     assert session_log.stat().st_size > 0
+
+
+@pytest.mark.asyncio
+async def test_tool_result_is_sent_back_before_the_answer(tmp_path: Path):
+    (tmp_path / "app.py").write_text("def add(a, b):\n    return a + b\n")
+
+    class Scripted(LLMProvider):
+        def __init__(self):
+            super().__init__("deepseek-chat", "k")
+            self.seen: list[list[str]] = []
+            self._step = 0
+
+        async def complete(self, messages, tools=None, temperature=0.0):
+            self.seen.append([message.role for message in messages])
+            self._step += 1
+            if self._step == 1:
+                return ModelResponse(
+                    text="reading",
+                    tool_calls=[ToolCall("call_1", "read_file", {"path": "app.py"})],
+                    stop_reason="tool_calls",
+                )
+            return ModelResponse(text="add returns the sum.", stop_reason="stop")
+
+    runtime = AgentRuntime(tmp_path, provider=Scripted())
+    text = await runtime.execute_turn("What does add return?")
+    assert text == "add returns the sum."
+    assert "[tools:" not in text
+    assert runtime.provider.seen[1] == ["user", "assistant", "tool"]
 
 
 @pytest.mark.asyncio
