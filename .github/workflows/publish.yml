@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: Production
-      url: https://pypi.org/p/pari
+      url: https://pypi.org/p/pari-cli
     permissions:
       id-token: write # Required for Trusted Publishing (OIDC)
       contents: read
@@ -37,6 +37,35 @@ jobs:
 
       - name: Build wheel and source distribution
         run: python -m build
+
+      - name: Require only the pari-cli command
+        run: |
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+
+          wheels = list(Path("dist").glob("pari_cli-*.whl"))
+          if len(wheels) != 1:
+              raise SystemExit(f"expected one wheel, found {wheels}")
+          with zipfile.ZipFile(wheels[0]) as archive:
+              name = next(
+                  item
+                  for item in archive.namelist()
+                  if item.endswith("entry_points.txt")
+              )
+              text = archive.read(name).decode()
+          scripts = []
+          in_scripts = False
+          for line in text.splitlines():
+              if line.startswith("[") and line.endswith("]"):
+                  in_scripts = line == "[console_scripts]"
+                  continue
+              if in_scripts and line.strip():
+                  scripts.append(line.split("=", 1)[0].strip())
+          if scripts != ["pari-cli"]:
+              found = ", ".join(scripts) or "(none)"
+              raise SystemExit(f"the wheel must expose only pari-cli, found: {found}")
+          PY
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
