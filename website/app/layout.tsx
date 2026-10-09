@@ -2,32 +2,31 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'PARI — Terminal Coding Agent | Exact, Kernel-Sandboxed, Zero-Token-Burn',
+  title: 'PARI — a coding agent in your terminal',
   description:
-    'A synthesis architecture engineered for terminal coding agents. Features 11-layer runtime topology, multi-platform kernel isolation, and differential TUI rendering.',
+    'PARI reads a repository, edits files, and runs shell commands. On Linux, commands stay inside Bubblewrap. Sign in with DeepSeek, OpenAI, Anthropic, Grok, or OpenRouter.',
   keywords: [
     'pari',
     'pari-cli',
     'terminal coding agent',
     'ai coding assistant',
-    'claude code',
-    'openai codex',
     'developer tools',
   ],
-  authors: [{ name: 'Md Tanwer & PARI Contributors' }],
+  authors: [{ name: 'PARI contributors' }],
   metadataBase: new URL('https://pari-cli.in'),
   openGraph: {
-    title: 'PARI — Next-Generation Terminal Coding Agent',
+    title: 'PARI — a coding agent in your terminal',
     description:
-      'Engineered for 50%+ benchmark pass rates. Closes the six fatal systems failure modes in production AI agents.',
+      'Search the repo, apply an exact edit, and run commands in a Linux Bubblewrap sandbox.',
     url: 'https://pari-cli.in',
     siteName: 'PARI',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'PARI — Terminal Coding Agent',
-    description: 'Kernel-sandboxed, exact diff edits, durable Merkle DAG sessions.',
+    title: 'PARI — a coding agent in your terminal',
+    description:
+      'Search the repo, apply an exact edit, and run commands in a Linux Bubblewrap sandbox.',
   },
 };
 
