@@ -19,9 +19,12 @@ def test_network_unshared_by_default(tmp_path: Path):
 
 def test_composed_package_command_stays_offline(tmp_path: Path):
     runner = BwrapSandboxRunner(tmp_path)
+    # pip writes its own lines to stdout. The interface list is the awk output.
     res = runner.run_command(
-        "pip install requests; awk -F: '/^ *[a-z0-9]+:/ {print $1}' /proc/net/dev"
+        "pip install requests >/dev/null; "
+        "awk -F: '/^ *[a-z0-9]+:/ {print $1}' /proc/net/dev"
     )
+    assert res.exit_code == 0, res.stderr
     assert _interfaces(res.stdout) == ["lo"]
 
 
