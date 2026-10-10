@@ -1,18 +1,17 @@
 name: Publish to PyPI
 
 on:
-  release:
-    types: [published]
   push:
-    branches:
-      - main
     tags:
       - "v*"
-  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
 
 jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
   build-and-publish:
     name: Build & Upload to PyPI
+    needs: test
     runs-on: ubuntu-latest
     environment:
       name: Production
