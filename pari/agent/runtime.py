@@ -25,6 +25,7 @@ from pari.agent.reflection import ReflectionManager
 from pari.intelligence.repomap import RepoMapGenerator
 from pari.providers import get_provider
 from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage, ToolCall
+from pari.providers.errors import ProviderError
 from pari.routing.router import DualModelRouter, router_for
 from pari.session.events import SessionEventType
 from pari.session.logger import SessionLogger
@@ -206,13 +207,22 @@ class AgentRuntime:
             on_diff=on_diff,
             on_warning=remember_warning,
         )
-        result = await loop.run_turn(
-            prompt,
-            step,
-            lambda response: is_length_stop(response.stop_reason),
-            active_files=self._pinned_contents(),
-            repo_map=self._repo_map(),
-        )
+        # A failed model call must not leave the prompt sitting on the transcript.
+        # The next message would otherwise resend a turn the provider never answered.
+        sent = len(self.messages)
+        try:
+            result = await loop.run_turn(
+                prompt,
+                step,
+                lambda response: is_length_stop(response.stop_reason),
+                active_files=self._pinned_contents(),
+                repo_map=self._repo_map(),
+            )
+        except ProviderError:
+            self._tool_followup = False
+            if len(self.messages) == sent + 1 and self.messages[-1].role == "user":
+                self.messages.pop()
+            raise
         turn_record = {
             "event": "turn_complete",
             "session_id": self.session_id,

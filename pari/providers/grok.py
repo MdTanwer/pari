@@ -26,4 +26,5 @@ class GrokProvider(OpenAICompatibleProvider):
                 "Sign in to Grok: pari-cli login grok --api-key <key> "
                 "or pari-cli login grok --account <token>."
             ),
+            provider_label="Grok",
         )

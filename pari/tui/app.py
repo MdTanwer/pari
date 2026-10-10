@@ -6,6 +6,7 @@ line is a local command or a model turn.
 """
 
 import sys
+from collections.abc import Awaitable
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
@@ -14,15 +15,18 @@ from prompt_toolkit.shortcuts import CompleteStyle
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.text import Text
 
 from pari.agent.runtime import AgentRuntime
 from pari.auth.interactive import login_tty, logout_tty
 from pari.auth.login import sign_in_hint
 from pari.auth.providers import info_for_model
 from pari.providers.base import LLMProvider
+from pari.providers.errors import ProviderError
 from pari.providers.mock import MockOfflineProvider
 from pari.session.undo import UndoResult
 from pari.tui.completer import SlashCommandCompleter
+from pari.tui.errors import model_error_text
 from pari.tui.keys import create_key_bindings
 from pari.tui.prompt import (
     placeholder_tokens,
@@ -81,7 +85,7 @@ class TerminalApp:
         quick = self.commands.handle(user_msg)
         if quick is not None:
             return quick[1]
-        return _greeting(user_msg)
+        return None
 
     async def respond(self, user_msg: str) -> str:
         """Answer a slash command locally, or run one agent turn."""
@@ -91,7 +95,14 @@ class TerminalApp:
         blocked = _model_refusal(self.model_name, self.runtime.provider)
         if blocked is not None:
             return blocked
-        text = await self.runtime.execute_turn(user_msg)
+        return await self._model_turn(self.runtime.execute_turn(user_msg))
+
+    async def _model_turn(self, turn: Awaitable[str]) -> str:
+        """Run one model call. A provider failure stays in the session."""
+        try:
+            text = await turn
+        except ProviderError as exc:
+            return model_error_text(exc)
         self.cost_meter.add_usage(
             self.runtime.tokens_in,
             self.runtime.tokens_out,
@@ -154,15 +165,7 @@ class TerminalApp:
         if action is None:
             return None
         if action == "continue":
-            text = await self.runtime.continue_turn()
-            self.cost_meter.add_usage(
-                self.runtime.tokens_in,
-                self.runtime.tokens_out,
-                self.runtime.cached_tokens,
-            )
-            if self.runtime.turn_warning:
-                return f"{self.runtime.turn_warning}\n\n{text}"
-            return text
+            return await self._model_turn(self.runtime.continue_turn())
         self.runtime.awaiting_limit = False
         if action == "revert":
             return _revert_message(self.runtime.undo_manager.undo())
@@ -185,10 +188,15 @@ class TerminalApp:
         return ""
 
     def _print_reply(self, response: str) -> None:
+        # Provider detail is literal text. Markdown would restyle underscores.
+        if response.startswith("Model error\n"):
+            body = Text(response)
+        else:
+            body = Markdown(response)
         self.console.print()
         self.console.print(
             Panel(
-                Markdown(response),
+                body,
                 title="[bold cyan]PARI Agent[/bold cyan]",
                 border_style="dim",
             )
@@ -226,13 +234,3 @@ def _revert_message(result: UndoResult) -> str:
     if result.reverted_files:
         return f"Reverted files: {', '.join(result.reverted_files)}"
     return "Stopped. No file changes to revert."
-
-
-def _greeting(user_msg: str) -> str | None:
-    normalized = user_msg.strip().lower()
-    greeting = "are you" in normalized or "r you" in normalized or "howr" in normalized
-    if "how" in normalized and greeting:
-        return "Good! How can I help you today?"
-    if normalized in ("hi", "hello", "hey"):
-        return "Hello! How can I assist you with your project?"
-    return None

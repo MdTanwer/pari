@@ -8,6 +8,7 @@ import pytest
 from pari.providers import get_provider
 from pari.providers.anthropic import AnthropicProvider
 from pari.providers.base import ProviderMessage
+from pari.providers.errors import ProviderError
 from pari.providers.mock import MockOfflineProvider
 
 
@@ -106,6 +107,18 @@ def test_pari_core_stays_offline_when_a_key_is_set(monkeypatch: pytest.MonkeyPat
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     provider = get_provider("pari-core")
     assert isinstance(provider, MockOfflineProvider)
+
+
+@pytest.mark.asyncio
+async def test_http_rejection_is_a_provider_error():
+    payload = {"error": {"message": "bad model", "type": "not_found_error"}}
+    provider = AnthropicProvider("claude-test", "test-key", _transport(404, payload))
+    with pytest.raises(ProviderError) as caught:
+        await provider.complete([ProviderMessage(role="user", content="hi")])
+    assert caught.value.status_code == 404
+    assert caught.value.detail == "bad model"
+    assert caught.value.error_type == "not_found_error"
+    assert str(caught.value) == "bad model"
 
 
 def test_get_provider_selects_anthropic(monkeypatch: pytest.MonkeyPatch):

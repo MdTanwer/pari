@@ -7,7 +7,9 @@ import pytest
 
 from pari.providers.base import ProviderMessage, ToolCall
 from pari.providers.deepseek import DeepSeekProvider
+from pari.providers.errors import ProviderError
 from pari.providers.grok import GrokProvider
+from pari.providers.openai import OpenAIProvider
 from pari.providers.openrouter import OpenRouterProvider
 
 
@@ -115,3 +117,83 @@ async def test_tool_results_stay_structured():
     assert "[tools:" not in messages[1]["content"]
     assert messages[2]["role"] == "tool"
     assert messages[2]["tool_call_id"] == "call_1"
+
+
+def _ok(_request: httpx.Request) -> httpx.Response:
+    return httpx.Response(
+        200,
+        json={
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+            "choices": [
+                {"finish_reason": "stop", "message": {"content": "ok"}},
+            ],
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_read_error_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch):
+    async def instant(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("pari.providers.errors.asyncio.sleep", instant)
+    seen = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["n"] += 1
+        if seen["n"] < 3:
+            raise httpx.ReadError("connection reset")
+        return _ok(request)
+
+    provider = OpenAIProvider("gpt-4o", "sk-test", httpx.MockTransport(handler))
+    response = await provider.complete([ProviderMessage(role="user", content="hi")])
+    assert seen["n"] == 3
+    assert response.text == "ok"
+
+
+@pytest.mark.asyncio
+async def test_http_rejection_hides_the_response_body():
+    seen = {"n": 0}
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        seen["n"] += 1
+        return httpx.Response(
+            401,
+            json={
+                "error": {
+                    "message": "Unauthorized",
+                    "type": "rejected_by_access_enforcement",
+                    "code": "no_matching_rule",
+                },
+                "status": 401,
+            },
+        )
+
+    provider = OpenAIProvider("gpt-4o", "sk-test", httpx.MockTransport(handler))
+    with pytest.raises(ProviderError) as caught:
+        await provider.complete([ProviderMessage(role="user", content="read the repo")])
+    error = caught.value
+    assert error.status_code == 401
+    assert error.code == "no_matching_rule"
+    assert error.detail == "Unauthorized"
+    assert error.error_type == "rejected_by_access_enforcement"
+    assert str(error) == "Unauthorized"
+    assert "{" not in str(error)
+    assert seen["n"] == 1
+
+
+@pytest.mark.asyncio
+async def test_timeout_is_a_provider_error(monkeypatch: pytest.MonkeyPatch):
+    async def instant(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("pari.providers.errors.asyncio.sleep", instant)
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        raise httpx.TimeoutException("timed out")
+
+    provider = OpenAIProvider("gpt-4o", "sk-test", httpx.MockTransport(handler))
+    with pytest.raises(ProviderError) as caught:
+        await provider.complete([ProviderMessage(role="user", content="hi")])
+    assert caught.value.kind == "timeout"
+    assert "timed out" not in str(caught.value)
