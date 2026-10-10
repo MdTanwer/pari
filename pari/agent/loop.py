@@ -28,7 +28,8 @@ from pari.context.chunks import ContextChunk, ContextTier, assemble_context
 from pari.context.compaction import compact_context
 from pari.edit.diff import generate_unified_diff
 from pari.fs.path import resolve_safe_path
-from pari.providers.base import ModelResponse, ToolCall
+from pari.providers.message import ToolCall
+from pari.providers.response import ModelResponse
 from pari.session.logger import SessionLogger
 from pari.session.undo import GuardedUndoManager
 

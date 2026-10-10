@@ -10,7 +10,9 @@ from pari.agent.guards import LENGTH_TRUNCATION_NOTICE
 from pari.agent.loop import AgentExecutionLoop
 from pari.agent.reflection import ReflectionManager
 from pari.agent.runtime import AgentRuntime
-from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage, ToolCall
+from pari.providers.base import LLMProvider
+from pari.providers.message import ProviderMessage, ToolCall
+from pari.providers.response import ModelResponse
 
 
 class ScriptedProvider(LLMProvider):
@@ -63,7 +65,11 @@ async def test_length_stop_does_not_run_tools():
         ModelResponse(
             text="partial edit",
             tool_calls=[
-                ToolCall("1", "write_file", {"path": "bad.txt", "content": "x"})
+                ToolCall(
+                    id="1",
+                    name="write_file",
+                    arguments={"path": "bad.txt", "content": "x"},
+                )
             ],
             stop_reason="length",
             tokens_out=4,
@@ -89,7 +95,9 @@ async def test_turn_limit_asks_the_user():
     async def step(_prompt: str, turn: int) -> ModelResponse:
         return ModelResponse(
             text="again",
-            tool_calls=[ToolCall(str(turn), "bash", {"command": "true"})],
+            tool_calls=[
+                ToolCall(id=str(turn), name="bash", arguments={"command": "true"})
+            ],
             stop_reason="end_turn",
         )
 
@@ -107,7 +115,7 @@ async def test_reflection_stops_after_the_budget():
     async def step(_prompt: str, _turn: int) -> ModelResponse:
         return ModelResponse(
             text="edit",
-            tool_calls=[ToolCall("1", "edit_file", {"path": "a.py"})],
+            tool_calls=[ToolCall(id="1", name="edit_file", arguments={"path": "a.py"})],
             stop_reason="end_turn",
         )
 
@@ -139,7 +147,9 @@ async def test_timed_out_command_is_reported_as_a_daemon():
         if turn == 1:
             return ModelResponse(
                 text="start",
-                tool_calls=[ToolCall("1", "bash", {"command": "npm run dev"})],
+                tool_calls=[
+                    ToolCall(id="1", name="bash", arguments={"command": "npm run dev"})
+                ],
                 stop_reason="end_turn",
             )
         return ModelResponse(text="noted", stop_reason="end_turn")
@@ -162,9 +172,9 @@ async def test_runtime_discards_a_truncated_write(tmp_path: Path):
                 text="cut off",
                 tool_calls=[
                     ToolCall(
-                        "1",
-                        "write_file",
-                        {"path": "bad.txt", "content": "should not land"},
+                        id="1",
+                        name="write_file",
+                        arguments={"path": "bad.txt", "content": "should not land"},
                     )
                 ],
                 stop_reason="length",
@@ -189,9 +199,9 @@ async def test_runtime_applies_a_tool_then_answers(tmp_path: Path):
                 text="writing",
                 tool_calls=[
                     ToolCall(
-                        "1",
-                        "write_file",
-                        {"path": "hello.txt", "content": "Hello loop"},
+                        id="1",
+                        name="write_file",
+                        arguments={"path": "hello.txt", "content": "Hello loop"},
                     )
                 ],
                 stop_reason="end_turn",
@@ -215,9 +225,9 @@ async def test_syntax_error_is_sent_back_as_a_lint_block(tmp_path: Path):
                 text="writing",
                 tool_calls=[
                     ToolCall(
-                        "1",
-                        "write_file",
-                        {"path": "a.py", "content": "def f(:\n"},
+                        id="1",
+                        name="write_file",
+                        arguments={"path": "a.py", "content": "def f(:\n"},
                     )
                 ],
                 stop_reason="end_turn",
@@ -241,7 +251,9 @@ async def test_turn_warning_is_not_placed_in_the_prompt():
         seen.append(prompt)
         return ModelResponse(
             text="again",
-            tool_calls=[ToolCall(str(turn), "bash", {"command": "true"})],
+            tool_calls=[
+                ToolCall(id=str(turn), name="bash", arguments={"command": "true"})
+            ],
             stop_reason="end_turn",
         )
 
@@ -278,7 +290,9 @@ async def test_turn_limit_captures_the_git_diff(tmp_path: Path):
     async def step(_prompt: str, turn: int) -> ModelResponse:
         return ModelResponse(
             text="again",
-            tool_calls=[ToolCall(str(turn), "bash", {"command": "true"})],
+            tool_calls=[
+                ToolCall(id=str(turn), name="bash", arguments={"command": "true"})
+            ],
             stop_reason="end_turn",
         )
 

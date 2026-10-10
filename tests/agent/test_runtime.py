@@ -6,8 +6,10 @@ import pytest
 
 from pari.agent.runtime import AgentRuntime
 from pari.fs.atomic import atomic_write, read_file
-from pari.providers.base import LLMProvider, ModelResponse, ToolCall
+from pari.providers.base import LLMProvider
+from pari.providers.message import ToolCall
 from pari.providers.mock import MockOfflineProvider
+from pari.providers.response import ModelResponse
 from pari.tui.app import TerminalApp
 
 
@@ -43,7 +45,11 @@ async def test_tool_result_is_sent_back_before_the_answer(tmp_path: Path):
             if self._step == 1:
                 return ModelResponse(
                     text="reading",
-                    tool_calls=[ToolCall("call_1", "read_file", {"path": "app.py"})],
+                    tool_calls=[
+                        ToolCall(
+                            id="call_1", name="read_file", arguments={"path": "app.py"}
+                        )
+                    ],
                     stop_reason="tool_calls",
                 )
             return ModelResponse(text="add returns the sum.", stop_reason="stop")

@@ -7,8 +7,8 @@ import pytest
 
 from pari.providers import get_provider
 from pari.providers.anthropic import AnthropicProvider
-from pari.providers.base import ProviderMessage
-from pari.providers.errors import ProviderError
+from pari.providers.exceptions import ProviderError
+from pari.providers.message import ProviderMessage
 from pari.providers.mock import MockOfflineProvider
 
 
@@ -119,6 +119,20 @@ async def test_http_rejection_is_a_provider_error():
     assert caught.value.detail == "bad model"
     assert caught.value.error_type == "not_found_error"
     assert str(caught.value) == "bad model"
+
+
+@pytest.mark.asyncio
+async def test_a_list_body_is_rejected():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=["nope"])
+
+    provider = AnthropicProvider(
+        "claude-test", "test-key", httpx.MockTransport(handler)
+    )
+    with pytest.raises(ProviderError) as caught:
+        await provider.complete([ProviderMessage(role="user", content="hi")])
+    assert caught.value.detail == "The model response was not a JSON object."
+    assert "nope" not in str(caught.value)
 
 
 def test_get_provider_selects_anthropic(monkeypatch: pytest.MonkeyPatch):
