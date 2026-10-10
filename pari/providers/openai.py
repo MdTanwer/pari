@@ -26,4 +26,5 @@ class OpenAIProvider(OpenAICompatibleProvider):
                 "Sign in to OpenAI: pari-cli login openai --api-key <key> "
                 "or pari-cli login openai --account <token>."
             ),
+            provider_label="OpenAI",
         )

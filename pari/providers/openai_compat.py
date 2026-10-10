@@ -6,6 +6,7 @@ from typing import Any
 import httpx
 
 from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage, ToolCall
+from pari.providers.errors import checked_post
 
 
 _MAX_TOKENS = 4096
@@ -21,11 +22,13 @@ class OpenAICompatibleProvider(LLMProvider):
         base_url: str,
         transport: httpx.BaseTransport | None = None,
         missing_key_message: str = "API key is not set.",
+        provider_label: str = "Model provider",
     ):
         super().__init__(model_name, api_key)
         self.base_url = base_url
         self._transport = transport
         self._missing_key_message = missing_key_message
+        self._provider_label = provider_label
 
     async def complete(
         self,
@@ -45,18 +48,15 @@ class OpenAICompatibleProvider(LLMProvider):
         if converted:
             payload["tools"] = converted
         async with httpx.AsyncClient(transport=self._transport) as client:
-            response = await client.post(
+            response = await checked_post(
+                client,
                 self.base_url,
                 headers={
                     "authorization": f"Bearer {self.api_key}",
                     "content-type": "application/json",
                 },
-                json=payload,
-                timeout=60.0,
-            )
-        if response.status_code >= 400:
-            raise RuntimeError(
-                f"Provider request failed ({response.status_code}): {response.text}"
+                payload=payload,
+                provider=self._provider_label,
             )
         return _parse(response.json())
 

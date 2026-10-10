@@ -26,4 +26,5 @@ class OpenRouterProvider(OpenAICompatibleProvider):
                 "Sign in to OpenRouter: pari-cli login openrouter --api-key <key> "
                 "or pari-cli login openrouter --account <token>."
             ),
+            provider_label="OpenRouter",
         )

@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage, ToolCall
+from pari.providers.errors import checked_post
 
 
 _API_URL = "https://api.anthropic.com/v1/messages"
@@ -39,15 +40,12 @@ class AnthropicProvider(LLMProvider):
             raise RuntimeError("ANTHROPIC_API_KEY is not set.")
         payload = _request_body(self.model_name, messages, tools, temperature)
         async with httpx.AsyncClient(transport=self._transport) as client:
-            response = await client.post(
+            response = await checked_post(
+                client,
                 _API_URL,
                 headers=_headers(self.api_key),
-                json=payload,
-                timeout=60.0,
-            )
-        if response.status_code >= 400:
-            raise RuntimeError(
-                f"Anthropic request failed ({response.status_code}): {response.text}"
+                payload=payload,
+                provider="Anthropic",
             )
         return _parse_response(response.json())
 

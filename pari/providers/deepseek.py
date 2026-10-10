@@ -25,4 +25,5 @@ class DeepSeekProvider(OpenAICompatibleProvider):
             missing_key_message=(
                 "Sign in to DeepSeek: pari-cli login deepseek --api-key <key>."
             ),
+            provider_label="DeepSeek",
         )

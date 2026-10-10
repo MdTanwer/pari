@@ -1,22 +1,116 @@
 """Unit tests for Layer 9 Interactive Terminal Application & REPL."""
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from pari.providers.base import ProviderMessage
+from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage
+from pari.providers.errors import ProviderError
 from pari.providers.openai import OpenAIProvider
+from pari.routing.router import router_for
 from pari.tui.app import TerminalApp, _model_refusal
+from pari.tui.errors import model_error_text
 
 
-def test_tui_process_message_greeting(tmp_path: Path):
+def test_greetings_are_model_turns(tmp_path: Path):
     app = TerminalApp(workspace=tmp_path)
+    for text in ("hi", "hello", "hey", "hi how are you", "Hi How Are You?"):
+        assert app.process_message(text) is None
 
-    # Test variations of "hi how are you" / "hi howr you"
-    assert app.process_message("hi how are you") == "Good! How can I help you today?"
-    assert app.process_message("hi howr you") == "Good! How can I help you today?"
-    assert app.process_message("how r you") == "Good! How can I help you today?"
-    assert app.process_message("Hi How Are You?") == "Good! How can I help you today?"
+
+@pytest.mark.asyncio
+async def test_greeting_reaches_the_model(tmp_path: Path):
+    app = TerminalApp(workspace=tmp_path)
+    text = await app.respond("hi")
+    assert "PARI Agent response to:" in text
+    assert "How can I assist you with your project?" not in text
+
+
+def test_access_rejection_shows_the_provider_message():
+    text = model_error_text(
+        ProviderError(
+            "OpenAI",
+            status_code=401,
+            code="no_matching_rule",
+            detail="Unauthorized",
+            error_type="rejected_by_access_enforcement",
+        )
+    )
+    assert text == (
+        "Model error\n"
+        "Code: Authentication\n"
+        "\n"
+        "Detail:\n"
+        "Unauthorized\n"
+        "rejected_by_access_enforcement\n"
+        "no_matching_rule"
+    )
+
+
+def test_timeout_and_rate_limit_keep_the_provider_detail():
+    timeout = model_error_text(ProviderError("OpenAI", kind="timeout"))
+    assert "Code: Timeout" in timeout
+    assert "OpenAI did not respond in time." in timeout
+    assert "What to try" not in timeout
+    limited = model_error_text(
+        ProviderError("OpenAI", status_code=429, detail="slow down")
+    )
+    assert "Code: RateLimit" in limited
+    assert "Detail:\nslow down" in limited
+    assert "What to try" not in limited
+
+
+class _Rejecting(LLMProvider):
+    def __init__(self) -> None:
+        super().__init__("gpt-4o", api_key="token")
+
+    async def complete(
+        self,
+        messages: list[ProviderMessage],
+        tools: list[dict[str, Any]] | None = None,
+        temperature: float = 0.0,
+    ) -> ModelResponse:
+        _ = messages, tools, temperature
+        raise ProviderError(
+            "OpenAI",
+            status_code=401,
+            code="no_matching_rule",
+            detail="Unauthorized",
+            error_type="rejected_by_access_enforcement",
+        )
+
+
+@pytest.mark.asyncio
+async def test_provider_failure_stays_in_the_session(tmp_path: Path):
+    app = TerminalApp(workspace=tmp_path)
+    offline = app.runtime.provider
+    offline_router = app.runtime.router
+    app.model_name = "gpt-4o"
+    app.runtime.provider = _Rejecting()
+    app.runtime.router = router_for(app.runtime.provider)
+    text = await app.respond("read my project repo")
+    assert "Code: Authentication" in text
+    assert "Unauthorized" in text
+    assert "rejected_by_access_enforcement" in text
+    assert "no_matching_rule" in text
+    assert "What to try" not in text
+    assert "Traceback" not in text
+    assert app.runtime.messages == []
+    assert app.cost_meter.usage.total_tokens == 0
+    app.model_name = "pari-core"
+    app.runtime.provider = offline
+    app.runtime.router = offline_router
+    follow = await app.respond("hi")
+    assert "PARI Agent response to:" in follow
+
+
+@pytest.mark.asyncio
+async def test_turn_returns_to_the_prompt_after_a_provider_failure(tmp_path: Path):
+    app = TerminalApp(workspace=tmp_path)
+    app.runtime.provider = _Rejecting()
+    app.runtime.router = router_for(app.runtime.provider)
+    assert await app._turn("read my project repo") is True
 
 
 @pytest.mark.asyncio

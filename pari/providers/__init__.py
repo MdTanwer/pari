@@ -11,6 +11,7 @@ from pari.auth.providers import info_for_model
 from pari.providers.anthropic import AnthropicProvider
 from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage, ToolCall
 from pari.providers.deepseek import DeepSeekProvider
+from pari.providers.errors import ProviderError
 from pari.providers.grok import GrokProvider
 from pari.providers.mock import MockOfflineProvider
 from pari.providers.openai import OpenAIProvider
@@ -60,6 +61,7 @@ __all__ = [
     "ModelResponse",
     "OpenAIProvider",
     "OpenRouterProvider",
+    "ProviderError",
     "ProviderMessage",
     "ToolCall",
     "get_provider",
