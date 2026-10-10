@@ -7,12 +7,12 @@ from typing import Annotated, Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from pari.providers.exceptions import ProviderError
+from pari.providers.exceptions import ProviderError, failure_from_payload
 from pari.providers.message import ProviderMessage, ToolCall
 from pari.providers.response import ModelResponse
+from pari.providers.schemas.types import EMPTY_SCHEMA, TokenCount
 
 
-_EMPTY_SCHEMA: dict[str, Any] = {"type": "object", "properties": {}}
 _BLOCK_TYPES = ("text", "tool_use")
 
 
@@ -56,20 +56,11 @@ ContentBlock = Annotated[TextBlock | ToolUseBlock, Field(discriminator="type")]
 class AnthropicUsage(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
 
-    input_tokens: int = Field(default=0, ge=0, description="Prompt tokens")
-    output_tokens: int = Field(default=0, ge=0, description="Completion tokens")
-    cache_read_input_tokens: int = Field(
-        default=0, ge=0, description="Prompt tokens read from the cache"
+    input_tokens: TokenCount = Field(default=0, description="Prompt tokens")
+    output_tokens: TokenCount = Field(default=0, description="Completion tokens")
+    cache_read_input_tokens: TokenCount = Field(
+        default=0, description="Prompt tokens read from the cache"
     )
-
-    @field_validator(
-        "input_tokens", "output_tokens", "cache_read_input_tokens", mode="before"
-    )
-    @classmethod
-    def _count(cls, value: object) -> int:
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            return 0
-        return value
 
 
 class AnthropicMessage(BaseModel):
@@ -108,6 +99,8 @@ class AnthropicMessage(BaseModel):
             raise ProviderError(
                 provider, detail="The model response was not a JSON object."
             )
+        if payload.get("type") == "error":
+            raise failure_from_payload(provider, payload)
         try:
             return cls.model_validate(payload)
         except ValidationError as exc:
@@ -155,7 +148,7 @@ class AnthropicTool(BaseModel):
         return cls(
             name=str(tool["name"]),
             description=str(tool.get("description") or ""),
-            input_schema=schema if isinstance(schema, dict) else _EMPTY_SCHEMA,
+            input_schema=schema if isinstance(schema, dict) else EMPTY_SCHEMA,
         )
 
 

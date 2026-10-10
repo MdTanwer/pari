@@ -35,11 +35,11 @@ def classify_error(exc: ProviderError) -> FailureKind:
         return FailureKind.SERVICE_UNAVAILABLE
     if exc.status_code in (401, 403) or _has(exc, AUTH_PATTERNS):
         return FailureKind.AUTHENTICATION
-    if _has(exc, QUOTA_PATTERNS):
+    if exc.status_code == 402 or _has(exc, QUOTA_PATTERNS):
         return FailureKind.QUOTA
     if exc.status_code == 429 or _has(exc, ("rate limit",)):
         return FailureKind.RATE_LIMIT
-    if exc.status_code in (400, 404) or _has(exc, ("model not found",)):
+    if _is_client_error(exc.status_code) or _has(exc, ("model not found",)):
         return FailureKind.BAD_REQUEST
     if exc.status_code is not None and exc.status_code >= 500:
         return FailureKind.SERVICE_UNAVAILABLE
@@ -49,6 +49,10 @@ def classify_error(exc: ProviderError) -> FailureKind:
 def is_retryable_status(status_code: int) -> bool:
     """429 and 5xx can clear on their own. Other client errors will not."""
     return status_code == 429 or 500 <= status_code <= 599
+
+
+def _is_client_error(status_code: int | None) -> bool:
+    return status_code is not None and 400 <= status_code < 500
 
 
 def _has(exc: ProviderError, needles: tuple[str, ...]) -> bool:

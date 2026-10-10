@@ -14,7 +14,7 @@ def decode_body(response: httpx.Response, provider: str) -> object:
     """Parse a success body. A non-JSON page stays off the error text."""
     try:
         return response.json()
-    except json.JSONDecodeError as exc:
+    except ValueError as exc:
         raise ProviderError(
             provider, detail="The model response was not JSON."
         ) from exc
@@ -22,25 +22,39 @@ def decode_body(response: httpx.Response, provider: str) -> object:
 
 def failure_from_body(provider: str, status_code: int, body: str) -> ProviderError:
     """Build a provider error from an HTTP error body."""
-    code, detail, error_type = _error_parts(body)
+    text = body.strip()
+    if not text or text.startswith("<"):
+        return ProviderError(provider, status_code=status_code)
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return ProviderError(provider, status_code=status_code, detail=_clip(text))
+    return failure_from_payload(provider, payload, status_code=status_code)
+
+
+def failure_from_payload(
+    provider: str,
+    payload: object,
+    *,
+    status_code: int | None = None,
+    default_detail: str = "",
+) -> ProviderError:
+    """Build a provider error from a parsed body.
+
+    Some providers answer 200 with an ``error`` object instead of a result.
+    """
+    code, detail, error_type = _error_parts(payload)
     return ProviderError(
         provider,
         status_code=status_code,
         code=code,
-        detail=detail,
+        detail=detail or default_detail,
         error_type=error_type,
     )
 
 
-def _error_parts(body: str) -> tuple[str, str, str]:
-    """Provider code, message, and type. An HTML body contributes none of them."""
-    text = body.strip()
-    if not text or text.startswith("<"):
-        return "", "", ""
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        return "", _clip(text), ""
+def _error_parts(payload: object) -> tuple[str, str, str]:
+    """Provider code, message, and type from a parsed body."""
     if not isinstance(payload, dict):
         return "", "", ""
     error = payload.get("error")

@@ -140,3 +140,16 @@ def test_get_provider_selects_anthropic(monkeypatch: pytest.MonkeyPatch):
     provider = get_provider("claude-3-7-sonnet-20250219")
     assert isinstance(provider, AnthropicProvider)
     assert provider.api_key == "test-key"
+
+
+@pytest.mark.asyncio
+async def test_a_200_error_body_is_the_providers_message():
+    payload = {
+        "type": "error",
+        "error": {"type": "overloaded_error", "message": "Overloaded"},
+    }
+    provider = AnthropicProvider("claude-test", "test-key", _transport(200, payload))
+    with pytest.raises(ProviderError) as caught:
+        await provider.complete([ProviderMessage(role="user", content="hi")])
+    assert caught.value.detail == "Overloaded"
+    assert caught.value.error_type == "overloaded_error"

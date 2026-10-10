@@ -9,12 +9,10 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from pari.providers.exceptions import ProviderError
+from pari.providers.exceptions import ProviderError, failure_from_payload
 from pari.providers.message import ProviderMessage, ToolCall
 from pari.providers.response import ModelResponse
-
-
-_EMPTY_SCHEMA: dict[str, Any] = {"type": "object", "properties": {}}
+from pari.providers.schemas.types import EMPTY_SCHEMA, TokenCount
 
 
 class ChatFunction(BaseModel):
@@ -147,15 +145,8 @@ class ChatChoice(BaseModel):
 class ChatUsage(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
 
-    prompt_tokens: int = Field(default=0, ge=0, description="Prompt tokens")
-    completion_tokens: int = Field(default=0, ge=0, description="Completion tokens")
-
-    @field_validator("prompt_tokens", "completion_tokens", mode="before")
-    @classmethod
-    def _count(cls, value: object) -> int:
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            return 0
-        return value
+    prompt_tokens: TokenCount = Field(default=0, description="Prompt tokens")
+    completion_tokens: TokenCount = Field(default=0, description="Completion tokens")
 
 
 class ChatCompletion(BaseModel):
@@ -185,11 +176,16 @@ class ChatCompletion(BaseModel):
                 provider, detail="The model response was not a JSON object."
             )
         try:
-            return cls.model_validate(payload)
+            completion = cls.model_validate(payload)
         except ValidationError as exc:
             raise ProviderError(
                 provider, detail="The model response did not match a chat completion."
             ) from exc
+        if not completion.choices:
+            raise failure_from_payload(
+                provider, payload, default_detail="The model response had no choices."
+            )
+        return completion
 
     def to_model_response(self) -> ModelResponse:
         choice = self.choices[0] if self.choices else ChatChoice()
@@ -226,7 +222,7 @@ class ChatTool(BaseModel):
             function=ChatFunctionDef(
                 name=str(tool["name"]),
                 description=str(tool.get("description") or ""),
-                parameters=schema if isinstance(schema, dict) else _EMPTY_SCHEMA,
+                parameters=schema if isinstance(schema, dict) else EMPTY_SCHEMA,
             )
         )
 

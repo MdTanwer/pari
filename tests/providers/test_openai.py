@@ -251,3 +251,38 @@ async def test_a_non_json_body_is_rejected():
         await provider.complete([ProviderMessage(role="user", content="hi")])
     assert caught.value.detail == "The model response was not JSON."
     assert "html" not in str(caught.value)
+
+
+@pytest.mark.asyncio
+async def test_a_200_error_body_is_the_providers_message():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"error": {"code": 429, "message": "Rate limited upstream"}}
+        )
+
+    provider = OpenAIProvider("gpt-4o", "sk-test", httpx.MockTransport(handler))
+    with pytest.raises(ProviderError) as caught:
+        await provider.complete([ProviderMessage(role="user", content="hi")])
+    assert caught.value.detail == "Rate limited upstream"
+
+
+@pytest.mark.asyncio
+async def test_a_body_without_choices_is_rejected():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"id": "x"})
+
+    provider = OpenAIProvider("gpt-4o", "sk-test", httpx.MockTransport(handler))
+    with pytest.raises(ProviderError) as caught:
+        await provider.complete([ProviderMessage(role="user", content="hi")])
+    assert caught.value.detail == "The model response had no choices."
+
+
+@pytest.mark.asyncio
+async def test_a_body_that_is_not_utf8_is_rejected():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"\xff\xfe\x00bad")
+
+    provider = OpenAIProvider("gpt-4o", "sk-test", httpx.MockTransport(handler))
+    with pytest.raises(ProviderError) as caught:
+        await provider.complete([ProviderMessage(role="user", content="hi")])
+    assert caught.value.detail == "The model response was not JSON."
