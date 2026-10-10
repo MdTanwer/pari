@@ -14,6 +14,8 @@ class ProviderInfo:
     default_model: str
     base_url: str | None
     prefixes: tuple[str, ...]
+    key_prefix: str
+    account: bool = True
 
 
 PROVIDERS: tuple[ProviderInfo, ...] = (
@@ -24,6 +26,7 @@ PROVIDERS: tuple[ProviderInfo, ...] = (
         "gpt-4o",
         "https://api.openai.com/v1/chat/completions",
         ("gpt-", "gpt4", "o1", "o3", "o4", "chatgpt"),
+        "sk-",
     ),
     ProviderInfo(
         "deepseek",
@@ -32,6 +35,8 @@ PROVIDERS: tuple[ProviderInfo, ...] = (
         "deepseek-chat",
         "https://api.deepseek.com/chat/completions",
         ("deepseek",),
+        "sk-",
+        account=False,
     ),
     ProviderInfo(
         "anthropic",
@@ -40,6 +45,7 @@ PROVIDERS: tuple[ProviderInfo, ...] = (
         "claude-3-7-sonnet-20250219",
         None,
         ("claude",),
+        "sk-ant-",
     ),
     ProviderInfo(
         "grok",
@@ -48,6 +54,7 @@ PROVIDERS: tuple[ProviderInfo, ...] = (
         "grok-3",
         "https://api.x.ai/v1/chat/completions",
         ("grok",),
+        "xai-",
     ),
     ProviderInfo(
         "openrouter",
@@ -56,6 +63,7 @@ PROVIDERS: tuple[ProviderInfo, ...] = (
         "openrouter/openai/gpt-4o-mini",
         "https://openrouter.ai/api/v1/chat/completions",
         ("openrouter/", "or/"),
+        "sk-or-",
     ),
 )
 
@@ -68,6 +76,13 @@ def get_info(provider_id: str) -> ProviderInfo:
         names = ", ".join(item.id for item in PROVIDERS)
         raise ValueError(f"Unknown provider '{provider_id}'. Choose one of: {names}.")
     return info
+
+
+def no_account_message(info: ProviderInfo) -> str:
+    return (
+        f"{info.label} has no account sign-in. "
+        f"Use pari-cli login {info.id} --api-key <key>."
+    )
 
 
 def info_for_model(model_name: str) -> ProviderInfo | None:

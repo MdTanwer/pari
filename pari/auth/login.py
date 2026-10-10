@@ -1,27 +1,24 @@
-"""Sign in with an API key or an account token.
+"""Sign in, sign out, and find the credential to send.
 
-Both are stored the same way and sent as that provider's credential. There is
-no Radius login.
+An API key and an account token are stored the same way and sent as that
+provider's credential. There is no Radius login.
 """
 
 import os
-import re
 import time
+from collections.abc import Callable
 
+from pari.auth.credential import parse_sign_in
 from pari.auth.providers import PROVIDERS, ProviderInfo, get_info
-from pari.auth.store import AuthStore
+from pari.auth.store import AuthStore, saved_row
 
 
-# A pasted sentence or another provider's key must not be stored as a success.
-_API_KEY_PREFIX = {
-    "openai": "sk-",
-    "deepseek": "sk-",
-    "anthropic": "sk-ant-",
-    "grok": "xai-",
-    "openrouter": "sk-or-",
-}
-_KEY_CHARS = re.compile(r"^[A-Za-z0-9_-]+$")
-_MIN_API_KEY = 20
+KeyVerifier = Callable[[ProviderInfo, str], None]
+
+NO_MODEL = (
+    "No model selected. Sign in with `pari-cli login`, "
+    "or pass --model, or set PARI_MODEL."
+)
 
 
 def sign_in(
@@ -30,78 +27,33 @@ def sign_in(
     method: str,
     store: AuthStore | None = None,
     extra: dict | None = None,
+    verify: KeyVerifier | None = None,
 ) -> str:
-    """Record one provider. method is ``api_key`` or ``account``."""
-    if method not in ("api_key", "account"):
-        raise ValueError("Sign in with an API key or an account token.")
-    info = get_info(provider_id)
-    if method == "account" and info.id == "deepseek":
-        raise ValueError(
-            "DeepSeek has no account sign-in. "
-            "Use pari-cli login deepseek --api-key <key>."
-        )
-    token = secret.strip()
-    if not token:
-        raise ValueError("The credential is empty.")
-    if method == "api_key":
-        _check_api_key(info, token)
+    """Record one provider. method is ``api_key`` or ``account``.
+
+    ``verify`` runs on an API key after the format check and before anything is
+    saved. It raises ``ValueError`` to refuse the key.
+    """
+    request = parse_sign_in(provider_id, secret, method, extra)
+    info = request.info
+    if verify is not None and request.method == "api_key":
+        verify(info, request.secret)
     auth = store or AuthStore()
     data = auth.load()
-    row: dict = {"method": method, "secret": token}
-    for key in ("refresh", "client_id"):
-        value = (extra or {}).get(key)
-        if isinstance(value, str) and value.strip():
-            row[key] = value.strip()
-    expires = (extra or {}).get("expires")
-    if isinstance(expires, int):
-        row["expires"] = expires
     # Latest sign-in is the session default, so it has to be last.
     data.pop(info.id, None)
-    data[info.id] = row
+    data[info.id] = request.model_dump(exclude={"provider_id"}, exclude_none=True)
     auth.save(data)
-    label = "API key" if method == "api_key" else "account"
+    label = "API key" if request.method == "api_key" else "account"
     return f"Signed in to {info.label} with an {label}."
-
-
-def _check_api_key(info: ProviderInfo, token: str) -> None:
-    prefix = _API_KEY_PREFIX[info.id]
-    if any(char.isspace() for char in token):
-        raise ValueError(f"{info.label} API keys cannot contain spaces.")
-    found = _key_family(token)
-    expected = _key_family(prefix + ("a" * _MIN_API_KEY))
-    if found and found != expected:
-        raise ValueError(
-            f"That key belongs to {found}. {info.label} keys start with {prefix}."
-        )
-    if not token.startswith(prefix):
-        raise ValueError(f"{info.label} API keys start with {prefix}.")
-    if not _KEY_CHARS.fullmatch(token):
-        raise ValueError(
-            f"That {info.label} API key uses characters that are not allowed."
-        )
-    if len(token) < _MIN_API_KEY:
-        raise ValueError(f"That {info.label} API key is too short.")
-
-
-def _key_family(token: str) -> str:
-    if token.startswith("sk-ant-"):
-        return "Anthropic"
-    if token.startswith("sk-or-"):
-        return "OpenRouter"
-    if token.startswith("xai-"):
-        return "Grok"
-    if token.startswith("sk-"):
-        return "OpenAI or DeepSeek"
-    return ""
 
 
 def sign_out(provider_id: str, store: AuthStore | None = None) -> str:
     info = get_info(provider_id)
     auth = store or AuthStore()
     data = auth.load()
-    if info.id not in data:
+    if data.pop(info.id, None) is None:
         return f"{info.label} is not signed in."
-    del data[info.id]
     auth.save(data)
     return f"Signed out of {info.label}."
 
@@ -111,7 +63,7 @@ def status_text(store: AuthStore | None = None) -> str:
     data = (store or AuthStore()).load()
     lines = ["Sign in with an API key or an account token."]
     for info in PROVIDERS:
-        lines.append(f"{info.id}: {_state(data.get(info.id))}")
+        lines.append(f"{info.id}: {_state(saved_row(data, info.id))}")
     return "\n".join(lines)
 
 
@@ -121,38 +73,19 @@ def resolve_secret(info: ProviderInfo, store: AuthStore | None = None) -> str | 
     An expired account token is refreshed before it is returned. The refresh
     token itself is never returned.
     """
-    env = os.environ.get(info.env, "").strip()
+    env = _env_secret(info)
     if env:
         return env
     auth = store or AuthStore()
-    row = auth.load().get(info.id)
-    if not isinstance(row, dict):
+    row = saved_row(auth.load(), info.id)
+    if row is None:
         return None
-    secret = row.get("secret")
-    if not isinstance(secret, str) or not secret.strip():
-        return None
-    expires = row.get("expires")
-    refresh = row.get("refresh")
-    if (
-        isinstance(expires, int)
-        and expires <= _now_ms()
-        and isinstance(refresh, str)
-        and refresh.strip()
-    ):
+    if _needs_refresh(row):
+        # account.py imports sign_in from this module.
         from pari.auth.account import refresh_saved
 
         return refresh_saved(info, row, auth)
-    return secret.strip()
-
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
-
-
-NO_MODEL = (
-    "No model selected. Sign in with `pari-cli login`, "
-    "or pass --model, or set PARI_MODEL."
-)
+    return row["secret"].strip()
 
 
 def default_model_name(store: AuthStore | None = None) -> str | None:
@@ -165,33 +98,23 @@ def default_model_name(store: AuthStore | None = None) -> str | None:
     chosen = os.environ.get("PARI_MODEL", "").strip()
     if chosen:
         return chosen
-    saved = _saved_provider_ids((store or AuthStore()).load())
-    if saved:
-        return get_info(saved[-1]).default_model
+    data = (store or AuthStore()).load()
+    for provider_id in reversed(list(data)):
+        if saved_row(data, provider_id) is None:
+            continue
+        try:
+            return get_info(provider_id).default_model
+        except ValueError:
+            continue
     for info in PROVIDERS:
-        if os.environ.get(info.env, "").strip():
+        if _env_secret(info):
             return info.default_model
     return None
 
 
-def _saved_provider_ids(data: dict) -> list[str]:
-    ids: list[str] = []
-    for key, row in data.items():
-        if not isinstance(key, str) or not isinstance(row, dict):
-            continue
-        secret = row.get("secret")
-        if not isinstance(secret, str) or not secret.strip():
-            continue
-        try:
-            ids.append(get_info(key).id)
-        except ValueError:
-            continue
-    return ids
-
-
 def sign_in_hint(info: ProviderInfo) -> str:
-    if info.id == "deepseek":
-        return "Sign in to DeepSeek: pari-cli login deepseek --api-key <key>."
+    if not info.account:
+        return f"Sign in to {info.label}: pari-cli login {info.id} --api-key <key>."
     return (
         f"Sign in to {info.label}: "
         f"pari-cli login {info.id} --api-key <key> "
@@ -199,8 +122,27 @@ def sign_in_hint(info: ProviderInfo) -> str:
     )
 
 
-def _state(row: object) -> str:
-    if not isinstance(row, dict) or not str(row.get("secret") or "").strip():
+def _env_secret(info: ProviderInfo) -> str:
+    return os.environ.get(info.env, "").strip()
+
+
+def _needs_refresh(row: dict) -> bool:
+    expires = row.get("expires")
+    refresh = row.get("refresh")
+    return (
+        isinstance(expires, int)
+        and expires <= _now_ms()
+        and isinstance(refresh, str)
+        and bool(refresh.strip())
+    )
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
+
+
+def _state(row: dict | None) -> str:
+    if row is None:
         return "not signed in"
     if row.get("method") == "account":
         return "signed in with an account"

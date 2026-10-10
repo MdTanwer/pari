@@ -1,14 +1,14 @@
 """Account sign-in for providers that have a browser or device login.
 
 OpenAI, Anthropic, and OpenRouter open a browser and accept the redirect URL
-if the local callback does not finish. Grok uses a device code. DeepSeek has
-no account login, so that path does not ask for a token. Radius is not a
-provider.
+if the local callback does not finish. Grok uses a device code. A provider
+with ``account=False`` has no account login. Radius is not a provider.
 """
 
 import base64
 import errno
 import hashlib
+import html
 import json
 import re
 import secrets
@@ -22,7 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Protocol
 
 from pari.auth.login import sign_in
-from pari.auth.providers import ProviderInfo, get_info
+from pari.auth.providers import ProviderInfo, get_info, no_account_message
 from pari.auth.store import AuthStore
 
 
@@ -35,6 +35,8 @@ class AccountUI(Protocol):
 
     def read_line(self, prompt: str) -> str | None: ...
 
+    def read_secret(self, prompt: str) -> str | None: ...
+
     def show_auth_url(
         self,
         url: str,
@@ -46,6 +48,8 @@ class AccountUI(Protocol):
     def show_device(self, url: str, user_code: str) -> None: ...
 
     def sleep(self, seconds: float) -> bool: ...
+
+    def progress(self, message: str) -> None: ...
 
     def show_error(self, message: str) -> None: ...
 
@@ -68,6 +72,7 @@ _ANTHROPIC_SCOPES = (
     "org:create_api_key user:profile user:inference "
     "user:sessions:claude_code user:mcp_servers user:file_upload"
 )
+_CALLBACK_PATH = "/callback"
 _ANTHROPIC_COPY_REDIRECT = "https://platform.claude.com/oauth/code/callback"
 
 _OPENROUTER_AUTHORIZE = "https://openrouter.ai/auth"
@@ -89,11 +94,8 @@ _BROWSER = (
 def sign_in_account(provider_id: str, ui: AccountUI, store: AuthStore) -> str:
     """Run that provider's account login and store the credential."""
     info = get_info(provider_id)
-    if info.id == "deepseek":
-        raise ValueError(
-            "DeepSeek has no account sign-in. "
-            "Use pari-cli login deepseek --api-key <key>."
-        )
+    if not info.account:
+        raise ValueError(no_account_message(info))
     if info.id == "openai":
         cred = _login_openai(ui, store)
     elif info.id == "anthropic":
@@ -176,9 +178,7 @@ def _login_openai(ui: AccountUI, store: AuthStore) -> dict:
         code, client_id = _code_from(server, pasted, _OPENAI_REDIRECT, state)
         if not client_id:
             raise ValueError("Paste the full callback URL from the browser.")
-        ui_progress = getattr(ui, "progress", None)
-        if ui_progress:
-            ui_progress("Exchanging authorization code for tokens...")
+        ui.progress("Exchanging authorization code for tokens...")
         return _exchange_openai(code, verifier, client_id)
     finally:
         server.close()
@@ -196,7 +196,7 @@ def _login_anthropic(ui: AccountUI) -> dict:
         return _anthropic_copy_code(ui, verifier, challenge)
     server = _anthropic_server(verifier)
     redirect = (
-        server.redirect_uri if server else (f"http://localhost:53692{_callback_path()}")
+        server.redirect_uri if server else f"http://localhost:53692{_CALLBACK_PATH}"
     )
     try:
         url = _anthropic_url(challenge, verifier, redirect)
@@ -512,18 +512,16 @@ def _anthropic_url(challenge: str, state: str, redirect: str) -> str:
 
 def _anthropic_server(state: str) -> "CallbackServer | None":
     try:
-        return _listen("127.0.0.1", 53692, "/callback", "localhost", state, "Anthropic")
+        return _listen(
+            "127.0.0.1", 53692, _CALLBACK_PATH, "localhost", state, "Anthropic"
+        )
     except OSError as exc:
         if exc.errno != errno.EADDRINUSE:
             return None
     try:
-        return _listen("127.0.0.1", 0, "/callback", "localhost", state, "Anthropic")
+        return _listen("127.0.0.1", 0, _CALLBACK_PATH, "localhost", state, "Anthropic")
     except OSError:
         return None
-
-
-def _callback_path() -> str:
-    return "/callback"
 
 
 class CallbackServer:
@@ -620,7 +618,8 @@ def _listen(
 
 def _send(request: BaseHTTPRequestHandler, status: int, message: str) -> None:
     body = (
-        f"<!doctype html><meta charset=utf-8><title>PARI</title><p>{_html(message)}</p>"
+        "<!doctype html><meta charset=utf-8><title>PARI</title>"
+        f"<p>{html.escape(message)}</p>"
     ).encode()
     request.send_response(status)
     request.send_header("Content-Type", "text/html; charset=utf-8")
@@ -654,6 +653,9 @@ def _request(url: str, data: bytes, content_type: str) -> tuple[int, dict]:
             return response.status, _json_body(response.read())
     except urllib.error.HTTPError as exc:
         return exc.code, _json_body(exc.read())
+    except (urllib.error.URLError, TimeoutError):
+        host = urllib.parse.urlparse(url).netloc
+        raise RuntimeError(f"Could not reach {host}. Check your connection.") from None
 
 
 def _json_body(raw: bytes) -> dict:
@@ -725,7 +727,3 @@ def _http_error(action: str, status: int, body: dict) -> str:
         detail = detail.get("message")
     suffix = f": {detail}" if isinstance(detail, str) and detail else ""
     return f"{action} failed (HTTP {status}){suffix}."
-
-
-def _html(text: str) -> str:
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

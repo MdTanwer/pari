@@ -67,6 +67,7 @@ def test_wrong_api_key_format_is_rejected(tmp_path: Path):
 
 def test_cli_login_does_not_print_the_key(tmp_path: Path, monkeypatch, capsys):
     monkeypatch.setenv("PARI_AUTH_FILE", str(tmp_path / "auth.json"))
+    monkeypatch.setattr("pari.cli.verify_api_key", lambda _info, _key: None)
     code = main(["login", "openrouter", "--api-key", "sk-or-v1-0123456789abcd"])
     assert code == 0
     output = capsys.readouterr().out
@@ -116,6 +117,20 @@ def test_empty_and_unknown_sign_in_are_rejected(tmp_path: Path):
     with pytest.raises(ValueError, match="Unknown provider"):
         sign_in("radius", "sk-proj-0123456789abcdef", "api_key", store)
     assert list(store.load()) == ["grok"]
+
+
+def test_wrong_input_types_are_rejected_with_a_plain_message(tmp_path: Path):
+    store = AuthStore(tmp_path / "auth.json")
+    with pytest.raises(ValueError, match="secret: Input should be a valid string"):
+        sign_in("openai", None, "api_key", store)
+    assert store.load() == {}
+
+
+def test_bad_optional_fields_are_dropped_not_saved(tmp_path: Path):
+    store = AuthStore(tmp_path / "auth.json")
+    extra = {"refresh": "", "client_id": 7, "expires": "soon"}
+    sign_in("grok", "acct-token", "account", store, extra=extra)
+    assert store.load()["grok"] == {"method": "account", "secret": "acct-token"}
 
 
 def test_api_key_shape_is_rejected_without_replacing_a_saved_login(tmp_path: Path):

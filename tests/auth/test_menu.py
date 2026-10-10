@@ -145,6 +145,9 @@ class _Scripted:
     def sleep(self, seconds):
         return False
 
+    def progress(self, message):
+        return None
+
 
 def _paste_from_authorize_url(url: str) -> str:
     query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)

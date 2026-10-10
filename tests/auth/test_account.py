@@ -1,6 +1,7 @@
 """Account login stops before a bad callback or device response is stored."""
 
 import socket
+import urllib.error
 
 import pytest
 
@@ -12,7 +13,6 @@ from pari.auth.account import (
     _exchange_openrouter,
     _expires_at,
     _first,
-    _html,
     _http_error,
     _https_uri,
     _json_body,
@@ -53,6 +53,9 @@ class _Paste:
 
     def show_auth_url(self, url, instructions, prompt, done):
         return self._pasted
+
+    def progress(self, message):
+        return None
 
 
 def test_deepseek_account_does_not_ask_for_a_token(tmp_path):
@@ -384,8 +387,13 @@ def test_first_takes_the_first_non_empty_value():
     assert _first({}, "code") is None
 
 
-def test_html_escapes_reserved_characters():
-    assert _html('<a href="x">&</a>') == '&lt;a href="x"&gt;&amp;&lt;/a&gt;'
+def test_an_unreachable_token_server_is_a_plain_error(monkeypatch):
+    def refuse(*_args, **_kwargs):
+        raise urllib.error.URLError("no route")
+
+    monkeypatch.setattr("pari.auth.account.urllib.request.urlopen", refuse)
+    with pytest.raises(RuntimeError, match="Could not reach auth.x.ai"):
+        _refresh_grok("refresh-token")
 
 
 def test_anthropic_url_includes_pkce_and_state():
