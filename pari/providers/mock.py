@@ -6,7 +6,9 @@ and diff review without requiring remote cloud API tokens.
 
 from typing import Any
 
-from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage
+from pari.providers.base import LLMProvider
+from pari.providers.message import ProviderMessage
+from pari.providers.response import ModelResponse
 
 
 class MockOfflineProvider(LLMProvider):

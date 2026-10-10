@@ -5,10 +5,10 @@ import json
 import httpx
 import pytest
 
-from pari.providers.base import ProviderMessage, ToolCall
 from pari.providers.deepseek import DeepSeekProvider
-from pari.providers.errors import ProviderError
+from pari.providers.exceptions import ProviderError
 from pari.providers.grok import GrokProvider
+from pari.providers.message import ProviderMessage, ToolCall
 from pari.providers.openai import OpenAIProvider
 from pari.providers.openrouter import OpenRouterProvider
 
@@ -101,7 +101,11 @@ async def test_tool_results_stay_structured():
             ProviderMessage(
                 role="assistant",
                 content="reading",
-                tool_calls=[ToolCall("call_1", "read_file", {"path": "app.py"})],
+                tool_calls=[
+                    ToolCall(
+                        id="call_1", name="read_file", arguments={"path": "app.py"}
+                    )
+                ],
             ),
             ProviderMessage(
                 role="tool",
@@ -114,6 +118,9 @@ async def test_tool_results_stay_structured():
     assert isinstance(body, dict)
     messages = body["messages"]
     assert messages[1]["tool_calls"][0]["function"]["name"] == "read_file"
+    assert json.loads(messages[1]["tool_calls"][0]["function"]["arguments"]) == {
+        "path": "app.py"
+    }
     assert "[tools:" not in messages[1]["content"]
     assert messages[2]["role"] == "tool"
     assert messages[2]["tool_call_id"] == "call_1"
@@ -136,7 +143,7 @@ async def test_read_error_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch)
     async def instant(_seconds: float) -> None:
         return None
 
-    monkeypatch.setattr("pari.providers.errors.asyncio.sleep", instant)
+    monkeypatch.setattr("pari.providers.http.asyncio.sleep", instant)
     seen = {"n": 0}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -187,7 +194,7 @@ async def test_timeout_is_a_provider_error(monkeypatch: pytest.MonkeyPatch):
     async def instant(_seconds: float) -> None:
         return None
 
-    monkeypatch.setattr("pari.providers.errors.asyncio.sleep", instant)
+    monkeypatch.setattr("pari.providers.http.asyncio.sleep", instant)
 
     def handler(_request: httpx.Request) -> httpx.Response:
         raise httpx.TimeoutException("timed out")
@@ -197,3 +204,85 @@ async def test_timeout_is_a_provider_error(monkeypatch: pytest.MonkeyPatch):
         await provider.complete([ProviderMessage(role="user", content="hi")])
     assert caught.value.kind == "timeout"
     assert "timed out" not in str(caught.value)
+
+
+@pytest.mark.asyncio
+async def test_length_stop_is_preserved():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "finish_reason": "length",
+                        "message": {"content": "cut"},
+                    }
+                ]
+            },
+        )
+
+    provider = OpenAIProvider("gpt-4o", "sk-test", httpx.MockTransport(handler))
+    response = await provider.complete([ProviderMessage(role="user", content="hi")])
+    assert response.stop_reason == "length"
+    assert response.text == "cut"
+    assert response.tokens_in == 0
+    assert response.tool_calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_list_body_is_rejected():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=["nope"])
+
+    provider = OpenAIProvider("gpt-4o", "sk-test", httpx.MockTransport(handler))
+    with pytest.raises(ProviderError) as caught:
+        await provider.complete([ProviderMessage(role="user", content="hi")])
+    assert caught.value.detail == "The model response was not a JSON object."
+    assert "nope" not in str(caught.value)
+
+
+@pytest.mark.asyncio
+async def test_a_non_json_body_is_rejected():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"<html>nope</html>")
+
+    provider = OpenAIProvider("gpt-4o", "sk-test", httpx.MockTransport(handler))
+    with pytest.raises(ProviderError) as caught:
+        await provider.complete([ProviderMessage(role="user", content="hi")])
+    assert caught.value.detail == "The model response was not JSON."
+    assert "html" not in str(caught.value)
+
+
+@pytest.mark.asyncio
+async def test_a_200_error_body_is_the_providers_message():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"error": {"code": 429, "message": "Rate limited upstream"}}
+        )
+
+    provider = OpenAIProvider("gpt-4o", "sk-test", httpx.MockTransport(handler))
+    with pytest.raises(ProviderError) as caught:
+        await provider.complete([ProviderMessage(role="user", content="hi")])
+    assert caught.value.detail == "Rate limited upstream"
+
+
+@pytest.mark.asyncio
+async def test_a_body_without_choices_is_rejected():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"id": "x"})
+
+    provider = OpenAIProvider("gpt-4o", "sk-test", httpx.MockTransport(handler))
+    with pytest.raises(ProviderError) as caught:
+        await provider.complete([ProviderMessage(role="user", content="hi")])
+    assert caught.value.detail == "The model response had no choices."
+
+
+@pytest.mark.asyncio
+async def test_a_body_that_is_not_utf8_is_rejected():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"\xff\xfe\x00bad")
+
+    provider = OpenAIProvider("gpt-4o", "sk-test", httpx.MockTransport(handler))
+    with pytest.raises(ProviderError) as caught:
+        await provider.complete([ProviderMessage(role="user", content="hi")])
+    assert caught.value.detail == "The model response was not JSON."

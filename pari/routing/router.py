@@ -7,7 +7,9 @@ from collections.abc import Callable, Coroutine
 from typing import Any
 
 from pari.providers import get_provider
-from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage
+from pari.providers.base import LLMProvider
+from pari.providers.message import ProviderMessage
+from pari.providers.response import ModelResponse
 from pari.routing.anti_verbosity import enforce_planning_ceiling
 from pari.routing.classifier import TaskClassifier, TaskComplexity
 

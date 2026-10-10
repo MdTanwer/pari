@@ -5,9 +5,11 @@ from typing import Any
 
 import pytest
 
-from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage
-from pari.providers.errors import ProviderError
+from pari.providers.base import LLMProvider
+from pari.providers.exceptions import ProviderError
+from pari.providers.message import ProviderMessage
 from pari.providers.openai import OpenAIProvider
+from pari.providers.response import ModelResponse
 from pari.routing.router import router_for
 from pari.tui.app import TerminalApp, _model_refusal
 from pari.tui.errors import model_error_text

@@ -24,8 +24,10 @@ from pari.agent.loop import AgentExecutionLoop, TurnResult
 from pari.agent.reflection import ReflectionManager
 from pari.intelligence.repomap import RepoMapGenerator
 from pari.providers import get_provider
-from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage, ToolCall
-from pari.providers.errors import ProviderError
+from pari.providers.base import LLMProvider
+from pari.providers.exceptions import ProviderError
+from pari.providers.message import ProviderMessage, ToolCall
+from pari.providers.response import ModelResponse
 from pari.routing.router import DualModelRouter, router_for
 from pari.session.events import SessionEventType
 from pari.session.logger import SessionLogger

@@ -9,13 +9,15 @@ import os
 from pari.auth.login import NO_MODEL, resolve_secret, sign_in_hint
 from pari.auth.providers import info_for_model
 from pari.providers.anthropic import AnthropicProvider
-from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage, ToolCall
+from pari.providers.base import LLMProvider
 from pari.providers.deepseek import DeepSeekProvider
-from pari.providers.errors import ProviderError
+from pari.providers.exceptions import FailureKind, ProviderError, classify_error
 from pari.providers.grok import GrokProvider
+from pari.providers.message import ProviderMessage, ToolCall
 from pari.providers.mock import MockOfflineProvider
 from pari.providers.openai import OpenAIProvider
 from pari.providers.openrouter import OpenRouterProvider
+from pari.providers.response import ModelResponse
 
 
 _BUILDERS = {
@@ -53,16 +55,22 @@ def get_provider(model_name: str | None = None) -> LLMProvider:
 
 
 __all__ = [
+    # Core
+    "LLMProvider",
+    "get_provider",
+    # Messages
+    "ModelResponse",
+    "ProviderMessage",
+    "ToolCall",
+    # Adapters
     "AnthropicProvider",
     "DeepSeekProvider",
     "GrokProvider",
-    "LLMProvider",
     "MockOfflineProvider",
-    "ModelResponse",
     "OpenAIProvider",
     "OpenRouterProvider",
+    # Exceptions
+    "FailureKind",
     "ProviderError",
-    "ProviderMessage",
-    "ToolCall",
-    "get_provider",
+    "classify_error",
 ]

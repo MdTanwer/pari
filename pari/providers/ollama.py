@@ -7,7 +7,9 @@ Allows 100% offline, private coding agent execution without external cloud token
 
 from typing import Any
 
-from pari.providers.base import LLMProvider, ModelResponse, ProviderMessage
+from pari.providers.base import LLMProvider
+from pari.providers.message import ProviderMessage
+from pari.providers.response import ModelResponse
 
 
 class OllamaProvider(LLMProvider):

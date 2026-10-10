@@ -22,7 +22,7 @@ from pari.auth.interactive import login_tty, logout_tty
 from pari.auth.login import sign_in_hint
 from pari.auth.providers import info_for_model
 from pari.providers.base import LLMProvider
-from pari.providers.errors import ProviderError
+from pari.providers.exceptions import ProviderError
 from pari.providers.mock import MockOfflineProvider
 from pari.session.undo import UndoResult
 from pari.tui.completer import SlashCommandCompleter
