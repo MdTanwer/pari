@@ -6,6 +6,7 @@ token off other accounts on the machine.
 
 import json
 import os
+import tempfile
 from pathlib import Path
 
 
@@ -27,17 +28,35 @@ class AuthStore:
             return {}
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(f"Auth file is not valid JSON: {self.path}") from exc
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            data = None
         if not isinstance(data, dict):
             raise RuntimeError(f"Auth file is not valid JSON: {self.path}")
         return data
 
     def save(self, data: dict) -> None:
+        """Replace the file in one step so a crash cannot leave a half-written one."""
         self.path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
-        payload = (json.dumps(data, indent=2) + "\n").encode()
-        fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        payload = json.dumps(data, indent=2) + "\n"
+        # mkstemp creates the file with mode 0600 in the same directory.
+        fd, temp = tempfile.mkstemp(dir=self.path.parent, prefix=".auth-")
         try:
-            os.write(fd, payload)
-        finally:
-            os.close(fd)
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp, self.path)
+        except BaseException:
+            Path(temp).unlink(missing_ok=True)
+            raise
+
+
+def saved_row(data: dict, provider_id: str) -> dict | None:
+    """The saved record for a provider, or None when it has no usable secret."""
+    row = data.get(provider_id)
+    if not isinstance(row, dict):
+        return None
+    secret = row.get("secret")
+    if isinstance(secret, str) and secret.strip():
+        return row
+    return None

@@ -7,7 +7,7 @@ provider. Radius is not a choice.
 from dataclasses import dataclass
 
 from pari.auth.providers import PROVIDERS, ProviderInfo
-from pari.auth.store import AuthStore
+from pari.auth.store import AuthStore, saved_row
 
 
 METHOD_ACCOUNT = "Sign in with an account"
@@ -29,9 +29,9 @@ class ProviderChoice:
 def provider_rows(method: str, store: AuthStore | None = None) -> list[ProviderChoice]:
     """Providers in name order, each with a status that does not include the secret."""
     data = (store or AuthStore()).load()
-    infos = sorted(PROVIDERS, key=lambda item: item.label.lower())
+    infos = _by_label()
     if method == "account":
-        infos = [info for info in infos if info.id != "deepseek"]
+        infos = [info for info in infos if info.account]
     return [
         ProviderChoice(info.id, info.label, _status(info, method, data))
         for info in infos
@@ -41,22 +41,27 @@ def provider_rows(method: str, store: AuthStore | None = None) -> list[ProviderC
 def signed_in_rows(store: AuthStore | None = None) -> list[ProviderChoice]:
     """Saved sign-ins only. Environment keys are left in place."""
     data = (store or AuthStore()).load()
-    infos = sorted(PROVIDERS, key=lambda item: item.label.lower())
     rows: list[ProviderChoice] = []
-    for info in infos:
-        row = data.get(info.id)
-        if not isinstance(row, dict) or not str(row.get("secret") or "").strip():
+    for info in _by_label():
+        row = saved_row(data, info.id)
+        if row is None:
             continue
-        kind = "account" if row.get("method") == "account" else "API key"
+        kind = "account" if _stored_method(row) == "account" else "API key"
         rows.append(ProviderChoice(info.id, info.label, f" • {kind}"))
     return rows
 
 
+def _by_label() -> list[ProviderInfo]:
+    return sorted(PROVIDERS, key=lambda item: item.label.lower())
+
+
+def _stored_method(row: dict) -> str:
+    return "account" if row.get("method") == "account" else "api_key"
+
+
 def _status(info: ProviderInfo, viewing: str, data: dict) -> str:
-    row = data.get(info.id)
-    stored = ""
-    if isinstance(row, dict) and str(row.get("secret") or "").strip():
-        stored = "account" if row.get("method") == "account" else "api_key"
+    row = saved_row(data, info.id)
+    stored = _stored_method(row) if row is not None else ""
     if stored == viewing:
         return " ✓ configured"
     if stored == "api_key":

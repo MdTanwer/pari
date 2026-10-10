@@ -33,6 +33,38 @@ def test_save_round_trip_is_private(tmp_path: Path):
     assert dir_mode == 0o700
 
 
+def test_load_rejects_a_file_that_is_not_text(tmp_path: Path):
+    path = tmp_path / "auth.json"
+    path.write_bytes(b"\xff\xfe\x00")
+    with pytest.raises(RuntimeError, match="not valid JSON"):
+        AuthStore(path).load()
+
+
+def test_save_tightens_the_mode_of_an_existing_file(tmp_path: Path):
+    path = tmp_path / "auth.json"
+    path.write_text("{}", encoding="utf-8")
+    path.chmod(0o644)
+    AuthStore(path).save({"openai": {"secret": "sk-test"}})
+    assert os.stat(path).st_mode & 0o777 == 0o600
+
+
+def test_a_failed_save_keeps_the_old_file_and_leaves_no_temp_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    store = AuthStore(tmp_path / "auth.json")
+    store.save({"openai": {"secret": "old"}})
+
+    def fail(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("pari.auth.store.os.fsync", fail)
+    with pytest.raises(OSError, match="disk full"):
+        store.save({"openai": {"secret": "new"}})
+    monkeypatch.undo()
+    assert store.load() == {"openai": {"secret": "old"}}
+    assert [item.name for item in tmp_path.iterdir()] == ["auth.json"]
+
+
 def test_auth_path_follows_the_environment(tmp_path: Path, monkeypatch):
     custom = tmp_path / "custom.json"
     monkeypatch.setenv("PARI_AUTH_FILE", str(custom))

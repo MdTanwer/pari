@@ -2,7 +2,6 @@
 
 import base64
 import ctypes
-import getpass
 import os
 import select
 import sys
@@ -22,7 +21,7 @@ except ImportError:
     tty = None
 
 from pari.auth.account import AccountUI, LoginCancelled, sign_in_account
-from pari.auth.login import sign_in, sign_out, status_text
+from pari.auth.login import KeyVerifier, sign_in, sign_out, status_text
 from pari.auth.menu import (
     API_KEY_TITLE,
     LOGOUT_TITLE,
@@ -34,8 +33,10 @@ from pari.auth.menu import (
     provider_rows,
     signed_in_rows,
 )
-from pari.auth.providers import ProviderInfo, get_info
+from pari.auth.providers import ProviderInfo, get_info, no_account_message
+from pari.auth.secret_field import SecretField
 from pari.auth.store import AuthStore
+from pari.auth.verify import verify_api_key
 
 
 _ACCENT = "\033[38;2;255;121;198m"
@@ -44,12 +45,15 @@ _WARN = "\033[38;2;230;180;80m"
 _OK = "\033[38;2;80;200;120m"
 _BOLD = "\033[1m"
 _RESET = "\033[0m"
+_PASTE_ON = "\033[?2004h"
+_PASTE_OFF = "\033[?2004l"
 
 
 def run_login(
     ui: AccountUI,
     store: AuthStore | None = None,
     provider_id: str | None = None,
+    verify: KeyVerifier | None = None,
 ) -> str:
     """Walk the menus and return the success sentence. Empty means cancelled."""
     auth = store or AuthStore()
@@ -62,7 +66,7 @@ def run_login(
             return ""
         kind = "account" if method == METHOD_ACCOUNT else "api_key"
         if provider_id:
-            message = _finish(kind, provider_id, ui, auth)
+            message = _finish(kind, provider_id, ui, auth, verify)
             if message is None:
                 continue
             return message
@@ -70,7 +74,7 @@ def run_login(
             chosen = ui.choose_provider(kind, provider_rows(kind, auth))
             if not chosen:
                 break
-            message = _finish(kind, chosen, ui, auth)
+            message = _finish(kind, chosen, ui, auth, verify)
             if message is None:
                 continue
             return message
@@ -121,7 +125,7 @@ def login_tty(provider_id: str | None = None) -> int:
         return 0
     ui = TerminalLogin()
     try:
-        message = run_login(ui, provider_id=provider_id)
+        message = run_login(ui, provider_id=provider_id, verify=verify_api_key)
     except KeyboardInterrupt:
         return 0
     except (ValueError, RuntimeError) as exc:
@@ -134,31 +138,39 @@ def login_tty(provider_id: str | None = None) -> int:
     return 0
 
 
-def _finish(kind: str, provider_id: str, ui: AccountUI, store: AuthStore) -> str | None:
+def _finish(
+    kind: str,
+    provider_id: str,
+    ui: AccountUI,
+    store: AuthStore,
+    verify: KeyVerifier | None,
+) -> str | None:
     info = get_info(provider_id)
     try:
         if kind == "api_key":
-            return _read_api_key(ui, info, store)
-        if info.id == "deepseek":
-            ui.show_error(
-                "DeepSeek has no account sign-in. "
-                "Use pari-cli login deepseek --api-key <key>."
-            )
+            return _read_api_key(ui, info, store, verify)
+        if not info.account:
+            ui.show_error(no_account_message(info))
             return None
         return sign_in_account(info.id, ui, store)
     except LoginCancelled:
         return None
 
 
-def _read_api_key(ui: AccountUI, info: ProviderInfo, store: AuthStore) -> str:
-    """Ask until the key matches that provider, or the user cancels."""
+def _read_api_key(
+    ui: AccountUI,
+    info: ProviderInfo,
+    store: AuthStore,
+    verify: KeyVerifier | None,
+) -> str:
+    """Ask until the provider accepts the key, or the user cancels."""
     prompt = f"Enter your {info.label} API key:"
     while True:
         secret = ui.read_secret(prompt)
         if secret is None:
             raise LoginCancelled()
         try:
-            return sign_in(info.id, secret, "api_key", store)
+            return sign_in(info.id, secret, "api_key", store, verify=verify)
         except ValueError as exc:
             ui.show_error(str(exc))
 
@@ -188,14 +200,25 @@ class TerminalLogin:
         return self._run(ProviderMenu(rows, search=search, title=title))
 
     def read_secret(self, prompt: str) -> str | None:
+        """Read a key shown as ``x`` per character. None means cancelled."""
         self._leave()
+        # The alternate screen restores the cursor onto the previous prompt.
+        sys.stdout.write("\n" + _PASTE_ON)
+        field = SecretField()
         try:
-            # The alternate screen restores the cursor onto the previous prompt.
-            sys.stdout.write("\n")
+            self._enter_raw()
+            while True:
+                sys.stdout.write(f"\r\033[K{prompt} {field.masked}")
+                sys.stdout.flush()
+                result = field.on_key(self._key(None))
+                if result == "cancel":
+                    return None
+                if result == "enter":
+                    return field.value
+        finally:
+            sys.stdout.write(_PASTE_OFF + "\n")
             sys.stdout.flush()
-            return getpass.getpass(prompt + " ")
-        except (KeyboardInterrupt, EOFError):
-            return None
+            self._leave()
 
     def show_error(self, message: str) -> None:
         self._leave()
@@ -293,6 +316,9 @@ class TerminalLogin:
             sys.stdout.write("\033[?1049h\033[?25l")
             sys.stdout.flush()
             self._alt = True
+        self._enter_raw()
+
+    def _enter_raw(self) -> None:
         if self._raw:
             return
         self._fd = sys.stdin.fileno()
@@ -506,6 +532,10 @@ def _normalize(raw: bytes) -> str:
         return "cancel"
     if raw == b"\x18":
         return "copy"
+    if raw == b"\x1b[200~":
+        return "paste_start"
+    if raw == b"\x1b[201~":
+        return "paste_end"
     if raw == b"\x1b":
         return "cancel"
     if raw.startswith(b"\x1b[") or (raw.startswith(b"\x1bO") and len(raw) >= 3):

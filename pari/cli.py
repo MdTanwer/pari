@@ -13,7 +13,16 @@ from pathlib import Path
 
 from pari import __version__
 from pari.auth.interactive import login_tty, logout_tty
-from pari.auth.login import NO_MODEL, default_model_name, sign_in, sign_out, status_text
+from pari.auth.login import (
+    NO_MODEL,
+    default_model_name,
+    sign_in,
+    sign_in_hint,
+    sign_out,
+    status_text,
+)
+from pari.auth.providers import PROVIDERS, get_info
+from pari.auth.verify import verify_api_key
 from pari.intelligence.search import find_files, grep_search
 from pari.providers import get_provider
 from pari.sandbox.dispatcher import get_sandbox_runner
@@ -73,24 +82,15 @@ def cmd_login(args: argparse.Namespace) -> int:
         method = "api_key" if args.api_key else "account"
         secret = args.api_key or args.account or ""
         try:
-            print(sign_in(args.provider, secret, method))
+            print(sign_in(args.provider, secret, method, verify=verify_api_key))
         except (ValueError, RuntimeError) as exc:
             print(exc, file=sys.stderr)
             return 1
         return 0
     if sys.stdin.isatty() and sys.stdout.isatty():
         return login_tty(args.provider)
-    if args.provider == "deepseek":
-        print(
-            "DeepSeek has no account sign-in. pari-cli login deepseek --api-key <key>",
-            file=sys.stderr,
-        )
-        return 1
     if args.provider:
-        print(
-            "Choose one: --api-key <key> or --account <token>.",
-            file=sys.stderr,
-        )
+        print(sign_in_hint(get_info(args.provider)), file=sys.stderr)
         return 1
     print(status_text())
     print("pari-cli login")
@@ -285,7 +285,7 @@ def main(argv: list | None = None) -> int:
     login_parser.add_argument(
         "provider",
         nargs="?",
-        choices=["openai", "deepseek", "anthropic", "grok", "openrouter"],
+        choices=[info.id for info in PROVIDERS],
         help="Provider to sign in to",
     )
     login_parser.add_argument("--api-key", default=None, help="API key")
@@ -295,7 +295,7 @@ def main(argv: list | None = None) -> int:
     logout_parser.add_argument(
         "provider",
         nargs="?",
-        choices=["openai", "deepseek", "anthropic", "grok", "openrouter"],
+        choices=[info.id for info in PROVIDERS],
         help="Provider to sign out of",
     )
 
