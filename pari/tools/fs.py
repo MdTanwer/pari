@@ -8,31 +8,54 @@ from typing import Any
 
 from pari.edit.cascade import EditCascade
 from pari.edit.exact import apply_exact_edit
-from pari.fs.atomic import atomic_write, read_file
+from pari.fs.atomic import BinaryFileError, atomic_write, read_file
 from pari.fs.path import resolve_safe_path
 from pari.fs.queue import FileMutationQueue
+from pari.output.spooler import ManagedOutputSpooler
 from pari.tools.base import Tool, ToolDefinition
+
+
+# A default read stays inside this budget. Larger files are spooled.
+_READ_MAX_BYTES = 100 * 1024
+_READ_MAX_LINES = 2000
 
 
 class ReadFileTool(Tool):
     """Safely reads file contents within workspace boundary."""
 
-    def __init__(self, workspace: Path, queue: FileMutationQueue | None = None):
+    def __init__(self, workspace: Path, queue: FileMutationQueue):
         self.workspace = workspace
-        self.queue = queue or FileMutationQueue(workspace)
+        self.queue = queue
+        self.spooler = ManagedOutputSpooler(
+            workspace / ".pari" / "tool-outputs",
+            max_bytes=_READ_MAX_BYTES,
+            max_lines=_READ_MAX_LINES,
+        )
 
     @property
     def definition(self) -> ToolDefinition:
         return ToolDefinition(
             name="read_file",
-            description="Read a text file inside the workspace.",
+            description=(
+                "Read a text file inside the workspace. "
+                "A file over 2,000 lines or 100 KB returns a window; "
+                "pass offset and limit to read another range."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
                     "path": {
                         "type": "string",
                         "description": "Workspace-relative file path.",
-                    }
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "1-based line to start from.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of lines to return.",
+                    },
                 },
                 "required": ["path"],
             },
@@ -41,29 +64,41 @@ class ReadFileTool(Tool):
     async def execute(
         self, path: str, offset: int = 1, limit: int | None = None
     ) -> str:
-        """Read target file, optionally a line window.
+        """Read a text file, or a line window when offset or limit is set.
 
         offset is 1-based. The file lock is held so a read cannot overlap a
-        write of the same inode.
+        write of the same inode. A binary file returns a message. A read past
+        2,000 lines or 100 KB returns a prefix and a sidecar path.
         """
         target = resolve_safe_path(self.workspace, path)
         lock = await self.queue.get_lock(target)
         async with lock:
-            text = read_file(target)
-        if offset <= 1 and limit is None:
+            try:
+                text = read_file(target)
+            except BinaryFileError:
+                return f"Binary file: {path}"
+        window = _line_window(text, offset, limit)
+        return self._bounded(window)
+
+    def _bounded(self, text: str) -> str:
+        """Return text that fits the cap, otherwise a prefix plus the sidecar."""
+        if not _over_read_cap(text):
             return text
-        lines = text.splitlines(keepends=True)
-        start = max(offset, 1) - 1
-        end = None if limit is None else start + limit
-        return "".join(lines[start:end])
+        spooled = self.spooler.spool(text, command_tag="read")
+        return (
+            f"{_prefix_window(text)}\n"
+            f"... [OMITTED. Full file: {spooled.sidecar_path}] ...\n"
+            "File exceeds 2,000 lines or 100 KB. "
+            "Use read_file offset and limit for another window."
+        )
 
 
 class WriteFileTool(Tool):
     """Safely and atomically writes or creates a file."""
 
-    def __init__(self, workspace: Path, queue: FileMutationQueue | None = None):
+    def __init__(self, workspace: Path, queue: FileMutationQueue):
         self.workspace = workspace
-        self.queue = queue or FileMutationQueue(workspace)
+        self.queue = queue
 
     @property
     def definition(self) -> ToolDefinition:
@@ -98,11 +133,11 @@ class EditFileTool(Tool):
     def __init__(
         self,
         workspace: Path,
-        queue: FileMutationQueue | None = None,
+        queue: FileMutationQueue,
         edit_fallback: str = "none",
     ):
         self.workspace = workspace
-        self.queue = queue or FileMutationQueue(workspace)
+        self.queue = queue
         # "cascade" is the only fallback. Every other value stays exact.
         self.edit_fallback = edit_fallback
 
@@ -157,3 +192,30 @@ class EditFileTool(Tool):
             return EditCascade().apply(original, search, replace, path)
         updated = apply_exact_edit(original, search, replace, filename=path)
         return updated, "exact"
+
+
+def _line_window(text: str, offset: int, limit: int | None) -> str:
+    """Slice lines. offset is 1-based. No limit keeps the tail of the file."""
+    if offset <= 1 and limit is None:
+        return text
+    lines = text.splitlines(keepends=True)
+    start = max(offset, 1) - 1
+    end = None if limit is None else start + max(limit, 0)
+    return "".join(lines[start:end])
+
+
+def _over_read_cap(text: str) -> bool:
+    if len(text.encode("utf-8")) > _READ_MAX_BYTES:
+        return True
+    return len(text.splitlines()) > _READ_MAX_LINES
+
+
+def _prefix_window(text: str) -> str:
+    """Keep the leading lines that fit in both the byte cap and the line cap."""
+    raw = text.encode("utf-8")
+    if len(raw) > _READ_MAX_BYTES:
+        text = raw[:_READ_MAX_BYTES].decode("utf-8", errors="ignore")
+    lines = text.splitlines(keepends=True)
+    if len(lines) <= _READ_MAX_LINES:
+        return text
+    return "".join(lines[:_READ_MAX_LINES])

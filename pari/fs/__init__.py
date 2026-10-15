@@ -11,12 +11,13 @@ Subsystems:
     - queue: FileMutationQueue maintaining per-canonical-realpath asyncio locks
 """
 
-from pari.fs.atomic import atomic_write, read_file
+from pari.fs.atomic import BinaryFileError, atomic_write, read_file
 from pari.fs.path import resolve_safe_path
 from pari.fs.queue import FileMutationQueue
 
 
 __all__ = [
+    "BinaryFileError",
     "FileMutationQueue",
     "atomic_write",
     "read_file",

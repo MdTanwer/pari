@@ -81,6 +81,31 @@ async def test_edit_fallback_cascade_aligns_indent(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_read_file_bounds_a_large_file(tmp_path: Path):
+    path = tmp_path / "big.log"
+    line = "line\n"
+    path.write_text(line * ((10 * 1024 * 1024) // len(line)))
+    registry = get_default_registry(tmp_path)
+    content = await registry.execute("read_file", {"path": "big.log"})
+    assert len(content.encode("utf-8")) < 100 * 1024
+    assert "tool-outputs" in content
+    assert "offset" in content
+    assert "limit" in content
+    sidecars = list((tmp_path / ".pari" / "tool-outputs").glob("read-*.txt"))
+    assert len(sidecars) == 1
+    assert sidecars[0].stat().st_size > 1_000_000
+
+
+@pytest.mark.asyncio
+async def test_read_file_returns_a_binary_message(tmp_path: Path):
+    path = tmp_path / "icon.png"
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 16)
+    registry = get_default_registry(tmp_path)
+    content = await registry.execute("read_file", {"path": "icon.png"})
+    assert content == "Binary file: icon.png"
+
+
+@pytest.mark.asyncio
 async def test_grep_rejects_a_bad_regular_expression(tmp_path: Path):
     registry = get_default_registry(tmp_path)
     with pytest.raises(ValueError, match="Invalid regular expression"):

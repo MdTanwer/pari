@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from pari.fs import FileMutationQueue, atomic_write, read_file, resolve_safe_path
+from pari.fs import (
+    BinaryFileError,
+    FileMutationQueue,
+    atomic_write,
+    read_file,
+    resolve_safe_path,
+)
 
 
 def test_resolve_safe_path_valid(tmp_path: Path):
@@ -38,6 +44,20 @@ def test_resolve_safe_path_prefix_collision_rejected(tmp_path: Path):
 
     with pytest.raises(PermissionError, match="Path traversal rejected"):
         resolve_safe_path(workspace, "../workspace_evil/payload.py")
+
+
+def test_read_file_rejects_nul_in_the_first_kilobyte(tmp_path: Path):
+    target = tmp_path / "icon.png"
+    target.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)
+    with pytest.raises(BinaryFileError, match="Binary file"):
+        read_file(target)
+
+
+def test_read_file_rejects_bytes_that_are_not_utf8(tmp_path: Path):
+    target = tmp_path / "blob.bin"
+    target.write_bytes(b"\xff\xfe")
+    with pytest.raises(BinaryFileError, match="Binary file"):
+        read_file(target)
 
 
 def test_atomic_write(tmp_path: Path):
