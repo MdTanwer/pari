@@ -7,8 +7,8 @@ line is a local command or a model turn.
 
 import json
 import sys
+import threading
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
@@ -33,9 +33,10 @@ from pari.providers.message import ToolCall
 from pari.providers.mock import MockOfflineProvider
 from pari.session.undo import UndoResult
 from pari.tools.bash import BashTool
+from pari.tui.activity import Action, TurnLog
 from pari.tui.completer import LimitChoiceCompleter, SlashCommandCompleter
 from pari.tui.errors import model_error_text
-from pari.tui.keys import create_key_bindings, create_limit_key_bindings
+from pari.tui.keys import EXPAND, create_key_bindings, create_limit_key_bindings
 from pari.tui.prompt import (
     placeholder_tokens,
     prompt_tokens,
@@ -45,17 +46,10 @@ from pari.tui.prompt import (
 from pari.tui.slash import SessionCommands
 from pari.tui.status import CostMeter
 from pari.tui.style import CLI_STYLE
+from pari.tui.transcript import transcript_viewer
 
 
 __all__ = ["SlashCommandCompleter", "TerminalApp"]
-
-
-@dataclass
-class _Fold:
-    """One internal command. The row stays closed until ctrl+o."""
-
-    title: str
-    body: str = ""
 
 
 class TerminalApp:
@@ -83,13 +77,11 @@ class TerminalApp:
         )
         self.cost_meter = CostMeter(model_family=model_name)
         self.commands = SessionCommands(self)
-        self._stream_text = ""
-        self._streamed_bash = False
-        self._bash_buf = ""
-        self._block_lines = 0
-        self._folds: list[_Fold] = []
-        self._revealed = False
-        self._reveal_lines = 0
+        # Text printed live before the first tool of the turn.
+        self._streamed = ""
+        self._log = TurnLog()
+        self._tail_lines = 0
+        self._paint_lock = threading.Lock()
         self._activity: Status | None = None
         bash = self.runtime.tools.get("bash")
         if isinstance(bash, BashTool):
@@ -101,7 +93,7 @@ class TerminalApp:
             complete_while_typing=True,
             complete_style=CompleteStyle.COLUMN,
             reserve_space_for_menu=10,
-            key_bindings=create_key_bindings(self.toggle_commands),
+            key_bindings=create_key_bindings(lambda: bool(self._log.actions)),
         )
         # A second session so this menu does not keep the chat placeholder.
         self.limit_session: PromptSession = PromptSession(
@@ -143,6 +135,7 @@ class TerminalApp:
             return model_error_text(exc)
         finally:
             self._end_wait()
+            self._settle()
         self.cost_meter.add_usage(
             self.runtime.tokens_in,
             self.runtime.tokens_out,
@@ -155,13 +148,21 @@ class TerminalApp:
     async def run_repl(self) -> None:
         """Read lines until the user exits or the terminal closes."""
         self.print_welcome()
+        draft = ""
         while True:
             try:
                 user_input = await self.session.prompt_async(
                     message=prompt_tokens,
                     placeholder=placeholder_tokens,
                     bottom_toolbar=self._toolbar,
+                    default=draft,
                 )
+                self.session.app.erase_when_done = False
+                draft = ""
+                if user_input == EXPAND:
+                    draft = self.session.default_buffer.text
+                    await self.show_activity()
+                    continue
                 text = user_input.strip()
                 if not text:
                     continue
@@ -187,11 +188,8 @@ class TerminalApp:
             self.console.clear()
             self.print_welcome()
             return True
-        self._stream_text = ""
-        self._folds.clear()
-        self._revealed = False
-        self._reveal_lines = 0
-        self._block_lines = 0
+        self._streamed = ""
+        self._log = TurnLog()
         response = await self.respond(text)
         self._show_answer(response)
         if self.runtime.awaiting_limit:
@@ -261,21 +259,30 @@ class TerminalApp:
             activity.stop()
 
     def _show_delta(self, text: str) -> None:
-        """Paint model text as it arrives. The final panel does not repeat it."""
+        """Stream the reply live until a tool runs. After that, show one note row."""
         self._end_wait()
-        if not self._stream_text:
+        if self._log.active:
+            self._log.add_text(text)
+            self._repaint_tail()
+            return
+        if not self._streamed:
             self.console.print()
-        self._stream_text += text
+        self._streamed += text
         self.console.print(text, end="", markup=False, highlight=False)
 
     def _show_answer(self, response: str) -> None:
-        """Skip the panel when this answer was already streamed above the prompt."""
-        streamed = self._stream_text
+        """Print the reply once, below the summary. Skip it when it already streamed."""
+        streamed = self._streamed
         if streamed and (response == streamed or response.endswith(streamed)):
             if self.runtime.turn_warning:
                 self.console.print(f"\n[dim]{self.runtime.turn_warning}[/dim]")
             if not streamed.endswith("\n"):
                 self.console.print()
+            return
+        if self._log.actions:
+            self.console.print()
+            self.console.print(_reply_body(response))
+            self.console.print()
             return
         self._print_reply(response)
 
@@ -286,119 +293,86 @@ class TerminalApp:
 
     def _toolbar(self) -> list[tuple[str, str]]:
         tokens = toolbar_tokens(self.workspace, self.model_name, self.cost_meter)
-        if self._folds:
+        if self._log.actions:
             tokens = [
                 *tokens,
-                ("class:bottom-toolbar.text", "  ·  ctrl+o commands"),
+                ("class:bottom-toolbar.text", "  ·  ctrl+o to expand"),
             ]
         return tokens
 
-    def toggle_commands(self) -> None:
-        """Open or close the last turn's command output."""
-        if not self._folds:
+    async def show_activity(self) -> None:
+        """The last turn's notes, commands, and output. ctrl+o closes the view."""
+        text = self._log.transcript()
+        if not text:
             return
-        if self._revealed:
-            self._erase_lines(self._reveal_lines)
-            self._revealed = False
-            self._reveal_lines = 0
+        if not self.console.is_terminal:
+            self.console.print(text, markup=False, highlight=False)
             return
-        self._block_lines = 0
-        self._print_tail(_open_folds(self._folds))
-        self._reveal_lines = self._block_lines
-        self._block_lines = 0
-        self._revealed = True
+        await transcript_viewer(text).run_async()
 
     def _show_tool_call(self, name: str, arguments: dict) -> None:
         self._end_wait()
-        if self._stream_text and not self._stream_text.endswith("\n"):
-            self.console.print()
-        self._stream_text = ""
-        self._streamed_bash = False
-        self._bash_buf = ""
-        self._block_lines = 0
-        summary = _tool_summary(arguments)
-        title = f"$ {summary}" if name == "bash" and summary else name
-        if summary and name != "bash":
-            title = f"{name}  {summary}"
-        self._folds.append(_Fold(title))
-        # A command stays open while it runs, then closes to one line.
-        mark = "▾" if name == "bash" and self.console.is_terminal else "▸"
-        self._print_tail(f"{mark} {title}")
+        if self._streamed:
+            if not self._streamed.endswith("\n"):
+                self.console.print()
+            # Already on screen. The transcript still needs it as a note.
+            self._log.add_text(self._streamed)
+            self._streamed = ""
+        self._log.add_action(name, _tool_summary(arguments))
+        self._repaint_tail()
 
     def _show_output_delta(self, stream: str, text: str) -> None:
-        """Show command output while it runs. The row closes when it exits."""
-        self._streamed_bash = True
-        if not self.console.is_terminal:
-            return
-        self._bash_buf += text.replace("\r", "")
-        style = "yellow" if stream == "stderr" else None
-        limit = min(_BASH_LINES, max(self.console.height - 4, 1))
-        while "\n" in self._bash_buf:
-            line, _, self._bash_buf = self._bash_buf.partition("\n")
-            if self._block_lines - 1 >= limit:
-                continue
-            self.console.print(line, style=style, markup=False, highlight=False)
-            self._block_lines += _wrapped_height(line, self.console.width)
+        """Keep live output for the transcript. The summary does not show it."""
+        _ = stream
+        action = self._log.last_action()
+        if action is not None:
+            action.body += text.replace("\r", "")
 
     def _show_tool_result(self, call: ToolCall, text: str) -> None:
-        if call.name == "bash":
-            self._finish_bash(text)
-        elif self._folds:
-            self._folds[-1].body = text
+        action = self._log.last_action()
+        if action is not None:
+            if call.name == "bash":
+                _finish_bash(action, text)
+            else:
+                action.body = text
+        self._repaint_tail()
         self._begin_wait()
 
-    def _finish_bash(self, text: str) -> None:
-        """Close the command row. The output stays behind ctrl+o."""
-        notice, payload = _bash_payload(text)
-        output = ""
-        code = None
-        sidecar = ""
-        if payload is None:
-            output = "" if self._streamed_bash else text
-        else:
-            raw = payload.get("output")
-            if isinstance(raw, str):
-                output = raw
-            code = payload.get("exit_code")
-            side = payload.get("sidecar_path")
-            if isinstance(side, str):
-                sidecar = side
-        if notice:
-            output = f"{notice}\n{output}".strip()
-        if sidecar:
-            output = f"{output}\n{sidecar}".strip()
-        title = self._folds[-1].title if self._folds else "bash"
-        if code is not None:
-            title = f"{title}  exit {code}"
-        if self._folds:
-            self._folds[-1].title = title
-            self._folds[-1].body = output
-        else:
-            self._folds.append(_Fold(title, output))
-        final = f"▸ {title}"
-        # The open lines are still the tail, so they can be replaced in place.
-        if self.console.is_terminal and self._block_lines:
-            self._erase_lines(self._block_lines)
-            self._block_lines = 0
-            self._print_tail(final)
-        elif self._block_lines == 0:
-            self._print_tail(final)
-        elif code is not None:
-            self._print_tail(f"exit {code}")
-            self._block_lines = 0
-        self._streamed_bash = False
-        self._bash_buf = ""
-
     def _show_diff(self, path: str, diff: str) -> None:
-        if not diff.strip() or not self._folds:
+        action = self._log.last_action()
+        if not diff.strip() or action is None:
             return
-        current = self._folds[-1].body
         block = f"{path}\n{diff}".strip()
-        self._folds[-1].body = f"{current}\n{block}".strip() if current else block
+        action.body = f"{action.body}\n{block}".strip() if action.body else block
 
-    def _print_tail(self, text: str) -> None:
-        self.console.print(text, markup=False, highlight=False)
-        self._block_lines += _wrapped_height(text, self.console.width)
+    def _settle(self) -> None:
+        """Leave the final summary above the prompt. Later output prints below it."""
+        self._log.flush()
+        if self.console.is_terminal:
+            self._repaint_tail()
+        else:
+            for row in self._log.summary_lines(self.console.width):
+                self.console.print(row, highlight=False)
+        self._log.settle()
+        self._tail_lines = 0
+
+    def _repaint_tail(self) -> None:
+        """Redraw the summary rows in place.
+
+        Every row is cut to one terminal row and there are only a few, so the
+        block stays on screen and the cursor can always move back over it.
+        """
+        if not self.console.is_terminal:
+            return
+        self._end_wait()
+        with self._paint_lock:
+            if self._tail_lines:
+                self._erase_lines(self._tail_lines)
+                self._tail_lines = 0
+            rows = self._log.summary_lines(self.console.width)
+            for row in rows:
+                self.console.print(row, highlight=False, soft_wrap=True)
+            self._tail_lines = len(rows)
 
     def _erase_lines(self, count: int) -> None:
         if count <= 0 or not self.console.is_terminal:
@@ -407,15 +381,10 @@ class TerminalApp:
         self.console.file.flush()
 
     def _print_reply(self, response: str) -> None:
-        # Provider detail is literal text. Markdown would restyle underscores.
-        if response.startswith("Model error\n"):
-            body = Text(response)
-        else:
-            body = Markdown(response)
         self.console.print()
         self.console.print(
             Panel(
-                body,
+                _reply_body(response),
                 title="[bold cyan]PARI Agent[/bold cyan]",
                 border_style="dim",
             )
@@ -423,27 +392,30 @@ class TerminalApp:
         self.console.print()
 
 
-_BASH_LINES = 20
+def _reply_body(response: str) -> Markdown | Text:
+    # Provider detail is literal text. Markdown would restyle underscores.
+    if response.startswith("Model error\n"):
+        return Text(response)
+    return Markdown(response)
 
 
-def _open_folds(folds: list[_Fold]) -> str:
-    """The opened dropdown: each command, then its output."""
-    chunks: list[str] = []
-    for fold in folds:
-        chunks.append(f"▾ {fold.title}")
-        body = fold.body.strip()
-        if body:
-            chunks.append(_preview(body, lines=40, chars=4000))
-    return "\n".join(chunks)
-
-
-def _wrapped_height(text: str, width: int) -> int:
-    """How many terminal rows a printed block occupies."""
-    width = max(width, 1)
-    total = 0
-    for line in text.splitlines() or [""]:
-        total += max(1, (len(line) + width - 1) // width)
-    return total
+def _finish_bash(action: Action, text: str) -> None:
+    """Store the exit code and output. A streamed run keeps what it printed."""
+    notice, payload = _bash_payload(text)
+    if payload is None:
+        output = action.body or text
+    else:
+        raw = payload.get("output")
+        output = raw if isinstance(raw, str) else ""
+        code = payload.get("exit_code")
+        if isinstance(code, int):
+            action.exit_code = code
+        side = payload.get("sidecar_path")
+        if isinstance(side, str) and side:
+            output = f"{output}\n{side}".strip()
+    if notice:
+        output = f"{notice}\n{output}".strip()
+    action.body = output
 
 
 def _bash_payload(text: str) -> tuple[str, dict | None]:
@@ -471,22 +443,6 @@ def _tool_summary(arguments: dict) -> str:
                 return one[:117] + "..."
             return one
     return ""
-
-
-def _preview(text: str, *, lines: int = 20, chars: int = 2000) -> str:
-    """Keep the start of a tool result. The rest stays in the transcript."""
-    kept = text.splitlines()
-    hidden = 0
-    if len(kept) > lines:
-        hidden = len(kept) - lines
-        kept = kept[:lines]
-    shown = "\n".join(kept)
-    if len(shown) > chars:
-        shown = shown[:chars].rstrip()
-        hidden = max(hidden, 1)
-    if hidden:
-        shown += f"\n… {hidden} more lines"
-    return shown
 
 
 def _model_refusal(model_name: str, provider: LLMProvider) -> str | None:

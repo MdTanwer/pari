@@ -6,20 +6,27 @@ line when the menu is closed.
 
 from collections.abc import Callable
 
-from prompt_toolkit.application import run_in_terminal
-from prompt_toolkit.filters import has_completions
+from prompt_toolkit.filters import Condition, has_completions
 from prompt_toolkit.key_binding import KeyBindings
 
 
-def create_key_bindings(on_toggle: Callable[[], None] | None = None) -> KeyBindings:
+# The prompt returns this when ctrl+o asks for the transcript. No one types NUL.
+EXPAND = "\x00expand"
+
+
+def create_key_bindings(
+    can_expand: Callable[[], bool] | None = None,
+) -> KeyBindings:
     kb = KeyBindings()
 
-    if on_toggle is not None:
+    if can_expand is not None:
 
-        @kb.add("c-o", eager=True)
-        def _toggle_commands(event):
-            _ = event
-            run_in_terminal(on_toggle)
+        @kb.add("c-o", filter=Condition(can_expand) & ~has_completions, eager=True)
+        def _expand(event):
+            # The viewer runs after the prompt exits. Inside the prompt the tty
+            # drops to cooked mode, where ctrl+o is the discard-output key.
+            event.app.erase_when_done = True
+            event.app.exit(result=EXPAND)
 
     @kb.add("enter", filter=has_completions)
     def _handle_enter(event):

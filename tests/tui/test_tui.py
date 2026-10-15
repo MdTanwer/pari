@@ -5,6 +5,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from prompt_toolkit import PromptSession
+from prompt_toolkit.input import create_pipe_input
+from prompt_toolkit.output import DummyOutput
 from rich.console import Console
 
 from pari.providers.base import LLMProvider
@@ -13,8 +16,15 @@ from pari.providers.message import ProviderMessage, ToolCall
 from pari.providers.openai import OpenAIProvider
 from pari.providers.response import ModelResponse
 from pari.routing.router import DualModelRouter, router_for
-from pari.tui.app import TerminalApp, _model_refusal, _preview
+from pari.tui.activity import preview
+from pari.tui.app import TerminalApp, _model_refusal
 from pari.tui.errors import model_error_text
+from pari.tui.keys import EXPAND, create_key_bindings
+from pari.tui.transcript import transcript_viewer
+
+
+def _toolbar_text(app: TerminalApp) -> str:
+    return "".join(piece for _, piece in app._toolbar())
 
 
 def test_greetings_are_model_turns(tmp_path: Path):
@@ -252,71 +262,153 @@ def test_cost_meter():
     assert "$" in status
 
 
-@pytest.mark.asyncio
-async def test_tool_output_prints_as_each_call_finishes(tmp_path: Path):
-    (tmp_path / "app.py").write_text("def add(a, b):\n    return a + b\n")
+class _Scripted(LLMProvider):
+    """Narrate, read app.py, then answer."""
 
-    class Scripted(LLMProvider):
-        def __init__(self) -> None:
-            super().__init__("pari-core", "offline")
-            self._step = 0
+    def __init__(self) -> None:
+        super().__init__("pari-core", "offline")
+        self._step = 0
 
-        async def complete(self, messages, tools=None, temperature=0.0, on_delta=None):
-            self._step += 1
-            if self._step == 1:
-                text = "Reading the function."
-                if on_delta is not None:
-                    on_delta(text)
-                return ModelResponse(
-                    text=text,
-                    tool_calls=[
-                        ToolCall(
-                            id="call_1",
-                            name="read_file",
-                            arguments={"path": "app.py"},
-                        )
-                    ],
-                    stop_reason="tool_calls",
-                )
-            text = "add returns the sum."
+    async def complete(self, messages, tools=None, temperature=0.0, on_delta=None):
+        self._step += 1
+        if self._step == 1:
+            text = "Reading the function."
             if on_delta is not None:
                 on_delta(text)
-            return ModelResponse(text=text, stop_reason="stop")
+            return ModelResponse(
+                text=text,
+                tool_calls=[
+                    ToolCall(
+                        id="call_1", name="read_file", arguments={"path": "app.py"}
+                    )
+                ],
+                stop_reason="tool_calls",
+            )
+        text = "Checking the body.\nadd returns the sum."
+        if on_delta is not None:
+            on_delta(text)
+        return ModelResponse(text=text, stop_reason="stop")
 
+
+def _scripted_app(tmp_path: Path, console: Console) -> TerminalApp:
+    (tmp_path / "app.py").write_text("def add(a, b):\n    return a + b\n")
     app = TerminalApp(tmp_path)
-    provider = Scripted()
+    provider = _Scripted()
     app.runtime.provider = provider
     app.runtime.router = DualModelRouter.from_providers(provider, provider)
+    app.console = console
+    return app
+
+
+def _last_paint(output: str) -> list[str]:
+    """Rows drawn by the last in-place redraw."""
+    return output.rsplit("\x1b[J", 1)[-1].strip("\n").splitlines()
+
+
+@pytest.mark.asyncio
+async def test_turn_shows_a_summary_then_the_answer(tmp_path: Path):
     buffer = StringIO()
-    app.console = Console(file=buffer, force_terminal=False, width=80)
-    text = await app.respond("What does add return?")
+    app = _scripted_app(tmp_path, Console(file=buffer, force_terminal=False, width=80))
+    await app._turn("What does add return?")
     printed = buffer.getvalue()
-    assert text == "add returns the sum."
-    assert printed.index("Reading the function.") < printed.index("read_file")
-    assert printed.index("read_file") < printed.index("add returns the sum.")
+    assert printed.index("Reading the function.") < printed.index("Explored 1 file")
+    assert printed.index("Explored 1 file") < printed.index("add returns the sum.")
     assert "def add" not in printed
-    app.toggle_commands()
-    opened = buffer.getvalue()
-    assert opened.index("add returns the sum.") < opened.index("def add")
-    app.toggle_commands()
-    assert buffer.getvalue() == opened
+    assert "ctrl+o to expand" in _toolbar_text(app)
+
+    buffer.seek(0)
+    buffer.truncate(0)
+    await app.show_activity()
+    transcript = buffer.getvalue()
+    assert "▾ read_file  app.py" in transcript
+    assert "def add" in transcript
+    assert "Checking the body." in transcript
 
 
-def test_bash_result_prints_the_exit_code_after_a_live_stream(tmp_path: Path):
-    app = TerminalApp(tmp_path)
+@pytest.mark.asyncio
+async def test_summary_stays_a_few_rows_however_long_the_turn(tmp_path: Path):
+    """A short block can always be erased, so it is never printed twice."""
     buffer = StringIO()
+    app = TerminalApp(tmp_path)
+    app.console = Console(file=buffer, force_terminal=True, width=60, height=20)
+    for number in range(40):
+        name = "bash" if number % 2 else "read_file"
+        args = {"command": f"echo {number}"} if name == "bash" else {"path": "a.py"}
+        app._show_delta(f"Step {number}: looking at the next thing in detail.\n")
+        app._show_tool_call(name, args)
+        result = '{"exit_code": 0, "output": "ok"}' if name == "bash" else "text"
+        app._show_tool_result(
+            ToolCall(id=str(number), name=name, arguments=args), text=result
+        )
+    app._end_wait()
+    rows = _last_paint(buffer.getvalue())
+    assert len(rows) <= 6
+    assert all(len(row) < 60 for row in rows)
+    assert any("more actions" in row for row in rows)
+    assert "Step 3" not in "\n".join(rows)
+
+
+def test_command_output_stays_hidden_until_expanded(tmp_path: Path):
+    buffer = StringIO()
+    app = TerminalApp(tmp_path)
+    app.console = Console(file=buffer, force_terminal=True, width=60)
+    call = ToolCall(id="1", name="bash", arguments={"command": "ls -la"})
+    app._show_tool_call("bash", call.arguments)
+    app._show_output_delta("stdout", "secret listing\n")
+    app._show_tool_result(call, '{"exit_code": 2, "output": "secret listing\\n"}')
+    app._end_wait()
+    painted = buffer.getvalue()
+    assert "Ran 1 command, 1 failed" in painted
+    assert "secret listing" not in painted
+    transcript = app._log.transcript()
+    assert "▾ bash  exit 2" in transcript
+    assert "$ ls -la" in transcript
+    assert "secret listing" in transcript
+
+
+@pytest.mark.asyncio
+async def test_ctrl_o_asks_for_the_transcript_only_after_a_tool_ran():
+    for ran, expected in ((True, EXPAND), (False, "")):
+        with create_pipe_input() as pipe:
+            session = PromptSession(
+                input=pipe,
+                output=DummyOutput(),
+                key_bindings=create_key_bindings(lambda ran=ran: ran),
+            )
+            pipe.send_text("\x0f\r")
+            assert await session.prompt_async() == expected
+
+
+def test_transcript_viewer_closes_on_ctrl_o():
+    with create_pipe_input() as pipe:
+        viewer = transcript_viewer("▾ bash  exit 0\n$ ls")
+        viewer.input = pipe
+        viewer.output = DummyOutput()
+        pipe.send_text("\x0f")
+        viewer.run()
+
+
+def test_bash_result_keeps_output_out_of_the_summary(tmp_path: Path):
+    buffer = StringIO()
+    app = TerminalApp(tmp_path)
     app.console = Console(file=buffer, force_terminal=False, width=80)
-    app._streamed_bash = True
-    app._finish_bash('{"exit_code": 0, "output": "hello\\n", "sidecar_path": "/tmp/x"}')
+    call = ToolCall(id="1", name="bash", arguments={"command": "echo hello"})
+    app._show_tool_call("bash", call.arguments)
+    app._show_tool_result(
+        call, '{"exit_code": 0, "output": "hello\\n", "sidecar_path": "/tmp/x"}'
+    )
+    app._settle()
     printed = buffer.getvalue()
-    assert "exit 0" in printed
-    assert "sidecar_path" not in printed
-    assert "hello" not in printed
+    assert "Ran 1 command" in printed
+    assert "hello" not in printed.replace("echo hello", "")
+    transcript = app._log.transcript()
+    assert "▾ bash  exit 0" in transcript
+    assert "sidecar_path" not in transcript
 
 
 def test_preview_keeps_the_start_of_a_long_result():
     text = "\n".join(f"line {number}" for number in range(30))
-    shown = _preview(text, lines=5, chars=2000)
+    shown = preview(text, lines=5, chars=2000)
     assert "line 0" in shown
     assert "line 4" in shown
     assert "line 29" not in shown
