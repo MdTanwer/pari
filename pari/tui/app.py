@@ -5,8 +5,10 @@ in the neighbouring modules. This file owns the session and decides whether a
 line is a local command or a model turn.
 """
 
+import json
 import sys
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
@@ -18,6 +20,7 @@ from prompt_toolkit.validation import ValidationError, Validator
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.status import Status
 from rich.text import Text
 
 from pari.agent.runtime import AgentRuntime
@@ -26,8 +29,10 @@ from pari.auth.login import sign_in_hint
 from pari.auth.providers import info_for_model
 from pari.providers.base import LLMProvider
 from pari.providers.exceptions import ProviderError
+from pari.providers.message import ToolCall
 from pari.providers.mock import MockOfflineProvider
 from pari.session.undo import UndoResult
+from pari.tools.bash import BashTool
 from pari.tui.completer import LimitChoiceCompleter, SlashCommandCompleter
 from pari.tui.errors import model_error_text
 from pari.tui.keys import create_key_bindings, create_limit_key_bindings
@@ -43,6 +48,14 @@ from pari.tui.style import CLI_STYLE
 
 
 __all__ = ["SlashCommandCompleter", "TerminalApp"]
+
+
+@dataclass
+class _Fold:
+    """One internal command. The row stays closed until ctrl+o."""
+
+    title: str
+    body: str = ""
 
 
 class TerminalApp:
@@ -70,6 +83,17 @@ class TerminalApp:
         )
         self.cost_meter = CostMeter(model_family=model_name)
         self.commands = SessionCommands(self)
+        self._stream_text = ""
+        self._streamed_bash = False
+        self._bash_buf = ""
+        self._block_lines = 0
+        self._folds: list[_Fold] = []
+        self._revealed = False
+        self._reveal_lines = 0
+        self._activity: Status | None = None
+        bash = self.runtime.tools.get("bash")
+        if isinstance(bash, BashTool):
+            bash.on_output = self._show_output_delta
         self.session: PromptSession = PromptSession(
             history=InMemoryHistory(),
             completer=SlashCommandCompleter(),
@@ -77,7 +101,7 @@ class TerminalApp:
             complete_while_typing=True,
             complete_style=CompleteStyle.COLUMN,
             reserve_space_for_menu=10,
-            key_bindings=create_key_bindings(),
+            key_bindings=create_key_bindings(self.toggle_commands),
         )
         # A second session so this menu does not keep the chat placeholder.
         self.limit_session: PromptSession = PromptSession(
@@ -108,14 +132,17 @@ class TerminalApp:
         blocked = _model_refusal(self.model_name, self.runtime.provider)
         if blocked is not None:
             return blocked
-        return await self._model_turn(self.runtime.execute_turn(user_msg))
+        return await self._model_turn(self._execute(user_msg))
 
     async def _model_turn(self, turn: Awaitable[str]) -> str:
         """Run one model call. A provider failure stays in the session."""
+        self._begin_wait()
         try:
             text = await turn
         except ProviderError as exc:
             return model_error_text(exc)
+        finally:
+            self._end_wait()
         self.cost_meter.add_usage(
             self.runtime.tokens_in,
             self.runtime.tokens_out,
@@ -133,9 +160,7 @@ class TerminalApp:
                 user_input = await self.session.prompt_async(
                     message=prompt_tokens,
                     placeholder=placeholder_tokens,
-                    bottom_toolbar=lambda: toolbar_tokens(
-                        self.workspace, self.model_name, self.cost_meter
-                    ),
+                    bottom_toolbar=self._toolbar,
                 )
                 text = user_input.strip()
                 if not text:
@@ -162,10 +187,13 @@ class TerminalApp:
             self.console.clear()
             self.print_welcome()
             return True
-        status = "[bold cyan]PARI is thinking..."
-        with self.console.status(status, spinner="dots"):
-            response = await self.respond(text)
-        self._print_reply(response)
+        self._stream_text = ""
+        self._folds.clear()
+        self._revealed = False
+        self._reveal_lines = 0
+        self._block_lines = 0
+        response = await self.respond(text)
+        self._show_answer(response)
         if self.runtime.awaiting_limit:
             follow = await self._ask_limit()
             if follow:
@@ -178,7 +206,9 @@ class TerminalApp:
         if action is None:
             return None
         if action == "continue":
-            return await self._model_turn(self.runtime.continue_turn())
+            return await self._model_turn(
+                self.runtime.continue_turn(**self._live_callbacks())
+            )
         self.runtime.awaiting_limit = False
         if action == "revert":
             return _revert_message(self.runtime.undo_manager.undo())
@@ -204,6 +234,178 @@ class TerminalApp:
             return answer
         return ""
 
+    def _execute(self, prompt: str) -> Awaitable[str]:
+        """Run a turn and print each tool as it finishes."""
+        return self.runtime.execute_turn(prompt, **self._live_callbacks())
+
+    def _live_callbacks(self) -> dict[str, Callable[..., None]]:
+        return {
+            "on_tool_call": self._show_tool_call,
+            "on_tool_result": self._show_tool_result,
+            "on_step_text": self._show_step_text,
+            "on_delta": self._show_delta,
+            "on_diff": self._show_diff,
+        }
+
+    def _begin_wait(self) -> None:
+        """Show that the model is working until the first word or tool arrives."""
+        self._end_wait()
+        self._activity = self.console.status("[dim]Thinking…[/dim]", spinner="dots")
+        self._activity.start()
+
+    def _end_wait(self) -> None:
+        """Drop the spinner before printing. A live spinner redraws over the stream."""
+        activity = self._activity
+        self._activity = None
+        if activity is not None:
+            activity.stop()
+
+    def _show_delta(self, text: str) -> None:
+        """Paint model text as it arrives. The final panel does not repeat it."""
+        self._end_wait()
+        if not self._stream_text:
+            self.console.print()
+        self._stream_text += text
+        self.console.print(text, end="", markup=False, highlight=False)
+
+    def _show_answer(self, response: str) -> None:
+        """Skip the panel when this answer was already streamed above the prompt."""
+        streamed = self._stream_text
+        if streamed and (response == streamed or response.endswith(streamed)):
+            if self.runtime.turn_warning:
+                self.console.print(f"\n[dim]{self.runtime.turn_warning}[/dim]")
+            if not streamed.endswith("\n"):
+                self.console.print()
+            return
+        self._print_reply(response)
+
+    def _show_step_text(self, text: str) -> None:
+        self._end_wait()
+        self.console.print()
+        self.console.print(Markdown(text))
+
+    def _toolbar(self) -> list[tuple[str, str]]:
+        tokens = toolbar_tokens(self.workspace, self.model_name, self.cost_meter)
+        if self._folds:
+            tokens = [
+                *tokens,
+                ("class:bottom-toolbar.text", "  ·  ctrl+o commands"),
+            ]
+        return tokens
+
+    def toggle_commands(self) -> None:
+        """Open or close the last turn's command output."""
+        if not self._folds:
+            return
+        if self._revealed:
+            self._erase_lines(self._reveal_lines)
+            self._revealed = False
+            self._reveal_lines = 0
+            return
+        self._block_lines = 0
+        self._print_tail(_open_folds(self._folds))
+        self._reveal_lines = self._block_lines
+        self._block_lines = 0
+        self._revealed = True
+
+    def _show_tool_call(self, name: str, arguments: dict) -> None:
+        self._end_wait()
+        if self._stream_text and not self._stream_text.endswith("\n"):
+            self.console.print()
+        self._stream_text = ""
+        self._streamed_bash = False
+        self._bash_buf = ""
+        self._block_lines = 0
+        summary = _tool_summary(arguments)
+        title = f"$ {summary}" if name == "bash" and summary else name
+        if summary and name != "bash":
+            title = f"{name}  {summary}"
+        self._folds.append(_Fold(title))
+        # A command stays open while it runs, then closes to one line.
+        mark = "▾" if name == "bash" and self.console.is_terminal else "▸"
+        self._print_tail(f"{mark} {title}")
+
+    def _show_output_delta(self, stream: str, text: str) -> None:
+        """Show command output while it runs. The row closes when it exits."""
+        self._streamed_bash = True
+        if not self.console.is_terminal:
+            return
+        self._bash_buf += text.replace("\r", "")
+        style = "yellow" if stream == "stderr" else None
+        limit = min(_BASH_LINES, max(self.console.height - 4, 1))
+        while "\n" in self._bash_buf:
+            line, _, self._bash_buf = self._bash_buf.partition("\n")
+            if self._block_lines - 1 >= limit:
+                continue
+            self.console.print(line, style=style, markup=False, highlight=False)
+            self._block_lines += _wrapped_height(line, self.console.width)
+
+    def _show_tool_result(self, call: ToolCall, text: str) -> None:
+        if call.name == "bash":
+            self._finish_bash(text)
+        elif self._folds:
+            self._folds[-1].body = text
+        self._begin_wait()
+
+    def _finish_bash(self, text: str) -> None:
+        """Close the command row. The output stays behind ctrl+o."""
+        notice, payload = _bash_payload(text)
+        output = ""
+        code = None
+        sidecar = ""
+        if payload is None:
+            output = "" if self._streamed_bash else text
+        else:
+            raw = payload.get("output")
+            if isinstance(raw, str):
+                output = raw
+            code = payload.get("exit_code")
+            side = payload.get("sidecar_path")
+            if isinstance(side, str):
+                sidecar = side
+        if notice:
+            output = f"{notice}\n{output}".strip()
+        if sidecar:
+            output = f"{output}\n{sidecar}".strip()
+        title = self._folds[-1].title if self._folds else "bash"
+        if code is not None:
+            title = f"{title}  exit {code}"
+        if self._folds:
+            self._folds[-1].title = title
+            self._folds[-1].body = output
+        else:
+            self._folds.append(_Fold(title, output))
+        final = f"▸ {title}"
+        # The open lines are still the tail, so they can be replaced in place.
+        if self.console.is_terminal and self._block_lines:
+            self._erase_lines(self._block_lines)
+            self._block_lines = 0
+            self._print_tail(final)
+        elif self._block_lines == 0:
+            self._print_tail(final)
+        elif code is not None:
+            self._print_tail(f"exit {code}")
+            self._block_lines = 0
+        self._streamed_bash = False
+        self._bash_buf = ""
+
+    def _show_diff(self, path: str, diff: str) -> None:
+        if not diff.strip() or not self._folds:
+            return
+        current = self._folds[-1].body
+        block = f"{path}\n{diff}".strip()
+        self._folds[-1].body = f"{current}\n{block}".strip() if current else block
+
+    def _print_tail(self, text: str) -> None:
+        self.console.print(text, markup=False, highlight=False)
+        self._block_lines += _wrapped_height(text, self.console.width)
+
+    def _erase_lines(self, count: int) -> None:
+        if count <= 0 or not self.console.is_terminal:
+            return
+        self.console.file.write(f"\x1b[{count}A\x1b[J")
+        self.console.file.flush()
+
     def _print_reply(self, response: str) -> None:
         # Provider detail is literal text. Markdown would restyle underscores.
         if response.startswith("Model error\n"):
@@ -219,6 +421,72 @@ class TerminalApp:
             )
         )
         self.console.print()
+
+
+_BASH_LINES = 20
+
+
+def _open_folds(folds: list[_Fold]) -> str:
+    """The opened dropdown: each command, then its output."""
+    chunks: list[str] = []
+    for fold in folds:
+        chunks.append(f"▾ {fold.title}")
+        body = fold.body.strip()
+        if body:
+            chunks.append(_preview(body, lines=40, chars=4000))
+    return "\n".join(chunks)
+
+
+def _wrapped_height(text: str, width: int) -> int:
+    """How many terminal rows a printed block occupies."""
+    width = max(width, 1)
+    total = 0
+    for line in text.splitlines() or [""]:
+        total += max(1, (len(line) + width - 1) // width)
+    return total
+
+
+def _bash_payload(text: str) -> tuple[str, dict | None]:
+    """Split a daemon notice from the bash result object."""
+    notice = ""
+    body = text
+    if text.startswith("[DAEMON DETECTED]"):
+        notice, _, body = text.partition("\n")
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return notice, None
+    if not isinstance(payload, dict):
+        return notice, None
+    return notice, payload
+
+
+def _tool_summary(arguments: dict) -> str:
+    """The one argument that tells you which command or path is running."""
+    for key in ("command", "path", "query", "pattern"):
+        value = arguments.get(key)
+        if isinstance(value, str) and value.strip():
+            one = " ".join(value.split())
+            if len(one) > 120:
+                return one[:117] + "..."
+            return one
+    return ""
+
+
+def _preview(text: str, *, lines: int = 20, chars: int = 2000) -> str:
+    """Keep the start of a tool result. The rest stays in the transcript."""
+    kept = text.splitlines()
+    hidden = 0
+    if len(kept) > lines:
+        hidden = len(kept) - lines
+        kept = kept[:lines]
+    shown = "\n".join(kept)
+    if len(shown) > chars:
+        shown = shown[:chars].rstrip()
+        hidden = max(hidden, 1)
+    if hidden:
+        shown += f"\n… {hidden} more lines"
+    return shown
 
 
 def _model_refusal(model_name: str, provider: LLMProvider) -> str | None:

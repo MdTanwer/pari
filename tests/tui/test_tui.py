@@ -1,17 +1,19 @@
 """Unit tests for Layer 9 Interactive Terminal Application & REPL."""
 
+from io import StringIO
 from pathlib import Path
 from typing import Any
 
 import pytest
+from rich.console import Console
 
 from pari.providers.base import LLMProvider
 from pari.providers.exceptions import ProviderError
-from pari.providers.message import ProviderMessage
+from pari.providers.message import ProviderMessage, ToolCall
 from pari.providers.openai import OpenAIProvider
 from pari.providers.response import ModelResponse
-from pari.routing.router import router_for
-from pari.tui.app import TerminalApp, _model_refusal
+from pari.routing.router import DualModelRouter, router_for
+from pari.tui.app import TerminalApp, _model_refusal, _preview
 from pari.tui.errors import model_error_text
 
 
@@ -72,8 +74,9 @@ class _Rejecting(LLMProvider):
         messages: list[ProviderMessage],
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.0,
+        on_delta: Any = None,
     ) -> ModelResponse:
-        _ = messages, tools, temperature
+        _ = messages, tools, temperature, on_delta
         raise ProviderError(
             "OpenAI",
             status_code=401,
@@ -247,6 +250,77 @@ def test_cost_meter():
     status = meter.format_status()
     assert "1.5k tokens" in status
     assert "$" in status
+
+
+@pytest.mark.asyncio
+async def test_tool_output_prints_as_each_call_finishes(tmp_path: Path):
+    (tmp_path / "app.py").write_text("def add(a, b):\n    return a + b\n")
+
+    class Scripted(LLMProvider):
+        def __init__(self) -> None:
+            super().__init__("pari-core", "offline")
+            self._step = 0
+
+        async def complete(self, messages, tools=None, temperature=0.0, on_delta=None):
+            self._step += 1
+            if self._step == 1:
+                text = "Reading the function."
+                if on_delta is not None:
+                    on_delta(text)
+                return ModelResponse(
+                    text=text,
+                    tool_calls=[
+                        ToolCall(
+                            id="call_1",
+                            name="read_file",
+                            arguments={"path": "app.py"},
+                        )
+                    ],
+                    stop_reason="tool_calls",
+                )
+            text = "add returns the sum."
+            if on_delta is not None:
+                on_delta(text)
+            return ModelResponse(text=text, stop_reason="stop")
+
+    app = TerminalApp(tmp_path)
+    provider = Scripted()
+    app.runtime.provider = provider
+    app.runtime.router = DualModelRouter.from_providers(provider, provider)
+    buffer = StringIO()
+    app.console = Console(file=buffer, force_terminal=False, width=80)
+    text = await app.respond("What does add return?")
+    printed = buffer.getvalue()
+    assert text == "add returns the sum."
+    assert printed.index("Reading the function.") < printed.index("read_file")
+    assert printed.index("read_file") < printed.index("add returns the sum.")
+    assert "def add" not in printed
+    app.toggle_commands()
+    opened = buffer.getvalue()
+    assert opened.index("add returns the sum.") < opened.index("def add")
+    app.toggle_commands()
+    assert buffer.getvalue() == opened
+
+
+def test_bash_result_prints_the_exit_code_after_a_live_stream(tmp_path: Path):
+    app = TerminalApp(tmp_path)
+    buffer = StringIO()
+    app.console = Console(file=buffer, force_terminal=False, width=80)
+    app._streamed_bash = True
+    app._finish_bash('{"exit_code": 0, "output": "hello\\n", "sidecar_path": "/tmp/x"}')
+    printed = buffer.getvalue()
+    assert "exit 0" in printed
+    assert "sidecar_path" not in printed
+    assert "hello" not in printed
+
+
+def test_preview_keeps_the_start_of_a_long_result():
+    text = "\n".join(f"line {number}" for number in range(30))
+    shown = _preview(text, lines=5, chars=2000)
+    assert "line 0" in shown
+    assert "line 4" in shown
+    assert "line 29" not in shown
+    assert "25 more lines" in shown
 
 
 def test_limit_choice_menu_lists_the_three_actions():

@@ -4,12 +4,22 @@ Each binding is filtered with ``has_completions``, so Enter still submits the
 line when the menu is closed.
 """
 
+from collections.abc import Callable
+
+from prompt_toolkit.application import run_in_terminal
 from prompt_toolkit.filters import has_completions
 from prompt_toolkit.key_binding import KeyBindings
 
 
-def create_key_bindings() -> KeyBindings:
+def create_key_bindings(on_toggle: Callable[[], None] | None = None) -> KeyBindings:
     kb = KeyBindings()
+
+    if on_toggle is not None:
+
+        @kb.add("c-o", eager=True)
+        def _toggle_commands(event):
+            _ = event
+            run_in_terminal(on_toggle)
 
     @kb.add("enter", filter=has_completions)
     def _handle_enter(event):

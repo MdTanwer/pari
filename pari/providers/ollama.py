@@ -5,6 +5,7 @@ endpoint.
 Allows 100% offline, private coding agent execution without external cloud tokens.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 from pari.providers.base import LLMProvider
@@ -28,6 +29,8 @@ class OllamaProvider(LLMProvider):
         messages: list[ProviderMessage],
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.0,
+        on_delta: Callable[[str], None] | None = None,
     ) -> ModelResponse:
         """Call local Ollama endpoint."""
+        _ = messages, tools, temperature, on_delta
         raise NotImplementedError

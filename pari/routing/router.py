@@ -75,6 +75,7 @@ class DualModelRouter:
         *,
         prompt: str,
         active_files: list[str],
+        on_delta: Callable[[str], None] | None = None,
     ) -> ModelResponse:
         """One loop step. A wide task plans once, then the editor may use tools."""
         if self.editor is None:
@@ -102,7 +103,12 @@ class DualModelRouter:
                 *messages,
                 ProviderMessage(role="user", content=f"Plan:\n{self.plan}"),
             ]
-        edited = await self.editor.complete(editor_messages, tools=tools)
+        if on_delta is None:
+            edited = await self.editor.complete(editor_messages, tools=tools)
+        else:
+            edited = await self.editor.complete(
+                editor_messages, tools=tools, on_delta=on_delta
+            )
         if planned_tokens == (0, 0, 0):
             return edited
         return ModelResponse(

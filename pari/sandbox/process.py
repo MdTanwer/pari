@@ -14,6 +14,7 @@ This runner does not create a mount namespace. Prefer BwrapSandboxRunner on Linu
 """
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 from pari.sandbox.base import (
@@ -36,6 +37,7 @@ class SupervisedProcessRunner(SandboxRunner):
         command: str,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
+        on_output: Callable[[str, str], None] | None = None,
     ) -> SandboxResult:
         child_env = scrub_env(
             env,
@@ -48,6 +50,7 @@ class SupervisedProcessRunner(SandboxRunner):
             cwd=self.workspace,
             env=child_env,
             timeout=timeout if timeout is not None else self.limits.timeout_seconds,
+            on_output=on_output,
         )
 
     def cleanup(self) -> None:

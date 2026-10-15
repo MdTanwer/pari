@@ -11,8 +11,10 @@ Guarantees:
 
 from __future__ import annotations
 
+import codecs
 import ctypes
 import os
+import pty
 import shlex
 import signal
 import subprocess
@@ -190,8 +192,13 @@ class SandboxRunner(ABC):
         command: str,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
+        on_output: Callable[[str, str], None] | None = None,
     ) -> SandboxResult:
-        """Execute a shell command inside the sandbox."""
+        """Execute a shell command inside the sandbox.
+
+        ``on_output(stream, text)`` is called as stdout and stderr arrive.
+        ``stream`` is ``"stdout"`` or ``"stderr"``.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -216,29 +223,55 @@ class SandboxRunner(ABC):
         env: dict[str, str],
         timeout: float,
         preexec: Callable[[], None] | None = None,
+        on_output: Callable[[str, str], None] | None = None,
     ) -> SandboxResult:
         """Run argv with a timeout, an output cap, and process-group teardown."""
         started = time.monotonic()
+        # A tty flushes each line. A pipe holds the output until the process exits.
+        # Layer 4 runs commands on a PTY. Fall back to pipes when the host has none.
+        master, slave = (None, None)
+        if on_output is not None:
+            try:
+                master, slave = pty.openpty()
+            except OSError:
+                master, slave = (None, None)
         proc = subprocess.Popen(
             argv,
             cwd=str(cwd),
             env=env,
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=slave if slave is not None else subprocess.PIPE,
+            stderr=slave if slave is not None else subprocess.PIPE,
             preexec_fn=preexec or self._child_setup,
+            close_fds=True,
         )
+        if slave is not None:
+            os.close(slave)
         self._active_pgids.add(proc.pid)
         cgroup_applied = self._place_in_cgroup(proc.pid)
         capture = _StreamCapture()
-        threads = [
-            threading.Thread(
-                target=self._drain, args=(proc.stdout, capture, "stdout"), daemon=True
-            ),
-            threading.Thread(
-                target=self._drain, args=(proc.stderr, capture, "stderr"), daemon=True
-            ),
-        ]
+        if master is not None:
+            terminal = os.fdopen(master, "rb", buffering=0)
+            threads = [
+                threading.Thread(
+                    target=self._drain,
+                    args=(terminal, capture, "stdout", on_output),
+                    daemon=True,
+                )
+            ]
+        else:
+            threads = [
+                threading.Thread(
+                    target=self._drain,
+                    args=(proc.stdout, capture, "stdout", on_output),
+                    daemon=True,
+                ),
+                threading.Thread(
+                    target=self._drain,
+                    args=(proc.stderr, capture, "stderr", on_output),
+                    daemon=True,
+                ),
+            ]
         for thread in threads:
             thread.start()
 
@@ -289,11 +322,18 @@ class SandboxRunner(ABC):
             daemon=daemon,
         )
 
-    def _drain(self, pipe, capture: _StreamCapture, key: str) -> None:
+    def _drain(
+        self,
+        pipe,
+        capture: _StreamCapture,
+        key: str,
+        on_output: Callable[[str, str], None] | None,
+    ) -> None:
         if pipe is None:
             return
         limit = self.limits.max_output_bytes
         buf: bytearray = getattr(capture, key)
+        decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         try:
             while True:
                 chunk = pipe.read(8192)
@@ -301,18 +341,39 @@ class SandboxRunner(ABC):
                     break
                 with capture.lock:
                     room = limit - len(buf)
-                    if room > 0:
-                        buf.extend(chunk[:room])
-                    if len(chunk) > max(room, 0):
+                    accepted = chunk[:room] if room > 0 else b""
+                    accepted = accepted.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+                    if accepted:
+                        buf.extend(accepted)
+                    overflow = len(chunk) > max(room, 0)
+                    if overflow:
                         capture.truncated = True
-                        break
+                self._emit(on_output, key, decoder, accepted)
+                if overflow:
+                    break
         except OSError:
             pass
         finally:
+            self._emit(on_output, key, decoder, b"", final=True)
             try:
                 pipe.close()
             except OSError:
                 pass
+
+    def _emit(
+        self,
+        on_output: Callable[[str, str], None] | None,
+        stream: str,
+        decoder: codecs.IncrementalDecoder,
+        data: bytes,
+        *,
+        final: bool = False,
+    ) -> None:
+        if on_output is None:
+            return
+        text = decoder.decode(data, final)
+        if text:
+            on_output(stream, text)
 
     def _decode(self, data: bytes) -> tuple[str, bool]:
         truncated = False
