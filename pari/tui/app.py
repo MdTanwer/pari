@@ -33,7 +33,7 @@ from pari.providers.message import ToolCall
 from pari.providers.mock import MockOfflineProvider
 from pari.session.undo import UndoResult
 from pari.tools.bash import BashTool
-from pari.tui.activity import Action, TurnLog
+from pari.tui.activity import Action, Elapsed, TurnLog, running_label
 from pari.tui.completer import LimitChoiceCompleter, SlashCommandCompleter
 from pari.tui.errors import model_error_text
 from pari.tui.keys import EXPAND, create_key_bindings, create_limit_key_bindings
@@ -245,10 +245,10 @@ class TerminalApp:
             "on_diff": self._show_diff,
         }
 
-    def _begin_wait(self) -> None:
-        """Show that the model is working until the first word or tool arrives."""
+    def _begin_wait(self, label: str = "Thinking") -> None:
+        """Spin with a label and a seconds counter until the next output arrives."""
         self._end_wait()
-        self._activity = self.console.status("[dim]Thinking…[/dim]", spinner="dots")
+        self._activity = self.console.status(Elapsed(label), spinner="dots")
         self._activity.start()
 
     def _end_wait(self) -> None:
@@ -318,8 +318,10 @@ class TerminalApp:
             # Already on screen. The transcript still needs it as a note.
             self._log.add_text(self._streamed)
             self._streamed = ""
-        self._log.add_action(name, _tool_summary(arguments))
+        summary = _tool_summary(arguments)
+        self._log.add_action(name, summary)
         self._repaint_tail()
+        self._begin_wait(running_label(name, summary))
 
     def _show_output_delta(self, stream: str, text: str) -> None:
         """Keep live output for the transcript. The summary does not show it."""

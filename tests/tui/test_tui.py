@@ -1,5 +1,6 @@
 """Unit tests for Layer 9 Interactive Terminal Application & REPL."""
 
+import time
 from io import StringIO
 from pathlib import Path
 from typing import Any
@@ -346,6 +347,26 @@ async def test_summary_stays_a_few_rows_however_long_the_turn(tmp_path: Path):
     assert all(len(row) < 60 for row in rows)
     assert any("more actions" in row for row in rows)
     assert "Step 3" not in "\n".join(rows)
+
+
+def test_spinner_says_what_the_running_tool_is_doing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("TERM", "xterm-256color")
+    app = TerminalApp(tmp_path)
+    cases = [
+        ("bash", {"command": "pytest -q"}, "Running pytest -q… 0s"),
+        ("read_file", {"path": "app.py"}, "Exploring app.py… 0s"),
+        ("grep_search", {"query": "TODO"}, "Searching TODO… 0s"),
+        ("edit_file", {"path": "app.py"}, "Editing app.py… 0s"),
+    ]
+    for name, arguments, label in cases:
+        buffer = StringIO()
+        app.console = Console(file=buffer, force_terminal=True, width=80)
+        app._show_tool_call(name, arguments)
+        time.sleep(0.3)
+        app._end_wait()
+        assert label in buffer.getvalue()
 
 
 def test_command_output_stays_hidden_until_expanded(tmp_path: Path):

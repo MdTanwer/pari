@@ -5,11 +5,19 @@ terminal width, so the block can always be erased and redrawn in place.
 ctrl+o opens every note, command, and output in the transcript view.
 """
 
+import time
 from dataclasses import dataclass, field
 
 from rich.text import Text
 
 
+_RUNNING = {
+    "Ran": "Running",
+    "Explored": "Exploring",
+    "Searched": "Searching",
+    "Edited": "Editing",
+    "Used": "Using",
+}
 _KINDS = {
     "bash": ("Ran", "command", "commands"),
     "read_file": ("Explored", "file", "files"),
@@ -126,6 +134,28 @@ class TurnLog:
                 lines.append(preview(body, lines=200, chars=20000))
             blocks.append("\n".join(lines))
         return "\n\n".join(blocks)
+
+
+class Elapsed:
+    """Spinner text with a seconds counter. Rich redraws it on every tick."""
+
+    def __init__(self, label: str) -> None:
+        self.label = label
+        self.started = time.monotonic()
+
+    def __rich__(self) -> Text:
+        seconds = int(time.monotonic() - self.started)
+        return Text(f"{self.label}… {seconds}s", style="dim", no_wrap=True)
+
+
+def running_label(name: str, summary: str) -> str:
+    """What the spinner says while one tool runs."""
+    verb = _RUNNING[_kind(name)[0]]
+    if not summary:
+        return f"{verb} {name}" if verb == "Using" else verb
+    if len(summary) > 60:
+        summary = summary[:57] + "..."
+    return f"{verb} {summary}"
 
 
 def preview(text: str, *, lines: int = 20, chars: int = 2000) -> str:
