@@ -85,12 +85,14 @@ class ReadFileTool(Tool):
         if not _over_read_cap(text):
             return text
         spooled = self.spooler.spool(text, command_tag="read")
-        return (
-            f"{_prefix_window(text)}\n"
-            f"... [OMITTED. Full file: {spooled.sidecar_path}] ...\n"
+        notice = (
+            f"\n... [OMITTED. Full file: {spooled.sidecar_path}] ...\n"
             "File exceeds 2,000 lines or 100 KB. "
             "Use read_file offset and limit for another window."
         )
+        # The prefix and the notice together must stay strictly inside the cap.
+        budget = _READ_MAX_BYTES - len(notice.encode("utf-8")) - 1
+        return f"{_prefix_window(text, max_bytes=budget)}{notice}"
 
 
 class WriteFileTool(Tool):
@@ -210,11 +212,11 @@ def _over_read_cap(text: str) -> bool:
     return len(text.splitlines()) > _READ_MAX_LINES
 
 
-def _prefix_window(text: str) -> str:
+def _prefix_window(text: str, max_bytes: int = _READ_MAX_BYTES) -> str:
     """Keep the leading lines that fit in both the byte cap and the line cap."""
     raw = text.encode("utf-8")
-    if len(raw) > _READ_MAX_BYTES:
-        text = raw[:_READ_MAX_BYTES].decode("utf-8", errors="ignore")
+    if len(raw) > max_bytes:
+        text = raw[:max_bytes].decode("utf-8", errors="ignore")
     lines = text.splitlines(keepends=True)
     if len(lines) <= _READ_MAX_LINES:
         return text

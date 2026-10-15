@@ -249,6 +249,27 @@ def test_cost_meter():
     assert "$" in status
 
 
+def test_limit_choice_menu_lists_the_three_actions():
+    from prompt_toolkit.completion import CompleteEvent
+    from prompt_toolkit.document import Document
+
+    from pari.tui.completer import LimitChoiceCompleter
+
+    completer = LimitChoiceCompleter()
+    event = CompleteEvent(completion_requested=True)
+    labels = [item.text for item in completer.get_completions(Document(""), event)]
+    assert labels == ["Continue", "Revert", "Stop"]
+    narrowed = list(completer.get_completions(Document("r"), event))
+    assert [item.text for item in narrowed] == ["Revert"]
+
+
+def test_limit_prompt_does_not_reuse_the_chat_session(tmp_path: Path):
+    app = TerminalApp(workspace=tmp_path)
+    assert app.limit_session is not app.session
+    assert app.limit_session.placeholder is None
+    assert app.session.completer is not app.limit_session.completer
+
+
 def test_slash_command_completer():
     from prompt_toolkit.completion import CompleteEvent
     from prompt_toolkit.document import Document

@@ -10,8 +10,11 @@ from collections.abc import Awaitable
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
+from prompt_toolkit.application.current import get_app
+from prompt_toolkit.document import Document
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.shortcuts import CompleteStyle
+from prompt_toolkit.validation import ValidationError, Validator
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -25,9 +28,9 @@ from pari.providers.base import LLMProvider
 from pari.providers.exceptions import ProviderError
 from pari.providers.mock import MockOfflineProvider
 from pari.session.undo import UndoResult
-from pari.tui.completer import SlashCommandCompleter
+from pari.tui.completer import LimitChoiceCompleter, SlashCommandCompleter
 from pari.tui.errors import model_error_text
-from pari.tui.keys import create_key_bindings
+from pari.tui.keys import create_key_bindings, create_limit_key_bindings
 from pari.tui.prompt import (
     placeholder_tokens,
     prompt_tokens,
@@ -75,6 +78,16 @@ class TerminalApp:
             complete_style=CompleteStyle.COLUMN,
             reserve_space_for_menu=10,
             key_bindings=create_key_bindings(),
+        )
+        # A second session so this menu does not keep the chat placeholder.
+        self.limit_session: PromptSession = PromptSession(
+            completer=LimitChoiceCompleter(),
+            style=CLI_STYLE,
+            validator=_LimitValidator(),
+            complete_while_typing=True,
+            complete_style=CompleteStyle.COLUMN,
+            reserve_space_for_menu=6,
+            key_bindings=create_limit_key_bindings(),
         )
 
     def print_welcome(self) -> None:
@@ -177,8 +190,12 @@ class TerminalApp:
             self.runtime.awaiting_limit = False
             return "Stopped."
         while self.runtime.awaiting_limit:
-            choice = await self.session.prompt_async(
-                "Continue (+10 turns), Revert, or Stop? "
+            choice = await self.limit_session.prompt_async(
+                message=[("class:prompt", "Continue, Revert, or Stop? ")],
+                pre_run=_open_limit_menu,
+                bottom_toolbar=lambda: toolbar_tokens(
+                    self.workspace, self.model_name, self.cost_meter
+                ),
             )
             answer = await self.apply_limit_choice(choice)
             if answer is None:
@@ -214,6 +231,22 @@ def _model_refusal(model_name: str, provider: LLMProvider) -> str | None:
     if info is None:
         return f"No provider is implemented for {model_name}."
     return sign_in_hint(info)
+
+
+def _open_limit_menu() -> None:
+    """Open the choice menu with Continue highlighted."""
+    get_app().current_buffer.start_completion(select_first=True)
+
+
+class _LimitValidator(Validator):
+    """Keep the menu open until the line is Continue, Revert, or Stop."""
+
+    def validate(self, document: Document) -> None:
+        if _limit_action(document.text) is None:
+            raise ValidationError(
+                message="Choose Continue, Revert, or Stop.",
+                cursor_position=len(document.text),
+            )
 
 
 def _limit_action(choice: str) -> str | None:

@@ -1,4 +1,4 @@
-"""Keys for the slash-command menu.
+"""Keys for the slash-command menu and the turn-limit menu.
 
 Each binding is filtered with ``has_completions``, so Enter still submits the
 line when the menu is closed.
@@ -42,5 +42,19 @@ def create_key_bindings() -> KeyBindings:
     @kb.add("escape", filter=has_completions)
     def _handle_escape(event):
         event.current_buffer.cancel_completion()
+
+    return kb
+
+
+def create_limit_key_bindings() -> KeyBindings:
+    """Arrow keys move. Enter inserts the highlighted choice and submits it."""
+    kb = create_key_bindings()
+
+    @kb.add("enter", filter=has_completions, eager=True)
+    def _accept_choice(event):
+        buff = event.current_buffer
+        if buff.complete_state and buff.complete_state.current_completion:
+            buff.apply_completion(buff.complete_state.current_completion)
+        buff.validate_and_handle()
 
     return kb
