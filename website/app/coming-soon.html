@@ -52,6 +52,15 @@
     .nav-links { display: flex; align-items: center; gap: clamp(20px, 3vw, 48px); font-size: 13px; color: #263138; }
     .nav-links a, .footer-links a { transition: color .2s ease; }
     .nav-links a:hover, .footer-links a:hover { color: var(--moss); }
+    .github-link { display: inline-flex; align-items: center; gap: 6px; }
+    .github-link svg { width: 15px; height: 15px; flex-shrink: 0; transition: transform .2s ease; }
+    .github-link:hover svg { transform: translateY(-1px); }
+    .github-mark {
+      display: none; width: 36px; height: 36px; border-radius: 50%;
+      color: #56656B; place-items: center; text-decoration: none;
+    }
+    .github-mark svg { width: 18px; height: 18px; display: block; }
+    .github-mark:hover { background: rgba(255,255,255,.7); color: var(--moss); }
     .nav-right { display: flex; align-items: center; gap: 20px; }
     .theme-toggle {
       width: 36px; height: 36px; border: 0; background: transparent; color: #56656B;
@@ -139,6 +148,7 @@
     .panel-num { color: var(--moss-dark); font: 12px "SFMono-Regular", Consolas, monospace; }
     .panel-row strong { display: block; font-size: 14px; font-weight: 590; }
     .panel-row span { display: block; margin-top: 4px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+    a.status { text-decoration: none; }
     .status {
       color: var(--moss-dark);
       font: 11px "SFMono-Regular", Consolas, monospace;
@@ -169,8 +179,9 @@
     body.dark .btn-dark { background: #DCE9D5; color: #17201B; }
     body.dark .btn-dark:hover { background: #C6DDBA; }
     body.dark .panel { background: rgba(255,255,255,.03); border-color: #354143; }
-    body.dark .theme-toggle { color: #D5DEDC; }
-    body.dark .theme-toggle:hover { background: rgba(255,255,255,.08); }
+    body.dark .theme-toggle, body.dark .github-mark { color: #D5DEDC; }
+    body.dark .theme-toggle:hover, body.dark .github-mark:hover { background: rgba(255,255,255,.08); }
+    body.dark .github-mark:hover, body.dark .github-link:hover { color: var(--moss); }
     body.dark .theme-toggle .icon-moon { display: none; }
     body.dark .theme-toggle .icon-sun { display: block; }
     body.dark .back:hover { color: #E0E8E6; }
@@ -185,6 +196,7 @@
       .nav { min-height: 68px; }
       .brand-name { font-size: 32px; }
       .nav-links { display: none; }
+      .github-mark { display: grid; }
       .nav-right { gap: 8px; }
       .nav-right .btn { padding: 12px 13px; font-size: 12px; }
       h1 { font-size: clamp(44px, 12vw, 64px); }
@@ -206,9 +218,10 @@
         <a href="/#overview">Overview</a>
         <a href="/coming-soon">Benchmarks</a>
         <a href="/coming-soon">Docs</a>
-        <a href="/coming-soon">GitHub</a>
+        <a class="github-link" href="https://github.com/MdTanwer/pari" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .8a11.2 11.2 0 0 0-3.54 21.83c.56.1.77-.24.77-.54v-2.1c-3.14.68-3.8-1.33-3.8-1.33-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.73 1.16 1.73 1.16 1 .1.76 2.1 3.28 1.6.1-.74.4-1.24.72-1.52-2.5-.28-5.13-1.25-5.13-5.56 0-1.23.44-2.24 1.16-3.03-.12-.28-.5-1.43.11-2.98 0 0 .95-.3 3.08 1.16a10.7 10.7 0 0 1 5.6 0c2.13-1.45 3.08-1.16 3.08-1.16.61 1.55.23 2.7.11 2.98.72.79 1.16 1.8 1.16 3.03 0 4.32-2.63 5.28-5.14 5.56.4.35.77 1.03.77 2.08v3.08c0 .3.2.65.78.54A11.2 11.2 0 0 0 12 .8Z"/></svg>GitHub</a>
       </nav>
       <div class="nav-right">
+        <a class="github-mark" href="https://github.com/MdTanwer/pari" target="_blank" rel="noopener noreferrer" aria-label="GitHub"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .8a11.2 11.2 0 0 0-3.54 21.83c.56.1.77-.24.77-.54v-2.1c-3.14.68-3.8-1.33-3.8-1.33-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.73 1.16 1.73 1.16 1 .1.76 2.1 3.28 1.6.1-.74.4-1.24.72-1.52-2.5-.28-5.13-1.25-5.13-5.56 0-1.23.44-2.24 1.16-3.03-.12-.28-.5-1.43.11-2.98 0 0 .95-.3 3.08 1.16a10.7 10.7 0 0 1 5.6 0c2.13-1.45 3.08-1.16 3.08-1.16.61 1.55.23 2.7.11 2.98.72.79 1.16 1.8 1.16 3.03 0 4.32-2.63 5.28-5.14 5.56.4.35.77 1.03.77 2.08v3.08c0 .3.2.65.78.54A11.2 11.2 0 0 0 12 .8Z"/></svg></a>
         <button class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">
           <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a7 7 0 0 0 11.5 11.5z"/></svg>
           <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
@@ -242,7 +255,7 @@
           <div class="panel-row">
             <span class="panel-num">03</span>
             <div><strong>GitHub</strong><span>Public source and release notes.</span></div>
-            <span class="status">Coming soon</span>
+            <a class="status" href="https://github.com/MdTanwer/pari" target="_blank" rel="noopener noreferrer">Open</a>
           </div>
         </div>
       </aside>
@@ -254,7 +267,7 @@
         <a href="/coming-soon">Architecture</a>
         <a href="/coming-soon">Benchmarks</a>
         <a href="/coming-soon">Documentation</a>
-        <a href="/coming-soon">GitHub ↗</a>
+        <a class="github-link" href="https://github.com/MdTanwer/pari" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .8a11.2 11.2 0 0 0-3.54 21.83c.56.1.77-.24.77-.54v-2.1c-3.14.68-3.8-1.33-3.8-1.33-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.73 1.16 1.73 1.16 1 .1.76 2.1 3.28 1.6.1-.74.4-1.24.72-1.52-2.5-.28-5.13-1.25-5.13-5.56 0-1.23.44-2.24 1.16-3.03-.12-.28-.5-1.43.11-2.98 0 0 .95-.3 3.08 1.16a10.7 10.7 0 0 1 5.6 0c2.13-1.45 3.08-1.16 3.08-1.16.61 1.55.23 2.7.11 2.98.72.79 1.16 1.8 1.16 3.03 0 4.32-2.63 5.28-5.14 5.56.4.35.77 1.03.77 2.08v3.08c0 .3.2.65.78.54A11.2 11.2 0 0 0 12 .8Z"/></svg>GitHub</a>
       </div>
     </footer>
   </div>

@@ -24,7 +24,7 @@ The exact same frontier reasoning model (Claude 3.7 Sonnet, GPT-4o) demonstrates
 
 ## 🚀 Installation & Quick Start
 
-Official Website & Documentation: **[https://pari-cli.in](https://pari-cli.in)**
+Official Website & Documentation: **[https://pari-cli.in/docs](https://pari-cli.in/docs)**
 
 Choose your platform's installation command:
 
