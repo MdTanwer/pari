@@ -1,6 +1,8 @@
 """Unit tests for pari.fs safe path resolution and atomic writes."""
 
 import asyncio
+import os
+import stat
 from pathlib import Path
 
 import pytest
@@ -67,6 +69,26 @@ def test_atomic_write(tmp_path: Path):
     atomic_write(target, content)
     assert target.exists()
     assert read_file(target) == content
+
+
+def test_atomic_write_preserves_the_mode_of_an_existing_file(tmp_path: Path):
+    target = tmp_path / "run.sh"
+    target.write_text("#!/bin/sh\necho hi\n")
+    os.chmod(target, 0o755)
+
+    atomic_write(target, "#!/bin/sh\necho bye\n")
+
+    assert stat.S_IMODE(target.stat().st_mode) == 0o755
+
+
+def test_atomic_write_gives_a_new_file_the_umask_default(tmp_path: Path):
+    target = tmp_path / "fresh.txt"
+    umask = os.umask(0)
+    os.umask(umask)
+
+    atomic_write(target, "hello\n")
+
+    assert stat.S_IMODE(target.stat().st_mode) == 0o666 & ~umask
 
 
 @pytest.mark.asyncio
