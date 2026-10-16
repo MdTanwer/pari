@@ -22,6 +22,17 @@ def atomic_write(target_path: Path, content: str) -> None:
     # Write to a temporary file in the same directory (same filesystem device)
     fd, temp_path = tempfile.mkstemp(dir=target.parent, prefix=".pari_tmp_")
     try:
+        # mkstemp creates the file 0600. os.replace would install that mode over
+        # the target, so an executable script edited by the agent would lose its
+        # +x bit. Keep the existing mode, or fall back to the umask default.
+        try:
+            mode = os.stat(target).st_mode & 0o7777
+        except FileNotFoundError:
+            umask = os.umask(0)
+            os.umask(umask)
+            mode = 0o666 & ~umask
+        os.fchmod(fd, mode)
+
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)
             f.flush()
