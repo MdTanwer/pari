@@ -19,4 +19,5 @@ class EvalMetrics:
 
 def calculate_eval_metrics(results: list[dict[str, Any]]) -> EvalMetrics:
     """Compute aggregate benchmark metrics across test runs."""
-    raise NotImplementedError
+    _ = results
+    raise NotImplementedError("Evaluation harness is coming soon.")

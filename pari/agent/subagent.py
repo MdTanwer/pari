@@ -35,9 +35,8 @@ class FiberSubagentPool:
         self.max_concurrency = max_concurrency
         self._slots = asyncio.Semaphore(max_concurrency)
 
-    async def run_task(self, task_id: str, coro: Coroutine) -> Any:
+    async def run_task(self, _task_id: str, coro: Coroutine) -> Any:
         """Run one research task, waiting if the pool is already full."""
-        _ = task_id
         async with self._slots:
             return await coro
 

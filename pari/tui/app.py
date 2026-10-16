@@ -323,9 +323,8 @@ class TerminalApp:
         self._repaint_tail()
         self._begin_wait(running_label(name, summary))
 
-    def _show_output_delta(self, stream: str, text: str) -> None:
+    def _show_output_delta(self, _stream: str, text: str) -> None:
         """Keep live output for the transcript. The summary does not show it."""
-        _ = stream
         action = self._log.last_action()
         if action is not None:
             action.body += text.replace("\r", "")

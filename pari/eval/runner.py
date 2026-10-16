@@ -31,4 +31,5 @@ class MicroEvalRunner:
 
     def run_suite(self, test_cases: list[TestCase]) -> EvalReport:
         """Run benchmark suite and compile report."""
-        raise NotImplementedError
+        _ = test_cases
+        raise NotImplementedError("Evaluation harness is coming soon.")

@@ -33,4 +33,4 @@ class OllamaProvider(LLMProvider):
     ) -> ModelResponse:
         """Call local Ollama endpoint."""
         _ = messages, tools, temperature, on_delta
-        raise NotImplementedError
+        raise NotImplementedError("Ollama local provider is coming soon.")

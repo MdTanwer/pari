@@ -31,10 +31,8 @@ class E2BCloudSandboxRunner(SandboxRunner):
         timeout: float | None = None,
         on_output: Callable[[str, str], None] | None = None,
     ) -> SandboxResult:
-        # TODO: Execute command remotely inside Firecracker microVM
         _ = (command, env, timeout, on_output)
         raise NotImplementedError("E2B cloud sandbox is coming soon.")
 
     def cleanup(self) -> None:
-        # TODO: Close remote microVM instance
-        pass
+        raise NotImplementedError("E2B cloud sandbox is coming soon.")

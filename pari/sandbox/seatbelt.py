@@ -23,10 +23,8 @@ class MacOSSeatbeltSandboxRunner(SandboxRunner):
         timeout: float | None = None,
         on_output: Callable[[str, str], None] | None = None,
     ) -> SandboxResult:
-        # TODO: write the Seatbelt profile and exec sandbox-exec.
         _ = (command, env, timeout, on_output)
         raise NotImplementedError("macOS Seatbelt sandbox is coming soon.")
 
     def cleanup(self) -> None:
-        # TODO: remove the temporary profile and stop leftover children.
-        pass
+        raise NotImplementedError("macOS Seatbelt sandbox is coming soon.")

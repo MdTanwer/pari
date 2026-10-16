@@ -39,9 +39,8 @@ class LimitChoiceCompleter(Completer):
     """Continue, Revert, and Stop. An empty line lists all three."""
 
     def get_completions(
-        self, document: Document, complete_event: CompleteEvent
+        self, document: Document, _complete_event: CompleteEvent
     ) -> Iterable[Completion]:
-        _ = complete_event
         text = document.text_before_cursor
         query = text.strip().lower()
         if " " in query:
