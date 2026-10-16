@@ -112,7 +112,6 @@ if (-not $PythonCmd) {
     return
 }
 
-Write-Host "[*] Setting up isolated environment in $VenvDir..." -ForegroundColor Yellow
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 
 # Clean existing venv if corrupt
