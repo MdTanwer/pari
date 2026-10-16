@@ -82,8 +82,12 @@ async def test_system_prompt_names_the_workspace_and_git(tmp_path: Path):
     prompt = provider.system[0]
     assert f"Workspace: {tmp_path.resolve()}" in prompt
     assert "is a git repository" in prompt
+    assert "Do not prefix commands with cd" in prompt
     assert "Do not cd to /workspace or ~" in prompt
+    assert "wait for the permission box" in prompt
     assert "pauses and asks the user" in prompt
+    assert "Do not check gh auth" in prompt
+    assert "open a pull request" in prompt
 
 
 @pytest.mark.asyncio

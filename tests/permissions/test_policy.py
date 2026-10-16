@@ -100,6 +100,31 @@ def test_ls_remote_needs_network_and_token_but_no_git_write(tmp_path: Path):
     assert decision.grants == Grants(network=True, github_token=True)
 
 
+def test_gh_asks_for_network_and_token(tmp_path: Path):
+    policy = _policy(tmp_path)
+    decision = policy.decide("bash", 'gh pr create --title "Fix" --body "Closes #3"')
+    assert decision.action == "ask"
+    assert decision.grants == Grants(network=True, github_token=True)
+    assert decision.save_line == "allow bash gh pr create"
+    view = policy.decide("bash", "gh issue view 3 --repo MdTanwer/pari 2>&1")
+    assert view.action == "ask"
+    assert view.grants.github_token is True
+    assert policy.decide("bash", "gh help").action == "run"
+    piped = policy.decide(
+        "bash", "gh issue view 3 --repo MdTanwer/pari 2>&1 | head -60"
+    )
+    assert piped.action == "ask"
+    assert piped.grants.github_token is True
+
+
+def test_saved_gh_rule_covers_only_that_subcommand(tmp_path: Path):
+    policy = _policy(tmp_path, project="allow bash gh pr create\n")
+    created = policy.decide("bash", "gh pr create --fill")
+    assert created.action == "run"
+    assert created.grants.github_token is True
+    assert policy.decide("bash", "gh pr merge 5").action == "ask"
+
+
 def test_curl_asks_for_network(tmp_path: Path):
     decision = _policy(tmp_path).decide("bash", "curl https://example.com")
     assert decision.action == "ask"
@@ -153,6 +178,48 @@ def test_composed_push_is_not_covered_by_a_push_allow(tmp_path: Path):
     decision = policy.decide("bash", "git push && curl https://example.com")
     assert decision.action == "ask"
     assert decision.grants.network is True
+    assert decision.grants.git_write is True
+
+
+def test_cd_prefix_and_fd_redirect_still_ask(tmp_path: Path):
+    policy = _policy(tmp_path)
+    add = policy.decide(
+        "bash",
+        "cd /home/tanw9/pari && git add pari/fs/atomic.py 2>&1 | head -3",
+    )
+    assert add.action == "ask"
+    assert add.grants.git_write is True
+    create = policy.decide(
+        "bash",
+        "cd /home/tanw9/pari && gh pr create --repo MdTanwer/pari "
+        '--base main --title "test" --body "test" 2>&1 | head -5',
+    )
+    assert create.action == "ask"
+    assert create.grants.github_token is True
+    assert create.grants.network is True
+    checkout = policy.decide(
+        "bash",
+        "cd /home/tanw9/pari && git checkout -b test-branch-xyz 2>&1 | tail -3",
+    )
+    assert checkout.action == "ask"
+    assert checkout.grants.git_write is True
+    assert add.save_line == "allow bash git add"
+    assert create.save_line == "allow bash gh pr create"
+
+
+def test_saved_git_add_covers_a_cd_prefixed_command(tmp_path: Path):
+    policy = _policy(tmp_path, project="allow bash git add\n")
+    decision = policy.decide(
+        "bash",
+        "cd /home/tanw9/pari && git add pari/fs/atomic.py 2>&1 | head -3",
+    )
+    assert decision.action == "run"
+    assert decision.grants.git_write is True
+
+
+def test_touch_inside_git_asks_for_a_git_write(tmp_path: Path):
+    decision = _policy(tmp_path).decide("bash", "touch .git/_writetest")
+    assert decision.action == "ask"
     assert decision.grants.git_write is True
 
 

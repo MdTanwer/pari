@@ -874,7 +874,7 @@ read-only`)}
     <p>${c("git push")} is a command that needs the network and a writable ${c(".git")}. Both default to ask, so the first push opens the prompt. Choosing this repo saves:</p>
     ${code("allow bash git push")}
     <p>The next ${c("git push")} in that project uses the saved rule. ${c("git commit")} is a separate command and asks on its own until you allow it too.</p>
-    <p>An approved git write gets your ${c("user.name")} and ${c("user.email")} from the host, so the commit has an author. An approved push, fetch, or pull also gets a GitHub token from ${c("GH_TOKEN")}, ${c("GITHUB_TOKEN")}, or ${c("gh auth token")}. The token is offered to ${c("https://github.com")} only, and only for that command. The prompt shows ${c("uses GitHub token")} when it applies.</p>
+    <p>An approved git write gets your ${c("user.name")} and ${c("user.email")} from the host, so the commit has an author. An approved push, fetch, pull, or ${c("gh")} command also gets a GitHub token from ${c("GH_TOKEN")}, ${c("GITHUB_TOKEN")}, or ${c("gh auth token")}. The token is offered to ${c("https://github.com")} only, and only for that command. The prompt shows ${c("uses GitHub token")} when it applies. If no token is available, the command does not start.</p>
     ${h2("next", "Next")}
     ${next([
       {

@@ -66,6 +66,8 @@ def github_token() -> str | None:
 def github_credentials(token: str) -> dict[str, str]:
     return {
         "GH_TOKEN": token,
+        "GITHUB_TOKEN": token,
+        "GH_PROMPT_DISABLED": "1",
         "GIT_TERMINAL_PROMPT": "0",
         "GIT_CONFIG_COUNT": "2",
         "GIT_CONFIG_KEY_0": "credential.https://github.com.helper",
@@ -85,6 +87,7 @@ def _run(argv: list[str], cwd: Path | None) -> str | None:
         result = subprocess.run(
             argv,
             cwd=cwd,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             timeout=5,

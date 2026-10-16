@@ -69,3 +69,4 @@ def test_nothing_is_passed_without_a_grant(tmp_path: Path, monkeypatch):
         Grants(network=True, git_write=True, github_token=True), tmp_path
     )
     assert push["GH_TOKEN"] == "secret"
+    assert push["GITHUB_TOKEN"] == "secret"

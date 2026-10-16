@@ -92,10 +92,12 @@ _NETWORK_BINS = frozenset(
     }
 )
 _SECRET_BINS = frozenset({"ssh", "scp", "sftp"})
+_GH_LOCAL = frozenset({"help", "version", "completion"})
 _SECRET_MARKERS = (".ssh", ".aws", ".gnupg", ".netrc", ".git-credentials")
 _COMPOSERS = (";", "&&", "||", "|", "`", "$(", "\n", ">", "<")
 _UNPARSED_WIDENING = re.compile(
-    r"(?:^|[^\w.-])(curl|wget|ssh|scp|sftp|ping|nc|ncat|rsync)(?:$|[^\w.-])"
+    r"(?:^|[^\w.-])(curl|wget|ssh|scp|sftp|ping|nc|ncat|rsync|gh)"
+    r"(?:$|[^\w.-])"
 )
 
 
@@ -183,7 +185,7 @@ class PermissionPolicy:
         command = " ".join(command.split())
         grants = _grants_for(command)
         save_line = _save_line(tool, command)
-        if self._matched(tool, command, "deny") is not None:
+        if self._denied(tool, command):
             return self._decision(
                 "deny", "Permission denied by a rule.", command, Grants(), save_line
             )
@@ -191,7 +193,7 @@ class PermissionPolicy:
             return self._decision(
                 "deny", "This session is read-only.", command, Grants(), save_line
             )
-        allowed = self._matched(tool, command, "allow") is not None
+        allowed = self._allowed(tool, command)
         if grants.any() and not allowed:
             message = _describe(command, grants)
             return self._decision("ask", message, command, grants, save_line)
@@ -225,6 +227,20 @@ class PermissionPolicy:
             save_line,
             self.package_network,
             self.read_only,
+        )
+
+    def _denied(self, tool: str, command: str) -> bool:
+        return any(
+            self._matched(tool, segment, "deny") is not None
+            for segment in _meaningful_segments(command)
+        )
+
+    def _allowed(self, tool: str, command: str) -> bool:
+        segments = _meaningful_segments(command)
+        if not segments:
+            return False
+        return all(
+            self._matched(tool, segment, "allow") is not None for segment in segments
         )
 
     def _matched(self, tool: str, command: str, effect: str) -> Rule | None:
@@ -279,22 +295,46 @@ def _grants_simple(command: str) -> Grants:
     if is_package_install(command):
         return Grants()
     try:
-        parts = _skip_env(shlex.split(command))
+        parts = _skip_cd(_skip_env(shlex.split(command)))
     except ValueError:
         return Grants(network=True)
     if not parts:
         return Grants()
     binary = Path(parts[0]).name
+    if binary == "gh":
+        return _gh_grants(parts)
     sub = _git_subcommand(parts)
     network = binary in _NETWORK_BINS or sub in _GIT_NETWORK
     git_write = sub is not None and not _git_reads(sub, _args_after_subcommand(parts))
+    if _writes_git_dir(binary, command):
+        git_write = True
     secrets = binary in _SECRET_BINS or _mentions_secret(command)
     return Grants(network, git_write, secrets, github_token=sub in _GIT_NETWORK)
+
+
+def _gh_grants(parts: list[str]) -> Grants:
+    """Every gh command except help talks to the GitHub API with the token."""
+    words = _gh_words(parts)
+    if not words or words[0] in _GH_LOCAL:
+        return Grants()
+    return Grants(network=True, github_token=True)
+
+
+def _gh_words(parts: list[str]) -> list[str]:
+    """Subcommand words before the first flag: gh pr create -t x -> pr, create."""
+    words: list[str] = []
+    for token in parts[1:]:
+        if token.startswith("-") or len(words) == 2:
+            break
+        words.append(token)
+    return words
 
 
 def _grants_unparsed(command: str) -> Grants:
     """A substitution or redirect hides the real program. Ask if it looks wide."""
     grants = _grants_simple(command)
+    for match in re.finditer(r"(?:^|[\s;&|])((?:git|gh)\s+.*)", command):
+        grants = grants.merge(_grants_simple(match.group(1)))
     if grants.any():
         return grants
     if _UNPARSED_WIDENING.search(command):
@@ -305,18 +345,20 @@ def _grants_unparsed(command: str) -> Grants:
 
 
 def _save_line(tool: str, command: str) -> str:
-    if _has_composer(command):
-        return f"allow {tool} {command}"
     try:
-        parts = _skip_env(shlex.split(command))
+        parts = _skip_cd(_skip_env(shlex.split(command)))
     except ValueError:
-        return f"allow {tool} {command}"
+        parts = []
     if not parts:
-        return f"allow {tool}"
+        return f"allow {tool} {command}"
     binary = Path(parts[0]).name
     sub = _git_subcommand(parts)
     if binary == "git" and sub:
         return f"allow {tool} git {sub}"
+    if binary == "gh" and _gh_words(parts):
+        return f"allow {tool} gh {' '.join(_gh_words(parts))}"
+    if _has_composer(command):
+        return f"allow {tool} {command}"
     if len(parts) > 1:
         return f"allow {tool} {binary} *"
     return f"allow {tool} {binary}"
@@ -352,11 +394,9 @@ def _command_matches(pattern: str, command: str) -> bool:
         if not prefix:
             return True
         return command == prefix or command.startswith(prefix + " ")
-    if _has_composer(command):
-        return command == pattern
     try:
         wanted = shlex.split(pattern)
-        got = _skip_env(shlex.split(command))
+        got = _skip_cd(_skip_env(shlex.split(command)))
     except ValueError:
         return command == pattern
     if not wanted:
@@ -455,7 +495,9 @@ def _segments(command: str) -> list[str] | None:
             buf.append(char)
             index += 1
             continue
-        if char in {"`", "<", ">"} or command.startswith("$(", index):
+        if command.startswith("$(", index) or char in {"`", "<"}:
+            return None
+        if char == ">" and not _is_fd_redirect(command, index):
             return None
         if command.startswith(("&&", "||"), index):
             parts.append("".join(buf))
@@ -482,6 +524,55 @@ def _has_composer(command: str) -> bool:
 def _mentions_secret(command: str) -> bool:
     lowered = command.lower()
     return any(marker in lowered for marker in _SECRET_MARKERS)
+
+
+def _is_fd_redirect(command: str, index: int) -> bool:
+    """``2>&1`` and ``>&2`` are fd copies. They do not hide a later git or gh."""
+    return command.startswith(">&", index)
+
+
+def _writes_git_dir(binary: str, command: str) -> bool:
+    """touch/rm/mkdir on .git is a git write, even though the binary is not git."""
+    if binary in {"git", "gh"}:
+        return False
+    if binary not in {"touch", "mkdir", "rm", "mv", "cp", "chmod", "ln"}:
+        return False
+    return bool(re.search(r"(?:^|[\s/=])\.git(?:/|\s|$)", command))
+
+
+_PIPE_READERS = frozenset({"head", "tail", "grep", "cat", "wc", "sort", "uniq"})
+
+
+def _meaningful_segments(command: str) -> list[str]:
+    """Commands that can widen the sandbox. cd and ``| head`` are ignored."""
+    segments = _segments(command)
+    if segments is None:
+        return [command]
+    kept: list[str] = []
+    for segment in segments:
+        try:
+            parts = _skip_cd(_skip_env(shlex.split(segment)))
+        except ValueError:
+            kept.append(segment)
+            continue
+        if not parts:
+            continue
+        if Path(parts[0]).name in _PIPE_READERS:
+            continue
+        kept.append(segment)
+    return kept or [command]
+
+
+def _skip_cd(parts: list[str]) -> list[str]:
+    """Drop a leading ``cd dir`` so ``cd dir && git add`` is classified as git."""
+    if not parts or Path(parts[0]).name != "cd":
+        return parts
+    index = 1
+    if index < len(parts) and parts[index] not in {"&&", "||", ";"}:
+        index += 1
+    while index < len(parts) and parts[index] in {"&&", "||", ";"}:
+        index += 1
+    return _skip_env(parts[index:])
 
 
 def _skip_env(parts: list[str]) -> list[str]:

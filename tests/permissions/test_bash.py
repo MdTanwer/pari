@@ -88,6 +88,40 @@ async def test_approved_commit_and_push_run_in_the_sandbox(
 
 
 @pytest.mark.asyncio
+async def test_approved_github_command_injects_the_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("GH_TOKEN", "tok-from-host")
+
+    async def allow_once(decision: Decision) -> str:
+        assert decision.grants.github_token is True
+        return "once"
+
+    tool = BashTool(tmp_path, permission_home=tmp_path / "home")
+    tool.ask_permission = allow_once
+    result = await tool.execute('gh pr create --fill; printf [%s] "$GH_TOKEN"')
+    assert "[tok-from-host]" in result["output"]
+
+
+@pytest.mark.asyncio
+async def test_github_command_without_a_host_token_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr("pari.permissions.credentials.github_token", lambda: None)
+
+    async def allow_once(_decision: Decision) -> str:
+        return "once"
+
+    tool = BashTool(tmp_path, permission_home=tmp_path / "home")
+    tool.ask_permission = allow_once
+    result = await tool.execute("gh pr create --fill")
+    assert result["denied"] is True
+    assert "GitHub token was not available" in result["output"]
+
+
+@pytest.mark.asyncio
 async def test_read_only_blocks_writes(tmp_path: Path):
     pari = tmp_path / ".pari"
     pari.mkdir()

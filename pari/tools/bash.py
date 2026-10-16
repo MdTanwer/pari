@@ -78,6 +78,8 @@ class BashTool(Tool):
             elif choice != "once":
                 return _refused(decision.message, timeout)
         env = granted_env(decision.grants, self.workspace)
+        if decision.grants.github_token and "GH_TOKEN" not in env:
+            return _refused("GitHub token was not available on this machine.", timeout)
         limits = decision.sandbox_limits(timeout, idle, granted_env=env)
         return await asyncio.to_thread(self._run, command, timeout, limits)
 
