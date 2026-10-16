@@ -6,6 +6,7 @@ Architectural Purpose:
     kernel-level hardware virtualization for remote evaluation and cloud runs.
 """
 
+from collections.abc import Callable
 from pathlib import Path
 
 from pari.sandbox.base import SandboxLimits, SandboxResult, SandboxRunner
@@ -28,10 +29,10 @@ class E2BCloudSandboxRunner(SandboxRunner):
         command: str,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
+        on_output: Callable[[str, str], None] | None = None,
     ) -> SandboxResult:
-        # TODO: Execute command remotely inside Firecracker microVM
+        _ = (command, env, timeout, on_output)
         raise NotImplementedError("E2B cloud sandbox is coming soon.")
 
     def cleanup(self) -> None:
-        # TODO: Close remote microVM instance
-        pass
+        raise NotImplementedError("E2B cloud sandbox is coming soon.")

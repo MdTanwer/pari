@@ -28,6 +28,33 @@ COMMAND_METADATA = [
 ]
 
 
+_LIMIT_CHOICES = (
+    ("Continue", "Run 10 more turns"),
+    ("Revert", "Undo the file changes from this turn"),
+    ("Stop", "Keep the files and stop"),
+)
+
+
+class LimitChoiceCompleter(Completer):
+    """Continue, Revert, and Stop. An empty line lists all three."""
+
+    def get_completions(
+        self, document: Document, _complete_event: CompleteEvent
+    ) -> Iterable[Completion]:
+        text = document.text_before_cursor
+        query = text.strip().lower()
+        if " " in query:
+            return
+        for label, desc in _LIMIT_CHOICES:
+            if label.lower().startswith(query):
+                yield Completion(
+                    text=label,
+                    start_position=-len(text),
+                    display=label,
+                    display_meta=desc,
+                )
+
+
 class SlashCommandCompleter(Completer):
     """Prefix match against ``COMMAND_METADATA``, with the description beside it."""
 

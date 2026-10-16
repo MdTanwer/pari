@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 
 from pari.sandbox.base import (
@@ -39,6 +40,7 @@ class BwrapSandboxRunner(SandboxRunner):
         command: str,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
+        on_output: Callable[[str, str], None] | None = None,
     ) -> SandboxResult:
         child_env = scrub_env(env, home="/tmp")
         argv = self._argv(command, child_env)
@@ -47,6 +49,7 @@ class BwrapSandboxRunner(SandboxRunner):
             cwd=Path("/"),
             env=child_env,
             timeout=timeout if timeout is not None else self.limits.timeout_seconds,
+            on_output=on_output,
         )
 
     def cleanup(self) -> None:

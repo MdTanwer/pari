@@ -5,6 +5,7 @@ the capped stdout and stderr from that run.
 """
 
 import asyncio
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,8 @@ class BashTool(Tool):
         self.sandbox_mode = sandbox_mode
         spool_dir = workspace / ".pari" / "tool-outputs"
         self.spooler = spooler or ManagedOutputSpooler(spool_dir)
+        # The TUI sets this so command output prints while the process runs.
+        self.on_output: Callable[[str, str], None] | None = None
 
     @property
     def definition(self) -> ToolDefinition:
@@ -65,7 +68,7 @@ class BashTool(Tool):
         runner = get_sandbox_runner(
             self.workspace, limits=limits, force_mode=self.sandbox_mode
         )
-        result = runner.run_command(command, timeout=timeout)
+        result = runner.run_command(command, timeout=timeout, on_output=self.on_output)
         raw = result.stdout
         if result.stderr:
             raw += result.stderr

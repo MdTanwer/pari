@@ -22,4 +22,5 @@ class CrossModelJudge:
     ) -> dict[str, Any]:
         """Ask independent judge model to evaluate if patch correctly resolves the
         issue."""
-        raise NotImplementedError
+        _ = problem_statement, patch_diff
+        raise NotImplementedError("Evaluation harness is coming soon.")

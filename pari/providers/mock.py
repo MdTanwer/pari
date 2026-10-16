@@ -4,6 +4,7 @@ Enables offline testing of the agent loop, tool execution, session recovery,
 and diff review without requiring remote cloud API tokens.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 from pari.providers.base import LLMProvider
@@ -22,6 +23,7 @@ class MockOfflineProvider(LLMProvider):
         messages: list[ProviderMessage],
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 0.0,
+        on_delta: Callable[[str], None] | None = None,
     ) -> ModelResponse:
         """Simulate completion for local testing."""
         _ = tools, temperature
@@ -30,20 +32,18 @@ class MockOfflineProvider(LLMProvider):
 
         # If user asks to find python files, simulate a tool call or answer
         if "find" in lower_prompt or "python" in lower_prompt:
-            return ModelResponse(
-                text="PARI Agent: Found python files in workspace.",
-                tool_calls=[],
-                tokens_in=120,
-                tokens_out=40,
-                cached_tokens=0,
-                stop_reason="end_turn",
-            )
-
+            text = "PARI Agent: Found python files in workspace."
+            tokens_in, tokens_out = 120, 40
+        else:
+            text = f"PARI Agent response to: {last_prompt}"
+            tokens_in, tokens_out = 80, 30
+        if on_delta is not None and text:
+            on_delta(text)
         return ModelResponse(
-            text=f"PARI Agent response to: {last_prompt}",
+            text=text,
             tool_calls=[],
-            tokens_in=80,
-            tokens_out=30,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
             cached_tokens=0,
             stop_reason="end_turn",
         )

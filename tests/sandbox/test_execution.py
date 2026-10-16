@@ -1,11 +1,30 @@
 """Command execution, timeout, and cgroup reporting."""
 
+import time
 from pathlib import Path
 
 import pytest
 
 from pari.sandbox.base import SandboxLimits
 from pari.sandbox.dispatcher import get_sandbox_runner
+from pari.sandbox.process import SupervisedProcessRunner
+
+
+def test_output_arrives_before_the_command_exits(tmp_path: Path):
+    runner = SupervisedProcessRunner(tmp_path)
+    seen: list[tuple[float, str]] = []
+
+    def on_output(_stream: str, text: str) -> None:
+        seen.append((time.monotonic(), text))
+
+    result = runner.run_command(
+        "echo one && sleep 0.5 && echo two", on_output=on_output
+    )
+    assert result.exit_code == 0
+    one_at = next(stamp for stamp, text in seen if "one" in text)
+    two_at = next(stamp for stamp, text in seen if "two" in text)
+    assert two_at - one_at >= 0.2
+    assert "two" in result.stdout
 
 
 def test_command_execution(tmp_path: Path):

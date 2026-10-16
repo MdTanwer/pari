@@ -49,6 +49,25 @@ def atomic_write(target_path: Path, content: str) -> None:
         raise
 
 
+# Same window as grep_search: a NUL in the first 1 KB marks a binary file.
+_BINARY_PROBE = 1024
+
+
+class BinaryFileError(ValueError):
+    """Raised when a path is not valid text."""
+
+
 def read_file(file_path: Path) -> str:
-    """Read full text content of a file."""
-    return file_path.resolve().read_text(encoding="utf-8")
+    """Read the full text of a file.
+
+    A NUL in the first 1 KB, or bytes that are not UTF-8, raises
+    BinaryFileError. Callers get that message instead of a decode traceback.
+    """
+    path = file_path.resolve()
+    data = path.read_bytes()
+    if b"\x00" in data[:_BINARY_PROBE]:
+        raise BinaryFileError(f"Binary file: {path.name}")
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise BinaryFileError(f"Binary file: {path.name}") from exc

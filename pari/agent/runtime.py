@@ -136,15 +136,33 @@ class AgentRuntime:
             self.pinned_files.append(clean_rel)
         return True
 
-    async def continue_turn(self) -> str:
+    async def continue_turn(
+        self,
+        on_tool_call: Callable[[str, dict[str, Any]], None] | None = None,
+        on_diff: Callable[[str, str], None] | None = None,
+        on_tool_result: Callable[[ToolCall, str], None] | None = None,
+        on_step_text: Callable[[str], None] | None = None,
+        on_delta: Callable[[str], None] | None = None,
+    ) -> str:
         """Run another block of turns after the user chooses Continue."""
-        return await self.execute_turn("Continue.", max_turns=TURN_EXTENSION)
+        return await self.execute_turn(
+            "Continue.",
+            on_tool_call=on_tool_call,
+            on_diff=on_diff,
+            on_tool_result=on_tool_result,
+            on_step_text=on_step_text,
+            on_delta=on_delta,
+            max_turns=TURN_EXTENSION,
+        )
 
     async def execute_turn(
         self,
         prompt: str,
         on_tool_call: Callable[[str, dict[str, Any]], None] | None = None,
         on_diff: Callable[[str, str], None] | None = None,
+        on_tool_result: Callable[[ToolCall, str], None] | None = None,
+        on_step_text: Callable[[str], None] | None = None,
+        on_delta: Callable[[str], None] | None = None,
         *,
         max_turns: int | None = None,
     ) -> str:
@@ -171,6 +189,7 @@ class AgentRuntime:
                 schemas,
                 prompt=prompt,
                 active_files=self.pinned_files,
+                on_delta=on_delta,
             )
             # Drop tool calls that were cut off so the next step cannot rerun them.
             calls = [] if is_length_stop(resp.stop_reason) else list(resp.tool_calls)
@@ -178,6 +197,16 @@ class AgentRuntime:
                 if not call.id:
                     call.id = f"call_{index}"
             self._tool_followup = bool(calls)
+            # Show the note that introduces this tool batch. The final answer
+            # has no tool calls and is printed once, after the turn returns.
+            # Deltas already painted this text. Printing it again would repeat it.
+            if (
+                calls
+                and resp.text.strip()
+                and on_step_text is not None
+                and on_delta is None
+            ):
+                on_step_text(resp.text)
             self.messages.append(
                 ProviderMessage(
                     role="assistant",
@@ -191,6 +220,8 @@ class AgentRuntime:
             self.messages.append(
                 ProviderMessage(role="tool", content=text, tool_call_id=call.id)
             )
+            if on_tool_result is not None:
+                on_tool_result(call, text)
 
         dag = self.workspace / ".pari" / "sessions" / f"{self.session_id}.jsonl"
 

@@ -2,6 +2,7 @@
 
 import asyncio
 import random
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -50,6 +51,46 @@ async def checked_post(
         if last or not is_retryable_status(response.status_code):
             raise failure
         await asyncio.sleep(_backoff(attempt))
+    raise ProviderError(provider, kind="network")
+
+
+async def iter_sse(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    headers: dict[str, str],
+    payload: dict[str, Any],
+    provider: str,
+) -> AsyncIterator[str]:
+    """POST a streaming completion and yield each SSE line."""
+    for attempt in range(_ATTEMPTS):
+        last = attempt + 1 == _ATTEMPTS
+        try:
+            async with client.stream(
+                "POST", url, headers=headers, json=payload, timeout=_TIMEOUT
+            ) as response:
+                if response.status_code >= 400:
+                    raw = (await response.aread()).decode("utf-8", errors="replace")
+                    failure = failure_from_body(provider, response.status_code, raw)
+                    if last or not is_retryable_status(response.status_code):
+                        raise failure
+                    await asyncio.sleep(_backoff(attempt))
+                    continue
+                async for line in response.aiter_lines():
+                    yield line
+                return
+        except ProviderError:
+            raise
+        except httpx.TimeoutException as exc:
+            if last:
+                raise ProviderError(provider, kind="timeout") from exc
+            await asyncio.sleep(_backoff(attempt))
+        except httpx.ReadError as exc:
+            if last:
+                raise ProviderError(provider, kind="network") from exc
+            await asyncio.sleep(_backoff(attempt))
+        except httpx.HTTPError as exc:
+            raise ProviderError(provider, kind="network") from exc
     raise ProviderError(provider, kind="network")
 
 

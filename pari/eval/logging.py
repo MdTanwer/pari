@@ -16,4 +16,5 @@ class StructuredLogger:
 
     def emit(self, event_name: str, **kwargs: Any):
         """Emit structured telemetry event."""
-        raise NotImplementedError
+        _ = event_name, kwargs
+        raise NotImplementedError("Structured observability logging is coming soon.")

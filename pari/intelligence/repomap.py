@@ -10,20 +10,7 @@ from pathlib import Path
 from pari.intelligence.ast import SymbolInfo, extract_symbols
 from pari.intelligence.cache import WorktreeSymbolCache
 from pari.intelligence.ppr import compute_personalized_pagerank
-
-
-_IGNORED_DIRS = {
-    ".git",
-    ".hg",
-    ".svn",
-    ".venv",
-    "venv",
-    "node_modules",
-    "__pycache__",
-    "dist",
-    "build",
-    ".pari",
-}
+from pari.intelligence.search import _IGNORED_DIRS
 
 
 class RepoMapGenerator:
