@@ -36,7 +36,15 @@ function Show-InstalledPari {
             Write-Host "The updated copy is in $PreferredDir. Open a new terminal so that directory comes first." -ForegroundColor Yellow
         }
     }
-    $version = & $resolved.Source --version 2>$null | Select-Object -Last 1
+    $version = $null
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $version = & $resolved.Source --version 2>$null | Select-Object -Last 1
+    } catch {
+        $version = $null
+    }
+    $ErrorActionPreference = $previous
     if ($version) {
         Write-Output $version
     } else {

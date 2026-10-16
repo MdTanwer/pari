@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pari-cli"
-version = "0.1.6"
+version = "0.1.7"
 description = "A resilient, sandbox-first terminal coding agent engineered for high pass rates and low token burn."
 readme = "README.md"
 requires-python = ">=3.11"
