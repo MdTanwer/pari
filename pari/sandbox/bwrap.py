@@ -43,6 +43,7 @@ class BwrapSandboxRunner(SandboxRunner):
         on_output: Callable[[str, str], None] | None = None,
     ) -> SandboxResult:
         child_env = scrub_env(env, home="/tmp")
+        child_env.update(self.limits.granted_env)
         argv = self._argv(command, child_env)
         return self._execute(
             argv,
@@ -75,12 +76,18 @@ class BwrapSandboxRunner(SandboxRunner):
             "--chdir",
             workspace,
         ]
-        if not network_allowed(command, self.limits):
+        shares_network = network_allowed(command, self.limits)
+        if not shares_network:
             argv.append("--unshare-net")
         _append_system_mounts(argv)
+        if shares_network:
+            _append_resolver(argv)
         bind = "--ro-bind" if self.limits.read_only else "--bind"
         argv.extend([bind, workspace, workspace])
-        _append_secret_masks(argv, self.workspace)
+        if not self.limits.allow_secrets:
+            _append_secret_masks(argv, self.workspace)
+        if not self.limits.allow_git_write:
+            _append_git_readonly(argv, self.workspace)
         argv.append("--clearenv")
         for key, value in env.items():
             argv.extend(["--setenv", key, value])
@@ -142,9 +149,27 @@ def _append_secret_masks(argv: list[str], workspace: Path) -> None:
         host_path = workspace / name
         if host_path.is_file():
             argv.extend(["--ro-bind", "/dev/null", str(host_path)])
+
+
+def _append_git_readonly(argv: list[str], workspace: Path) -> None:
+    """Keep .git read-only unless this command was granted a git write."""
     git_dir = workspace / ".git"
     if git_dir.exists():
         argv.extend(["--ro-bind", str(git_dir), str(git_dir)])
+
+
+def _append_resolver(argv: list[str]) -> None:
+    """systemd-resolved links /etc/resolv.conf into /run, which is not mounted.
+
+    Mount the link target read-only at its own path so DNS works.
+    """
+    link = Path("/etc/resolv.conf")
+    if not link.is_symlink():
+        return
+    target = link.resolve()
+    if not target.is_file() or _is_inside(target, Path("/etc")):
+        return
+    argv.extend(["--ro-bind", str(target), str(target)])
 
 
 def _append_system_mounts(argv: list[str]) -> None:

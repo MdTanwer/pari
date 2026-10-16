@@ -46,6 +46,37 @@ def test_secrets_and_git_inside_workspace_are_masked(tmp_path: Path):
     assert not (git_dir / "pari-probe").exists()
 
 
+def test_git_write_grant_can_update_git_dir(tmp_path: Path):
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    (git_dir / "HEAD").write_text("ref: refs/heads/main\n")
+    runner = get_sandbox_runner(tmp_path, limits=SandboxLimits(allow_git_write=True))
+    res = runner.run_command("touch .git/pari-probe && echo git_writable")
+    assert res.exit_code == 0, res.stderr
+    assert "git_writable" in res.stdout
+    assert (git_dir / "pari-probe").is_file()
+
+
+def test_secrets_grant_reveals_ssh_and_leaves_git_readonly(tmp_path: Path):
+    ssh = tmp_path / ".ssh"
+    ssh.mkdir()
+    (ssh / "id_rsa").write_text("secret-key")
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    (git_dir / "HEAD").write_text("ref: refs/heads/main\n")
+    runner = get_sandbox_runner(tmp_path, limits=SandboxLimits(allow_secrets=True))
+    res = runner.run_command(
+        "if grep -q secret-key .ssh/id_rsa; then echo ssh_visible; "
+        "else echo ssh_hidden; fi; "
+        "if touch .git/pari-probe 2>/dev/null; then echo git_writable; "
+        "else echo git_readonly; fi"
+    )
+    assert res.exit_code == 0, res.stderr
+    assert "ssh_visible" in res.stdout
+    assert "git_readonly" in res.stdout
+    assert not (git_dir / "pari-probe").exists()
+
+
 def test_system_path_is_read_only(tmp_path: Path):
     probe = Path("/usr/pari-sandbox-probe")
     if probe.exists():

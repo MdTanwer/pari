@@ -10,6 +10,21 @@ from pari.sandbox.dispatcher import get_sandbox_runner
 from pari.sandbox.process import SupervisedProcessRunner
 
 
+def test_granted_env_reaches_the_command_and_host_tokens_do_not(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("GH_TOKEN", "host-token")
+    plain = get_sandbox_runner(tmp_path).run_command('echo "[$GH_TOKEN]"')
+    assert plain.exit_code == 0, plain.stderr
+    assert "[]" in plain.stdout
+    limits = SandboxLimits(granted_env={"GH_TOKEN": "approved"})
+    granted = get_sandbox_runner(tmp_path, limits=limits).run_command(
+        'echo "[$GH_TOKEN]"'
+    )
+    assert granted.exit_code == 0, granted.stderr
+    assert "[approved]" in granted.stdout
+
+
 def test_output_arrives_before_the_command_exits(tmp_path: Path):
     runner = SupervisedProcessRunner(tmp_path)
     seen: list[tuple[float, str]] = []

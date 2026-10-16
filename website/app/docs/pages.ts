@@ -39,6 +39,7 @@ export const nav: NavGroup[] = [
       { href: "/docs/commands", title: "Commands", slug: "commands" },
       { href: "/docs/models", title: "Models", slug: "models" },
       { href: "/docs/sandbox", title: "Sandbox", slug: "sandbox" },
+      { href: "/docs/permissions", title: "Permissions", slug: "permissions" },
     ],
   },
   {
@@ -85,6 +86,10 @@ function overview(): string {
         [
           `<a href="/docs/sandbox">Sandbox</a>`,
           "You want to know what a command can see and touch.",
+        ],
+        [
+          `<a href="/docs/permissions">Permissions</a>`,
+          "You want the built-in rules, the ones you write, and the prompt.",
         ],
       ],
     )}
@@ -704,7 +709,7 @@ function sandbox(): string {
     <p class="lede">Shell commands the agent runs go through the sandbox. On Linux that sandbox is Bubblewrap. PARI does not fall back to running the command as you.</p>
     ${callout(
       "warning",
-      "<p>File edits are written into the workspace you opened. The sandbox is the boundary for shell commands. Isolation is the kernel policy. There is no list of blocked command names.</p>",
+      `<p>File edits are written into the workspace you opened. The sandbox is the boundary for shell commands. Isolation is the kernel policy. There is no list of blocked command names. A <a href="/docs/permissions">permission</a> rule can refuse to start a command, or widen the network and <code>.git</code> for that command. The command that starts still runs inside Bubblewrap.</p>`,
     )}
     ${h2("linux-bubblewrap", "Linux Bubblewrap")}
     <p>${c("auto")} is the default. On Linux it selects Bubblewrap. If ${c("bwrap")} is not installed in ${c("/usr/bin")}, ${c("/usr/local/bin")}, or ${c("/bin")}, the command fails with an install hint. A ${c("bwrap")} binary checked into the repository is ignored.</p>
@@ -739,7 +744,7 @@ function sandbox(): string {
     )}
     ${h2("package-installs", "Package installs")}
     <p>One package-install command may use the network. A chained command may not. ${c("pip install requests")} can reach the network. ${c("pip install requests; curl https://example.com")} cannot.</p>
-    <p>The allowed tools are pip, pip3, npm, pnpm, yarn, cargo, poetry, and uv. The allowed subcommands are install, add, update, fetch, and sync.</p>
+    <p>The allowed tools are pip, pip3, npm, pnpm, yarn, cargo, poetry, and uv. The allowed subcommands are install, add, update, fetch, and sync. Other network, a writable ${c(".git")}, and secret directories wait for a <a href="/docs/permissions">permission</a> rule or a prompt.</p>
     ${h2("other-systems", "Other systems")}
     ${table(
       ["Mode", "Status"],
@@ -758,6 +763,11 @@ function sandbox(): string {
     ${h2("next", "Next")}
     ${next([
       {
+        href: "/docs/permissions",
+        title: "Permissions",
+        text: "Built-in rules, rules you write, and the prompt when a command needs more.",
+      },
+      {
         href: "/docs/setup",
         title: "Install",
         text: "Install Bubblewrap and confirm the dry run.",
@@ -766,6 +776,116 @@ function sandbox(): string {
         href: "/docs/troubleshooting",
         title: "Troubleshooting",
         text: "Fix a missing bwrap binary or a refused command.",
+      },
+    ])}
+  `;
+}
+
+function permissions(): string {
+  beginDocument();
+  return `
+    <p class="lede">Ordinary work in the project runs without a prompt. A command that needs more than the built-in rules stops and asks, unless you have already written a rule for it.</p>
+    ${callout(
+      "note",
+      `<p>The Linux sandbox already keeps the defaults below: writes stay in the workspace, the network is off except one package install, ${c(".git")} is read-only, and secret directories are masked. A missing rule never counts as yes. See <a href="/docs/sandbox">Sandbox</a> for the kernel boundary.</p>`,
+    )}
+    ${h2("built-in", "Built in")}
+    <p>These rules ship with PARI. A line in a permission file overrides the matching row. A deny wins over an allow.</p>
+    ${table(
+      ["Rule", "Default", "How you override it"],
+      [
+        [
+          "Read, search, and edit files inside the project",
+          "Allow",
+          `Add ${c("read-only")} to a permission file.`,
+        ],
+        [
+          "Run a command inside the project, with no network",
+          "Allow",
+          "A deny rule for that command.",
+        ],
+        [
+          "Network for one package install",
+          "Allow",
+          `Add ${c("deny package-network")}.`,
+        ],
+        [
+          "Network for any other command",
+          "Ask",
+          "An allow rule or a deny rule for that command.",
+        ],
+        [
+          `Writing ${c(".git")}, including commit, push, and reset`,
+          "Ask",
+          "An allow rule or a deny rule for that command.",
+        ],
+        [
+          `${c("~/.ssh")}, ${c("~/.aws")}, ${c("~/.gnupg")}, and credential files`,
+          "Deny",
+          "An allow rule for that command.",
+        ],
+      ],
+    )}
+    <p>A package install is one of pip, pip3, npm, pnpm, yarn, cargo, poetry, or uv, with install, add, update, fetch, or sync. ${c("pip install requests; curl https://example.com")} is not a package install.</p>
+    <p>An allow rule starts that command and widens only the grant it needs, such as the network or a writable ${c(".git")}. The command still runs inside Bubblewrap. Allowing ${c("git push")} does not allow ${c("curl")}.</p>
+    ${h2("rules-you-write", "Rules you write")}
+    <p>Put one rule per line in the project file, the home file, or both.</p>
+    ${table(
+      ["File", "Applies to"],
+      [
+        [c(".pari/permissions"), "This project only."],
+        [c("~/.pari/permissions"), "Every project."],
+      ],
+    )}
+    ${code(`allow bash git push
+allow bash git commit
+allow bash curl *
+deny bash rm *
+deny package-network
+read-only`)}
+    <p>${c("allow")} and ${c("deny")} name the tool, then the command. A trailing ${c("*")} matches the rest of the line. ${c("deny package-network")} turns off network for package installs. ${c("read-only")} refuses writes for the session. Blank lines and lines that start with ${c("#")} are ignored.</p>
+    <p>If either file denies a command, PARI does not run it and does not ask. An allow in either file runs it. Otherwise the built-in default applies.</p>
+    ${h2("the-prompt", "The prompt")}
+    <p>When a tool needs access that no rule covers, PARI stops before the command runs:</p>
+    ${code(`git push needs network and a git write
+
+  once
+  this repo
+  no`)}
+    ${table(
+      ["Choice", "What happens"],
+      [
+        ["once", "Run this command only. The next matching command asks again."],
+        [
+          "this repo",
+          `Append the allow line to ${c(".pari/permissions")} and run the command.`,
+        ],
+        ["no", "Skip the command. The same command asks again next time."],
+      ],
+    )}
+    ${h2("how-pari-decides", "How PARI decides")}
+    ${steps([
+      "A deny rule in either permission file refuses the command. There is no prompt.",
+      "An allow rule that matches the command runs it, with the sandbox grant that command needs.",
+      "A built-in allow runs it with no prompt.",
+      "Anything else opens the prompt. The choices are once, this repo, and no.",
+    ])}
+    ${h2("git-push", "git push")}
+    <p>${c("git push")} is a command that needs the network and a writable ${c(".git")}. Both default to ask, so the first push opens the prompt. Choosing this repo saves:</p>
+    ${code("allow bash git push")}
+    <p>The next ${c("git push")} in that project uses the saved rule. ${c("git commit")} is a separate command and asks on its own until you allow it too.</p>
+    <p>An approved git write gets your ${c("user.name")} and ${c("user.email")} from the host, so the commit has an author. An approved push, fetch, pull, or ${c("gh")} command also gets a GitHub token from ${c("GH_TOKEN")}, ${c("GITHUB_TOKEN")}, or ${c("gh auth token")}. The token is offered to ${c("https://github.com")} only, and only for that command. The prompt shows ${c("uses GitHub token")} when it applies. If no token is available, the command does not start.</p>
+    ${h2("next", "Next")}
+    ${next([
+      {
+        href: "/docs/sandbox",
+        title: "Sandbox",
+        text: "The kernel boundary a command stays inside after you allow it.",
+      },
+      {
+        href: "/docs/troubleshooting",
+        title: "Troubleshooting",
+        text: "Fix a refused command or a missing Bubblewrap.",
       },
     ])}
   `;
@@ -863,6 +983,14 @@ const built: DocPage[] = [
     description: "What a PARI shell command can read, write, and reach.",
     eyebrow: "Sandbox",
     body: sandbox(),
+  },
+  {
+    slug: "permissions",
+    title: "Permissions",
+    description:
+      "Built-in permission rules, rules you write, and the prompt when a command needs more.",
+    eyebrow: "Permissions",
+    body: permissions(),
   },
   {
     slug: "troubleshooting",

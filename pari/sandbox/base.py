@@ -102,6 +102,11 @@ class SandboxLimits:
         allow_network: Share the host network for every command.
         allow_package_network: Network for one package-install command only.
         read_only: Mount the workspace read-only.
+        allow_git_write: Leave .git writable for this command.
+        allow_secrets: Leave secret directories and credential files visible.
+        granted_env: Variables the user approved for this command, such as a
+            GitHub token for one push. Set after scrubbing, so names that look
+            like credentials are kept.
         daemon_idle_seconds: Stop waiting when a command is still running
             after this many seconds. None keeps the hard timeout only.
     """
@@ -112,6 +117,9 @@ class SandboxLimits:
     allow_network: bool = False
     allow_package_network: bool = True
     read_only: bool = False
+    allow_git_write: bool = False
+    allow_secrets: bool = False
+    granted_env: dict[str, str] = field(default_factory=dict)
     daemon_idle_seconds: float | None = None
 
 
@@ -166,6 +174,11 @@ def network_allowed(command: str, limits: SandboxLimits) -> bool:
         return False
     binary = Path(parts[0]).name
     return binary in _PACKAGE_BINS and parts[1] in _PACKAGE_SUBCOMMANDS
+
+
+def is_package_install(command: str) -> bool:
+    """True for one package-install command, with no shell composers."""
+    return network_allowed(command, SandboxLimits())
 
 
 @dataclass

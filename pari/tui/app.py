@@ -27,6 +27,7 @@ from pari.agent.runtime import AgentRuntime
 from pari.auth.interactive import login_tty, logout_tty
 from pari.auth.login import sign_in_hint
 from pari.auth.providers import info_for_model
+from pari.permissions.policy import Decision
 from pari.providers.base import LLMProvider
 from pari.providers.exceptions import ProviderError
 from pari.providers.message import ToolCall
@@ -37,6 +38,7 @@ from pari.tui.activity import Action, Elapsed, TurnLog, running_label
 from pari.tui.completer import LimitChoiceCompleter, SlashCommandCompleter
 from pari.tui.errors import model_error_text
 from pari.tui.keys import EXPAND, create_key_bindings, create_limit_key_bindings
+from pari.tui.permission import permission_popup
 from pari.tui.prompt import (
     placeholder_tokens,
     prompt_tokens,
@@ -83,9 +85,11 @@ class TerminalApp:
         self._tail_lines = 0
         self._paint_lock = threading.Lock()
         self._activity: Status | None = None
+        self._wait_label = "Thinking"
         bash = self.runtime.tools.get("bash")
         if isinstance(bash, BashTool):
             bash.on_output = self._show_output_delta
+            bash.ask_permission = self._ask_permission
         self.session: PromptSession = PromptSession(
             history=InMemoryHistory(),
             completer=SlashCommandCompleter(),
@@ -245,8 +249,22 @@ class TerminalApp:
             "on_diff": self._show_diff,
         }
 
+    async def _ask_permission(self, decision: Decision) -> str:
+        """Show the permission popup under the summary. No terminal means no.
+
+        The popup erases itself, so the summary rows above stay redrawable.
+        """
+        label = self._wait_label
+        self._end_wait()
+        choice = "no"
+        if sys.stdin.isatty() and self.console.is_terminal:
+            choice = await permission_popup(decision).run_async()
+        self._begin_wait(label)
+        return choice
+
     def _begin_wait(self, label: str = "Thinking") -> None:
         """Spin with a label and a seconds counter until the next output arrives."""
+        self._wait_label = label
         self._end_wait()
         self._activity = self.console.status(Elapsed(label), spinner="dots")
         self._activity.start()

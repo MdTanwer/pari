@@ -5,11 +5,13 @@ the capped stdout and stderr from that run.
 """
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
 from pari.output.spooler import ManagedOutputSpooler
+from pari.permissions.credentials import granted_env
+from pari.permissions.policy import Decision, PermissionPolicy, normalize_choice
 from pari.sandbox.base import SandboxLimits
 from pari.sandbox.dispatcher import get_sandbox_runner
 from pari.tools.base import Tool, ToolDefinition
@@ -23,13 +25,17 @@ class BashTool(Tool):
         workspace: Path,
         spooler: ManagedOutputSpooler | None = None,
         sandbox_mode: str | None = None,
+        permission_home: Path | None = None,
     ):
         self.workspace = workspace
         self.sandbox_mode = sandbox_mode
+        self.permission_home = permission_home
         spool_dir = workspace / ".pari" / "tool-outputs"
         self.spooler = spooler or ManagedOutputSpooler(spool_dir)
         # The TUI sets this so command output prints while the process runs.
         self.on_output: Callable[[str, str], None] | None = None
+        # The TUI sets this so a widening stops for once / this repo / no.
+        self.ask_permission: Callable[[Decision], Awaitable[str]] | None = None
 
     @property
     def definition(self) -> ToolDefinition:
@@ -54,9 +60,6 @@ class BashTool(Tool):
 
     async def execute(self, command: str, timeout: float = 30.0) -> dict[str, Any]:
         """Execute command inside sandbox with output capping."""
-        return await asyncio.to_thread(self._run, command, timeout)
-
-    def _run(self, command: str, timeout: float) -> dict[str, Any]:
         # Imported here because this module is loaded while the agent package
         # is still initializing.
         from pari.agent.guards import DAEMON_IDLE_SECONDS
@@ -64,7 +67,39 @@ class BashTool(Tool):
         # A requested timeout shorter than 10s is the whole wait.
         # A longer one still yields at 10s so a server cannot hold the turn.
         idle = DAEMON_IDLE_SECONDS if timeout > DAEMON_IDLE_SECONDS else None
-        limits = SandboxLimits(timeout_seconds=timeout, daemon_idle_seconds=idle)
+        policy = PermissionPolicy.load(self.workspace, home=self.permission_home)
+        decision = policy.decide("bash", command)
+        if decision.action == "deny":
+            return _refused(decision.message, timeout)
+        if decision.action == "ask":
+            choice = await self._choose(decision)
+            if choice == "repo":
+                policy.save_project_rule(decision.save_line)
+            elif choice != "once":
+                return _refused(decision.message, timeout)
+        env = granted_env(decision.grants, self.workspace)
+        if decision.grants.github_token and "GH_TOKEN" not in env:
+            return _refused("GitHub token was not available on this machine.", timeout)
+        limits = decision.sandbox_limits(timeout, idle, granted_env=env)
+        return await asyncio.to_thread(self._run, command, timeout, limits)
+
+    async def _choose(self, decision: Decision) -> str:
+        """Ask the user. No prompt means no."""
+        ask = self.ask_permission
+        if ask is None:
+            return "no"
+        try:
+            choice = await ask(decision)
+        except Exception:
+            # A broken prompt must not start the command.
+            return "no"
+        return normalize_choice(choice)
+
+    def _run(
+        self, command: str, timeout: float, limits: SandboxLimits
+    ) -> dict[str, Any]:
+        from pari.agent.guards import DAEMON_IDLE_SECONDS
+
         runner = get_sandbox_runner(
             self.workspace, limits=limits, force_mode=self.sandbox_mode
         )
@@ -83,3 +118,21 @@ class BashTool(Tool):
             "truncated": spooled.was_truncated,
             "sidecar_path": str(spooled.sidecar_path),
         }
+
+
+def _refused(message: str, timeout: float) -> dict[str, Any]:
+    """A command that did not start. The model sees why."""
+    if message.startswith(("Permission denied", "This session")):
+        output = message
+    else:
+        output = f"Permission denied. {message}"
+    return {
+        "exit_code": 1,
+        "output": output,
+        "timed_out": False,
+        "timeout": timeout,
+        "idle_seconds": timeout,
+        "truncated": False,
+        "sidecar_path": "",
+        "denied": True,
+    }

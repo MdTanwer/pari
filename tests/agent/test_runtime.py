@@ -58,7 +58,36 @@ async def test_tool_result_is_sent_back_before_the_answer(tmp_path: Path):
     text = await runtime.execute_turn("What does add return?")
     assert text == "add returns the sum."
     assert "[tools:" not in text
-    assert runtime.provider.seen[1] == ["user", "assistant", "tool"]
+    assert runtime.provider.seen[1] == ["system", "user", "assistant", "tool"]
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_names_the_workspace_and_git(tmp_path: Path):
+    (tmp_path / ".git").mkdir()
+
+    class Recording(LLMProvider):
+        def __init__(self):
+            super().__init__("deepseek-chat", "k")
+            self.system: list[str] = []
+
+        async def complete(self, messages, tools=None, temperature=0.0):
+            self.system = [m.content for m in messages if m.role == "system"]
+            return ModelResponse(text="ok", stop_reason="stop")
+
+    provider = Recording()
+    runtime = AgentRuntime(tmp_path, provider=provider)
+    await runtime.execute_turn("push my changes")
+    await runtime.execute_turn("again")
+    assert len(provider.system) == 1
+    prompt = provider.system[0]
+    assert f"Workspace: {tmp_path.resolve()}" in prompt
+    assert "is a git repository" in prompt
+    assert "Do not prefix commands with cd" in prompt
+    assert "Do not cd to /workspace or ~" in prompt
+    assert "wait for the permission box" in prompt
+    assert "pauses and asks the user" in prompt
+    assert "Do not check gh auth" in prompt
+    assert "open a pull request" in prompt
 
 
 @pytest.mark.asyncio
