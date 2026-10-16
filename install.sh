@@ -18,25 +18,21 @@ RESET="$(tput sgr0 2>/dev/null || echo '')"
 
 # 1. Prefer uv if installed (fastest)
 if command -v uv >/dev/null 2>&1; then
-    if ! uv tool upgrade pari-cli; then
-        if ! uv tool install pari-cli; then
-            echo "${YELLOW}PyPI package install failed; falling back to GitHub source...${RESET}" >&2
-            uv tool install --force "git+${REPO_URL}"
-        fi
+    if ! uv tool install --force pari-cli >/dev/null; then
+        echo "${YELLOW}PyPI package install failed; falling back to GitHub source...${RESET}" >&2
+        uv tool install --force "git+${REPO_URL}" >/dev/null
     fi
-    pari-cli --version || echo "pari-cli installed"
+    echo "pari-cli installed"
     exit 0
 fi
 
 # 2. Prefer pipx if installed (isolated)
 if command -v pipx >/dev/null 2>&1; then
-    if ! pipx upgrade pari-cli; then
-        if ! pipx install pari-cli; then
-            echo "${YELLOW}PyPI package install failed; falling back to GitHub source...${RESET}" >&2
-            pipx install --force "git+${REPO_URL}"
-        fi
+    if ! pipx install --quiet --force pari-cli >/dev/null; then
+        echo "${YELLOW}PyPI package install failed; falling back to GitHub source...${RESET}" >&2
+        pipx install --quiet --force "git+${REPO_URL}" >/dev/null
     fi
-    pari-cli --version || echo "pari-cli installed"
+    echo "pari-cli installed"
     exit 0
 fi
 

@@ -16,70 +16,33 @@ $InstallDir = Join-Path $env:USERPROFILE ".pari"
 $VenvDir = Join-Path $InstallDir "venv"
 $ScriptsDir = Join-Path $VenvDir "Scripts"
 
-function Show-InstalledPari {
-    param([string]$PreferredDir)
-    if ($PreferredDir) {
-        $parts = @($PreferredDir) + @(
-            ($env:Path -split ';') | Where-Object { $_.Trim() -and $_.Trim() -ne $PreferredDir }
-        )
-        $env:Path = $parts -join ';'
-    }
-    $resolved = Get-Command pari-cli -ErrorAction SilentlyContinue
-    if (-not $resolved) {
-        Write-Host "pari-cli installed. Open a new terminal, then run: pari-cli --version" -ForegroundColor Yellow
-        return
-    }
-    if ($PreferredDir) {
-        $resolvedDir = Split-Path $resolved.Source -Parent
-        if ($resolvedDir -ne $PreferredDir) {
-            Write-Host "An older pari-cli is earlier on PATH: $($resolved.Source)" -ForegroundColor Yellow
-            Write-Host "The updated copy is in $PreferredDir. Open a new terminal so that directory comes first." -ForegroundColor Yellow
-        }
-    }
-    $version = & $resolved.Source --version 2>$null | Select-Object -Last 1
-    if ($version) {
-        Write-Output $version
-    } else {
-        Write-Output "pari-cli installed"
-    }
-}
-
-# 1. Prefer uv if available (fastest). upgrade moves an existing install
-# to the latest PyPI release. install --force does not.
+# 1. Prefer uv if available (fastest)
 if (Get-Command uv -ErrorAction SilentlyContinue) {
-    & uv tool upgrade pari-cli
-    if ($LASTEXITCODE -ne 0) {
-        & uv tool install pari-cli
-    }
+    & uv tool install --force pari-cli > $null
     if ($LASTEXITCODE -ne 0) {
         Write-Host "PyPI install failed; attempting fallback to GitHub repository..." -ForegroundColor Yellow
-        & uv tool install --force "git+$RepoUrl"
+        & uv tool install --force "git+$RepoUrl" > $null
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Error: Installation via uv failed." -ForegroundColor Red
             return
         }
     }
-    $binDir = (& uv tool dir --bin 2>$null | Select-Object -Last 1)
-    if ($binDir) { $binDir = $binDir.Trim() }
-    Show-InstalledPari $binDir
+    Write-Output "pari-cli installed"
     return
 }
 
 # 2. Prefer pipx if available (isolated)
 if (Get-Command pipx -ErrorAction SilentlyContinue) {
-    & pipx upgrade pari-cli
-    if ($LASTEXITCODE -ne 0) {
-        & pipx install pari-cli
-    }
+    & pipx install --quiet --force pari-cli > $null
     if ($LASTEXITCODE -ne 0) {
         Write-Host "PyPI install failed; attempting fallback to GitHub repository..." -ForegroundColor Yellow
-        & pipx install --force "git+$RepoUrl"
+        & pipx install --quiet --force "git+$RepoUrl" > $null
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Error: Installation via pipx failed." -ForegroundColor Red
             return
         }
     }
-    Show-InstalledPari
+    Write-Output "pari-cli installed"
     return
 }
 
@@ -132,7 +95,7 @@ $VenvPip = Join-Path $ScriptsDir "pip.exe"
 & $VenvPip install --upgrade pip --quiet
 
 # Install pari-cli with fallback
-& $VenvPip install --upgrade pari-cli
+& $VenvPip install pari-cli
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[*] PyPI install failed; falling back to GitHub source..." -ForegroundColor Yellow
     & $VenvPip install "git+$RepoUrl"
