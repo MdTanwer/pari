@@ -38,6 +38,13 @@ def test_package_install_policy_allows_network():
     assert network_allowed("npm test", limits) is False
 
 
+def test_network_command_can_read_the_resolver(tmp_path: Path):
+    runner = BwrapSandboxRunner(tmp_path, limits=SandboxLimits(allow_network=True))
+    res = runner.run_command("grep -q nameserver /etc/resolv.conf && echo dns_ok")
+    assert res.exit_code == 0, res.stderr
+    assert "dns_ok" in res.stdout
+
+
 def test_allow_network_sees_host_interfaces(tmp_path: Path):
     runner = BwrapSandboxRunner(tmp_path, limits=SandboxLimits(allow_network=True))
     res = runner.run_command("awk -F: '/^ *[a-z0-9]+:/ {print $1}' /proc/net/dev")

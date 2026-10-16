@@ -7,20 +7,24 @@ from typing import Any
 
 import pytest
 from prompt_toolkit import PromptSession
+from prompt_toolkit.formatted_text import fragment_list_to_text
 from prompt_toolkit.input import create_pipe_input
 from prompt_toolkit.output import DummyOutput
 from rich.console import Console
 
+from pari.permissions.policy import Decision, PermissionPolicy
 from pari.providers.base import LLMProvider
 from pari.providers.exceptions import ProviderError
 from pari.providers.message import ProviderMessage, ToolCall
 from pari.providers.openai import OpenAIProvider
 from pari.providers.response import ModelResponse
 from pari.routing.router import DualModelRouter, router_for
+from pari.tools.bash import BashTool
 from pari.tui.activity import preview
 from pari.tui.app import TerminalApp, _model_refusal
 from pari.tui.errors import model_error_text
 from pari.tui.keys import EXPAND, create_key_bindings
+from pari.tui.permission import PermissionPopup, permission_popup
 from pari.tui.status import CostMeter
 from pari.tui.transcript import transcript_viewer
 
@@ -493,6 +497,68 @@ def test_limit_prompt_does_not_reuse_the_chat_session(tmp_path: Path):
     assert app.limit_session is not app.session
     assert app.limit_session.placeholder is None
     assert app.session.completer is not app.limit_session.completer
+
+
+def _popup_text(decision: Decision, selected: int = 0, columns: int = 80) -> str:
+    popup = PermissionPopup(decision)
+    popup.selected = selected
+    return fragment_list_to_text(popup.fragments(columns))
+
+
+def test_permission_popup_shows_command_badge_and_choices(tmp_path: Path):
+    decision = PermissionPolicy.load(tmp_path, home=tmp_path).decide(
+        "bash", "git push origin main"
+    )
+    text = _popup_text(decision)
+    rows = text.splitlines()
+    assert "Permission needed" in rows[1]
+    assert "uses network · writes to git" in rows[1]
+    assert "$ git push origin main" in text
+    assert "Needs network, a git write, and your GitHub token." in text
+    assert "uses GitHub token" in rows[1]
+    assert "Allow this command?" in text
+    assert "▸ Run once" in text
+    assert "Always allow in this repo" in text
+    assert "Skip this command" in text
+    assert "1-3 quick pick" in text
+    assert len({len(row) for row in rows}) == 1
+
+
+def test_permission_popup_wraps_a_long_command(tmp_path: Path):
+    command = "curl " + " ".join(f"https://example.com/{n}" for n in range(8))
+    decision = PermissionPolicy.load(tmp_path, home=tmp_path).decide("bash", command)
+    rows = _popup_text(decision, selected=2, columns=50).splitlines()
+    assert all(len(row) == len(rows[0]) for row in rows)
+    assert "▸ Skip this command" in "\n".join(rows)
+    assert sum(row.startswith("│ $ ") for row in rows) > 1
+
+
+async def test_permission_popup_keys_pick_a_choice(tmp_path: Path):
+    decision = PermissionPolicy.load(tmp_path, home=tmp_path).decide("bash", "git push")
+    for keys, expected in (
+        ("\r", "once"),
+        ("\x1b[B\r", "repo"),
+        ("2", "repo"),
+        ("3", "no"),
+        ("\x1b[A\r", "no"),
+        ("\x1b", "no"),
+    ):
+        with create_pipe_input() as pipe:
+            pipe.send_text(keys)
+            app = permission_popup(decision)
+            app.input = pipe
+            app.output = DummyOutput()
+            assert await app.run_async() == expected, keys
+
+
+async def test_no_terminal_skips_the_command(tmp_path: Path):
+    app = TerminalApp(workspace=tmp_path)
+    bash = app.runtime.tools.get("bash")
+    assert isinstance(bash, BashTool)
+    assert bash.ask_permission == app._ask_permission
+    decision = PermissionPolicy.load(tmp_path, home=tmp_path).decide("bash", "git push")
+    assert await app._ask_permission(decision) == "no"
+    app._end_wait()
 
 
 def test_slash_command_completer():

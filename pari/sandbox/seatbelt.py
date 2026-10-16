@@ -2,6 +2,13 @@
 
 TODO: run commands with sandbox-exec and a TinyScheme profile.
 Home paths must be absolute. Seatbelt does not expand '~'.
+
+``allow_git_write`` and ``allow_secrets`` are honored by Bubblewrap. This
+runner does not execute commands yet, so it cannot apply them. The profile
+must mount the workspace ``.git`` read-write only when ``allow_git_write``
+is set, and must leave ``.ssh``, ``.aws``, ``.gnupg``, and credential files
+visible only when ``allow_secrets`` is set. ``granted_env`` must be added to
+the child environment after scrubbing, as Bubblewrap does.
 """
 
 from collections.abc import Callable

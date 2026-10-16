@@ -21,6 +21,7 @@ from pari.agent.guards import (
     is_length_stop,
 )
 from pari.agent.loop import AgentExecutionLoop, TurnResult
+from pari.agent.prompt import system_prompt
 from pari.agent.reflection import ReflectionManager
 from pari.intelligence.repomap import RepoMapGenerator
 from pari.providers import get_provider
@@ -180,6 +181,12 @@ class AgentRuntime:
         async def step(context: str, _turn: int) -> ModelResponse:
             # After a tool call, the results are already on the transcript.
             # A new user message here would hide them from the model.
+            if not self.messages:
+                self.messages.append(
+                    ProviderMessage(
+                        role="system", content=system_prompt(self.workspace)
+                    )
+                )
             if not self._tool_followup:
                 self.messages.append(ProviderMessage(role="user", content=context))
             self._tool_followup = False
@@ -253,8 +260,9 @@ class AgentRuntime:
             )
         except ProviderError:
             self._tool_followup = False
-            if len(self.messages) == sent + 1 and self.messages[-1].role == "user":
-                self.messages.pop()
+            added = self.messages[sent:]
+            if added and all(item.role in {"system", "user"} for item in added):
+                del self.messages[sent:]
             raise
         turn_record = {
             "event": "turn_complete",

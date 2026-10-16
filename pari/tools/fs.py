@@ -12,6 +12,7 @@ from pari.fs.atomic import BinaryFileError, atomic_write, read_file
 from pari.fs.path import resolve_safe_path
 from pari.fs.queue import FileMutationQueue
 from pari.output.spooler import ManagedOutputSpooler
+from pari.permissions.policy import PermissionPolicy
 from pari.tools.base import Tool, ToolDefinition
 
 
@@ -125,6 +126,9 @@ class WriteFileTool(Tool):
 
     async def execute(self, path: str, content: str) -> str:
         """Atomically write file while holding its canonical lock."""
+        resolve_safe_path(self.workspace, path)
+        if _session_read_only(self.workspace):
+            return "This session is read-only."
         await self.queue.write(Path(path), content)
         return f"Successfully wrote {path}"
 
@@ -180,6 +184,12 @@ class EditFileTool(Tool):
         Cascade mode may then align whitespace or a close window.
         """
         target = resolve_safe_path(self.workspace, path)
+        if _session_read_only(self.workspace):
+            return {
+                "status": "denied",
+                "path": path,
+                "error": "This session is read-only.",
+            }
         lock = await self.queue.get_lock(target)
         async with lock:
             original = read_file(target)
@@ -194,6 +204,10 @@ class EditFileTool(Tool):
             return EditCascade().apply(original, search, replace, path)
         updated = apply_exact_edit(original, search, replace, filename=path)
         return updated, "exact"
+
+
+def _session_read_only(workspace: Path) -> bool:
+    return PermissionPolicy.load(workspace).read_only
 
 
 def _line_window(text: str, offset: int, limit: int | None) -> str:
