@@ -500,7 +500,7 @@ function firstSession(): string {
     ${code(`cd ~/projects/my-app
 pari-cli --dry-run`)}
     <p>On Linux, a good dry run looks like this:</p>
-    ${code(`PARI v0.1.4 — Terminal Coding Agent (https://pari-cli.in)
+    ${code(`PARI v0.1.6 — Terminal Coding Agent (https://pari-cli.in)
 Workspace: /home/you/projects/my-app
 Sandbox: auto
 Model: deepseek-chat

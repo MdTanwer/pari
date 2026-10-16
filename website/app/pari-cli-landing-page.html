@@ -211,12 +211,19 @@
       background: linear-gradient(145deg, #1D292C, var(--terminal));
       color: #E7EEF0; border: 1px solid rgba(255,255,255,.08);
       font: 13px/1.7 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-      overflow-x: auto;
+      display: flex; flex-direction: column; gap: 8px;
     }
-    .cmd-row { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; }
-    .cmd-row code { font: inherit; white-space: nowrap; }
+    .cmd-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+    .cmd-row code { font: inherit; white-space: nowrap; min-width: 0; overflow-x: auto; }
     .cmd .prompt { color: var(--lime); }
     .cmd .note { color: #8EA0A4; white-space: nowrap; }
+    .cmd-actions { display: inline-flex; align-items: center; gap: 10px; flex: none; }
+    .copy {
+      border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.06);
+      color: #C3CDD0; border-radius: 6px; padding: 3px 8px; cursor: pointer; flex: none;
+      font: 11px "SFMono-Regular", Consolas, monospace; letter-spacing: .04em;
+    }
+    .copy:hover, .copy.copied { color: var(--lime); border-color: rgba(167,219,105,.45); }
     .section-head { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding-bottom: 11px; border-bottom: 1px solid var(--line); }
     .section-title { color: var(--moss-dark); font: 12px "SFMono-Regular", Consolas, monospace; letter-spacing: .07em; text-transform: uppercase; }
     .learn-more { color: #7D8D92; font: 11px "SFMono-Regular", Consolas, monospace; letter-spacing: .04em; text-transform: uppercase; }
@@ -302,7 +309,7 @@
       .failure:nth-child(3) { border-right:1px solid var(--line); }
       .install-step header { align-items:flex-start; flex-direction:column; gap:4px; }
       .cmd { font-size:12px; margin:10px; }
-      .cmd-row { flex-direction:column; gap:0; }
+      .cmd-row { gap: 8px; }
       .section-head { align-items:flex-start; }
       .section-title { max-width:230px; line-height:1.5; }
       .learn-more { white-space:nowrap; }
@@ -322,7 +329,6 @@
       </a>
       <nav class="nav-links" aria-label="Main navigation">
         <a href="#overview">Overview</a>
-        <a href="/coming-soon">Benchmarks</a>
         <a href="/docs">Docs</a>
         <a class="github-link" href="https://github.com/MdTanwer/pari" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .8a11.2 11.2 0 0 0-3.54 21.83c.56.1.77-.24.77-.54v-2.1c-3.14.68-3.8-1.33-3.8-1.33-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.73 1.16 1.73 1.16 1 .1.76 2.1 3.28 1.6.1-.74.4-1.24.72-1.52-2.5-.28-5.13-1.25-5.13-5.56 0-1.23.44-2.24 1.16-3.03-.12-.28-.5-1.43.11-2.98 0 0 .95-.3 3.08 1.16a10.7 10.7 0 0 1 5.6 0c2.13-1.45 3.08-1.16 3.08-1.16.61 1.55.23 2.7.11 2.98.72.79 1.16 1.8 1.16 3.03 0 4.32-2.63 5.28-5.14 5.56.4.35.77 1.03.77 2.08v3.08c0 .3.2.65.78.54A11.2 11.2 0 0 0 12 .8Z"/></svg>GitHub</a>
       </nav>
@@ -515,14 +521,14 @@
                 <div class="install-name"><span class="install-num">01</span><h3>macOS and Linux</h3></div>
                 <span class="install-meta">curl</span>
               </header>
-              <div class="cmd"><div class="cmd-row"><code><span class="prompt">$</span> curl -fsSL https://pari-cli.in/install.sh | bash</code></div></div>
+              <div class="cmd"><div class="cmd-row"><code><span class="prompt">$</span> curl -fsSL https://pari-cli.in/install.sh | bash</code><button type="button" class="copy" data-copy="curl -fsSL https://pari-cli.in/install.sh | bash">Copy</button></div></div>
             </article>
             <article class="install-step">
               <header>
                 <div class="install-name"><span class="install-num">02</span><h3>Windows</h3></div>
                 <span class="install-meta">PowerShell</span>
               </header>
-              <div class="cmd"><div class="cmd-row"><code><span class="prompt">PS&gt;</span> irm https://www.pari-cli.in/install.ps1 | iex</code></div></div>
+              <div class="cmd"><div class="cmd-row"><code><span class="prompt">PS&gt;</span> irm https://www.pari-cli.in/install.ps1 | iex</code><button type="button" class="copy" data-copy="irm https://www.pari-cli.in/install.ps1 | iex">Copy</button></div></div>
             </article>
             <article class="install-step">
               <header>
@@ -530,9 +536,9 @@
                 <span class="install-meta">pipx, uv, pip</span>
               </header>
               <div class="cmd">
-                <div class="cmd-row"><code><span class="prompt">$</span> pipx install pari-cli</code><span class="note">recommended</span></div>
-                <div class="cmd-row"><code><span class="prompt">$</span> uv tool install pari-cli</code><span class="note">fast</span></div>
-                <div class="cmd-row"><code><span class="prompt">$</span> pip install pari-cli</code><span class="note">standard</span></div>
+                <div class="cmd-row"><code><span class="prompt">$</span> pipx install pari-cli</code><span class="cmd-actions"><span class="note">recommended</span><button type="button" class="copy" data-copy="pipx install pari-cli">Copy</button></span></div>
+                <div class="cmd-row"><code><span class="prompt">$</span> uv tool install pari-cli</code><span class="cmd-actions"><span class="note">fast</span><button type="button" class="copy" data-copy="uv tool install pari-cli">Copy</button></span></div>
+                <div class="cmd-row"><code><span class="prompt">$</span> pip install pari-cli</code><span class="cmd-actions"><span class="note">standard</span><button type="button" class="copy" data-copy="pip install pari-cli">Copy</button></span></div>
               </div>
             </article>
           </div>
@@ -565,6 +571,35 @@
       syncThemeLabel();
     });
     document.getElementById("year").textContent = new Date().getFullYear();
+    document.querySelectorAll("[data-copy]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const text = button.getAttribute("data-copy") || "";
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            const area = document.createElement("textarea");
+            area.value = text;
+            area.setAttribute("readonly", "");
+            area.style.position = "fixed";
+            area.style.left = "-9999px";
+            document.body.appendChild(area);
+            area.select();
+            const ok = document.execCommand("copy");
+            area.remove();
+            if (!ok) throw new Error("copy failed");
+          }
+          button.textContent = "Copied";
+          button.classList.add("copied");
+        } catch {
+          button.textContent = "Copy";
+        }
+        setTimeout(() => {
+          button.textContent = "Copy";
+          button.classList.remove("copied");
+        }, 1600);
+      });
+    });
   </script>
 </body>
 </html>
