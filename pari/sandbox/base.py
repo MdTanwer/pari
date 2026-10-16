@@ -14,7 +14,6 @@ from __future__ import annotations
 import codecs
 import ctypes
 import os
-import pty
 import shlex
 import signal
 import subprocess
@@ -25,6 +24,12 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+
+
+try:
+    import pty
+except ImportError:
+    pty = None  # Windows has no pty module.
 
 
 _SECRET_ENV_MARKERS = (
@@ -230,7 +235,7 @@ class SandboxRunner(ABC):
         # A tty flushes each line. A pipe holds the output until the process exits.
         # Layer 4 runs commands on a PTY. Fall back to pipes when the host has none.
         master, slave = (None, None)
-        if on_output is not None:
+        if on_output is not None and pty is not None:
             try:
                 master, slave = pty.openpty()
             except OSError:

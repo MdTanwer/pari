@@ -27,6 +27,20 @@ def test_output_arrives_before_the_command_exits(tmp_path: Path):
     assert "two" in result.stdout
 
 
+def test_command_runs_when_the_host_has_no_pty(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("pari.sandbox.base.pty", None)
+    runner = SupervisedProcessRunner(tmp_path)
+    seen: list[str] = []
+
+    def on_output(_stream: str, text: str) -> None:
+        seen.append(text)
+
+    result = runner.run_command("echo hello", on_output=on_output)
+    assert result.exit_code == 0
+    assert "hello" in result.stdout
+    assert any("hello" in text for text in seen)
+
+
 def test_command_execution(tmp_path: Path):
     runner = get_sandbox_runner(tmp_path)
     res = runner.run_command("echo 'hello sandbox'")

@@ -10,7 +10,6 @@
 
 $ErrorActionPreference = "Stop"
 
-$RepoUrl = "https://github.com/MdTanwer/pari.git"
 $InstallDir = Join-Path $env:USERPROFILE ".pari"
 $VenvDir = Join-Path $InstallDir "venv"
 $ScriptsDir = Join-Path $VenvDir "Scripts"
@@ -35,7 +34,15 @@ function Show-InstalledPari {
             Write-Host "The updated copy is in $PreferredDir. Open a new terminal so that directory comes first." -ForegroundColor Yellow
         }
     }
-    $version = & $resolved.Source --version 2>$null | Select-Object -Last 1
+    $version = $null
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $version = & $resolved.Source --version 2>$null | Select-Object -Last 1
+    } catch {
+        $version = $null
+    }
+    $ErrorActionPreference = $previous
     if ($version) {
         Write-Output $version
     } else {
@@ -51,12 +58,8 @@ if (Get-Command uv -ErrorAction SilentlyContinue) {
         & uv tool install pari-cli
     }
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "PyPI install failed; attempting fallback to GitHub repository..." -ForegroundColor Yellow
-        & uv tool install --force "git+$RepoUrl"
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Installation via uv failed." -ForegroundColor Red
-            return
-        }
+        Write-Host "Error: Installation via uv failed." -ForegroundColor Red
+        return
     }
     $binDir = (& uv tool dir --bin 2>$null | Select-Object -Last 1)
     if ($binDir) { $binDir = $binDir.Trim() }
@@ -71,12 +74,8 @@ if (Get-Command pipx -ErrorAction SilentlyContinue) {
         & pipx install pari-cli
     }
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "PyPI install failed; attempting fallback to GitHub repository..." -ForegroundColor Yellow
-        & pipx install --force "git+$RepoUrl"
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Installation via pipx failed." -ForegroundColor Red
-            return
-        }
+        Write-Host "Error: Installation via pipx failed." -ForegroundColor Red
+        return
     }
     Show-InstalledPari
     return
@@ -129,15 +128,10 @@ if ($LASTEXITCODE -ne 0) {
 $VenvPip = Join-Path $ScriptsDir "pip.exe"
 & $VenvPip install --upgrade pip --quiet
 
-# Install pari-cli with fallback
 & $VenvPip install --upgrade pari-cli
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[*] PyPI install failed; falling back to GitHub source..." -ForegroundColor Yellow
-    & $VenvPip install "git+$RepoUrl"
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "[-] Error: Failed to install PARI via pip." -ForegroundColor Red
-        return
-    }
+    Write-Host "[-] Error: Failed to install PARI via pip." -ForegroundColor Red
+    return
 }
 
 # Ensure Scripts directory is in user PATH (robust array contains check)
