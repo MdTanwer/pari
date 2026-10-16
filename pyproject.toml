@@ -33,7 +33,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://pari-cli.in"
-Documentation = "https://pari-cli.in"
+Documentation = "https://pari-cli.in/docs"
 Repository = "https://github.com/MdTanwer/pari"
 
 [project.optional-dependencies]
