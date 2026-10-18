@@ -244,13 +244,14 @@ def test_snapshot_and_reset(tmp_path: Path):
     app.runtime.messages.append(ProviderMessage(role="user", content="hello"))
     saved = app.process_message("/snapshot before-edit")
     assert "before-edit" in saved
-    dag = tmp_path / ".pari" / "sessions" / f"{app.runtime.session_id}.jsonl"
+    dag = app.runtime._dag_file(app.runtime.session_id)
     assert "snapshot" in dag.read_text(encoding="utf-8")
+    assert not (tmp_path / ".pari" / "sessions").exists()
 
     cleared = app.process_message("/reset")
     assert "Conversation cleared" in cleared
     assert app.runtime.messages == []
-    new_dag = tmp_path / ".pari" / "sessions" / f"{app.runtime.session_id}.jsonl"
+    new_dag = app.runtime._dag_file(app.runtime.session_id)
     assert "session_start" in new_dag.read_text(encoding="utf-8")
 
 

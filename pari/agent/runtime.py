@@ -23,6 +23,11 @@ from pari.agent.guards import (
 from pari.agent.loop import AgentExecutionLoop, TurnResult
 from pari.agent.prompt import system_prompt
 from pari.agent.reflection import ReflectionManager
+from pari.context.compaction import (
+    DEFAULT_COMPACTION_THRESHOLD,
+    DEFAULT_MAX_TOKENS,
+    compact_messages,
+)
 from pari.intelligence.repomap import RepoMapGenerator
 from pari.providers import get_provider
 from pari.providers.base import LLMProvider
@@ -32,6 +37,7 @@ from pari.providers.response import ModelResponse
 from pari.routing.router import DualModelRouter, router_for
 from pari.session.events import SessionEventType
 from pari.session.logger import SessionLogger
+from pari.session.paths import default_session_dir
 from pari.session.undo import GuardedUndoManager
 from pari.tools.registry import get_default_registry
 
@@ -49,12 +55,21 @@ class AgentRuntime:
         repomap: str = "off",
         router: DualModelRouter | None = None,
         sandbox_mode: str | None = None,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+        compaction_threshold: float = DEFAULT_COMPACTION_THRESHOLD,
     ):
         self.workspace = workspace.resolve()
-        self.session_file = session_file or (self.workspace / ".pari" / "session.jsonl")
+        if session_file is not None:
+            self.session_file = session_file
+            self.session_dir = session_file.parent
+        else:
+            self.session_dir = default_session_dir(self.workspace)
+            self.session_file = self.session_dir / "session.jsonl"
         self.model_name = model_name
         self.edit_fallback = edit_fallback
         self.repomap = repomap
+        self.max_tokens = max_tokens
+        self.compaction_threshold = compaction_threshold
         # An explicit provider wins. Otherwise the model name selects one.
         self.provider = provider if provider is not None else get_provider(model_name)
         # A caller-supplied router is kept. Otherwise Haiku pairs with Sonnet.
@@ -106,9 +121,12 @@ class AgentRuntime:
         )
         return session_id
 
+    def _dag_file(self, session_id: str | None = None) -> Path:
+        sid = session_id or self.session_id or "default"
+        return self.session_dir / "dags" / f"{sid}.jsonl"
+
     def _dag_logger(self) -> SessionLogger:
-        dag = self.workspace / ".pari" / "sessions" / f"{self.session_id}.jsonl"
-        return SessionLogger(dag)
+        return SessionLogger(self._dag_file(self.session_id))
 
     def start_session(self) -> str:
         """Initialize session and emit start event to session.jsonl."""
@@ -135,6 +153,8 @@ class AgentRuntime:
             return False
         if clean_rel not in self.pinned_files:
             self.pinned_files.append(clean_rel)
+            if self.messages and self.messages[0].role == "system":
+                self._sync_system_message()
         return True
 
     async def continue_turn(
@@ -179,18 +199,12 @@ class AgentRuntime:
         schemas = self.tools.get_schemas()
 
         async def step(context: str, _turn: int) -> ModelResponse:
-            # After a tool call, the results are already on the transcript.
-            # A new user message here would hide them from the model.
-            if not self.messages:
-                self.messages.append(
-                    ProviderMessage(
-                        role="system", content=system_prompt(self.workspace)
-                    )
-                )
+            self._sync_system_message()
+            self._maybe_compact()
             if not self._tool_followup:
                 self.messages.append(ProviderMessage(role="user", content=context))
             self._tool_followup = False
-            # Wide prompts plan once, with no tools. The editor runs the calls.
+            self._maybe_compact()
             resp = await self.router.complete(
                 self.messages,
                 schemas,
@@ -198,15 +212,12 @@ class AgentRuntime:
                 active_files=self.pinned_files,
                 on_delta=on_delta,
             )
-            # Drop tool calls that were cut off so the next step cannot rerun them.
+            self.tokens_in = resp.tokens_in
             calls = [] if is_length_stop(resp.stop_reason) else list(resp.tool_calls)
             for index, call in enumerate(calls):
                 if not call.id:
                     call.id = f"call_{index}"
             self._tool_followup = bool(calls)
-            # Show the note that introduces this tool batch. The final answer
-            # has no tool calls and is printed once, after the turn returns.
-            # Deltas already painted this text. Printing it again would repeat it.
             if (
                 calls
                 and resp.text.strip()
@@ -221,6 +232,7 @@ class AgentRuntime:
                     tool_calls=calls or None,
                 )
             )
+            self._maybe_compact()
             return resp
 
         def remember_result(call: ToolCall, text: str) -> None:
@@ -230,7 +242,7 @@ class AgentRuntime:
             if on_tool_result is not None:
                 on_tool_result(call, text)
 
-        dag = self.workspace / ".pari" / "sessions" / f"{self.session_id}.jsonl"
+        dag = self._dag_file(self.session_id)
 
         def remember_warning(text: str) -> None:
             self.turn_warning = text
@@ -247,16 +259,12 @@ class AgentRuntime:
             on_diff=on_diff,
             on_warning=remember_warning,
         )
-        # A failed model call must not leave the prompt sitting on the transcript.
-        # The next message would otherwise resend a turn the provider never answered.
         sent = len(self.messages)
         try:
             result = await loop.run_turn(
                 prompt,
                 step,
                 lambda response: is_length_stop(response.stop_reason),
-                active_files=self._pinned_contents(),
-                repo_map=self._repo_map(),
             )
         except ProviderError:
             self._tool_followup = False
@@ -280,7 +288,50 @@ class AgentRuntime:
         self.cached_tokens = result.cached_tokens
         self.last_result = result
         self.awaiting_limit = result.response_text == TURN_LIMIT_PROMPT
+        self._maybe_compact()
         return result.response_text
+
+    def _build_system_prompt(self) -> str:
+        parts = [system_prompt(self.workspace)]
+        repo_map = self._repo_map()
+        if repo_map:
+            parts.append(repo_map)
+        pinned = self._pinned_contents()
+        if pinned:
+            body = "\n".join(f"# {name}\n{content}" for name, content in pinned)
+            parts.append(body)
+        return "\n\n".join(parts)
+
+    def _sync_system_message(self) -> None:
+        content = self._build_system_prompt()
+        if not self.messages:
+            self.messages.append(
+                ProviderMessage(
+                    role="system",
+                    content=content,
+                    cache_control=True,
+                )
+            )
+        elif self.messages[0].role == "system":
+            self.messages[0].content = content
+            self.messages[0].cache_control = True
+        else:
+            self.messages.insert(
+                0,
+                ProviderMessage(
+                    role="system",
+                    content=content,
+                    cache_control=True,
+                ),
+            )
+
+    def _maybe_compact(self) -> None:
+        self.messages = compact_messages(
+            self.messages,
+            tokens_in=self.tokens_in,
+            max_tokens=self.max_tokens,
+            compaction_threshold=self.compaction_threshold,
+        )
 
     def _repo_map(self) -> str:
         """Tier 3 map. ``off`` leaves search tools as the only navigation."""

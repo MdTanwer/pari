@@ -6,9 +6,10 @@ import pytest
 
 from pari.context.cache import mark_cache_breakpoints
 from pari.context.chunks import ContextChunk, ContextTier, assemble_context
-from pari.context.compaction import compact_context
+from pari.context.compaction import compact_context, compact_messages
 from pari.context.epoch import ContextEpoch
 from pari.context.warmer import CacheWarmer, should_warm
+from pari.providers.message import ProviderMessage, ToolCall
 
 
 def test_context_assembly_and_cache_breakpoints():
@@ -127,3 +128,46 @@ async def test_warmer_pings_a_large_context():
     await asyncio.sleep(0.05)
     await warmer.stop()
     assert calls
+
+
+def test_compact_messages_summarizes_old_turns_and_keeps_last_n():
+    messages = [
+        ProviderMessage(role="system", content="System rules"),
+    ]
+    for i in range(10):
+        messages.append(ProviderMessage(role="user", content=f"User prompt {i}"))
+        messages.append(
+            ProviderMessage(
+                role="assistant",
+                content=f"Asst plan {i}",
+                tool_calls=[ToolCall(id=f"c{i}", name="bash", arguments={"cmd": "ls"})],
+            )
+        )
+        messages.append(
+            ProviderMessage(
+                role="tool", content=f"Output {i} " * 50, tool_call_id=f"c{i}"
+            )
+        )
+        messages.append(ProviderMessage(role="assistant", content=f"Finished turn {i}"))
+
+    # When tokens_in is below threshold, nothing changes
+    not_compacted = compact_messages(messages, tokens_in=50, max_tokens=1000)
+    assert len(not_compacted) == len(messages)
+
+    # When tokens_in crosses threshold (800 > 1000 * 0.70)
+    compacted = compact_messages(messages, tokens_in=800, max_tokens=1000, keep_last=3)
+    assert len(compacted) < len(messages)
+    assert compacted[0].role == "system"
+    assert any("[Summary of prior history:" in m.content for m in compacted)
+
+    # The last 3 user turns should be preserved verbatim
+    recent_users = [
+        m.content
+        for m in compacted
+        if m.role == "user" and not m.content.startswith("[Summary of prior history:")
+    ]
+    assert recent_users == [
+        "User prompt 7",
+        "User prompt 8",
+        "User prompt 9",
+    ]

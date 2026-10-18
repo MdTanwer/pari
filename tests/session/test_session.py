@@ -3,7 +3,14 @@
 import json
 from pathlib import Path
 
-from pari.session import CheckpointManager, SessionDAG, SessionLogger
+import pytest
+
+from pari.session import (
+    CheckpointManager,
+    SessionDAG,
+    SessionLogger,
+    default_session_dir,
+)
 
 
 def test_session_append_and_read(tmp_path: Path):
@@ -92,3 +99,24 @@ def test_lineage_follows_parent_pointers(tmp_path: Path):
         else:
             labels.append(event.payload["tool"])
     assert labels == ["one", "bash"]
+
+
+def test_default_session_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("PARI_SESSION_DIR", raising=False)
+    # Global default in ~/.pari/sessions
+    global_dir = default_session_dir()
+    assert str(global_dir).startswith(str(Path.home()))
+    assert ".pari" in str(global_dir)
+
+    # Project workspace default under ~/.pari/projects/<slug>/sessions
+    ws_dir = default_session_dir(tmp_path)
+    assert str(ws_dir).startswith(str(Path.home()))
+    assert ".pari" in str(ws_dir)
+    assert tmp_path.name in str(ws_dir)
+    assert not (tmp_path / ".pari").exists()
+
+    # Environment override via PARI_SESSION_DIR
+    custom = tmp_path / "custom_sessions"
+    monkeypatch.setenv("PARI_SESSION_DIR", str(custom))
+    assert default_session_dir() == custom
+    assert default_session_dir(tmp_path) == custom
