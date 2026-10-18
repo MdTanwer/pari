@@ -152,33 +152,75 @@ _PACKAGE_BINS = frozenset(
     {"pip", "pip3", "npm", "pnpm", "yarn", "cargo", "poetry", "uv"}
 )
 _PACKAGE_SUBCOMMANDS = frozenset({"install", "add", "update", "fetch", "sync"})
-_SHELL_COMPOSERS = (";", "&&", "||", "|", "`", "$(", "\n", ">", "<")
+# `&` backgrounds the install and runs the rest of the line with its network.
+_SHELL_COMPOSERS = (";", "&&", "||", "|", "&", "`", "$(", "\n", ">", "<")
+_SHELL_OPERATORS = frozenset(
+    {
+        "&",
+        "&&",
+        "|",
+        "||",
+        "|&",
+        ";",
+        ";;",
+        "(",
+        ")",
+        "{",
+        "}",
+        "<",
+        "<<",
+        "<<<",
+        ">",
+        ">>",
+        "<&",
+        ">&",
+        "<>",
+        ">|",
+        "`",
+        "$(",
+    }
+)
 
 
 def network_allowed(command: str, limits: SandboxLimits) -> bool:
     """Share the network only when asked, or for one package-install command.
 
-    ``pip install x; curl`` does not receive the network.
+    ``pip install x; curl`` and ``pip install x & curl`` do not receive the
+    network. A URL argument such as ``--index-url http://…`` does not either,
+    unless ``allow_network`` is set.
     """
     if limits.allow_network:
         return True
     if not limits.allow_package_network:
         return False
+    # shlex glues ";" onto the previous word and drops newlines.
     if any(marker in command for marker in _SHELL_COMPOSERS):
         return False
     try:
         parts = shlex.split(command)
     except ValueError:
         return False
-    if len(parts) < 2:
+    return len(parts) >= 2 and _single_package_argv(parts)
+
+
+def is_package_install(command: str) -> bool:
+    """True for one package-install command, with no shell composers or URLs."""
+    return network_allowed(command, SandboxLimits())
+
+
+def _single_package_argv(parts: list[str]) -> bool:
+    """True when every token is a package-install argument, not a shell or URL."""
+    if any(part in _SHELL_OPERATORS for part in parts):
+        return False
+    if any(_points_at_url(part) for part in parts):
         return False
     binary = Path(parts[0]).name
     return binary in _PACKAGE_BINS and parts[1] in _PACKAGE_SUBCOMMANDS
 
 
-def is_package_install(command: str) -> bool:
-    """True for one package-install command, with no shell composers."""
-    return network_allowed(command, SandboxLimits())
+def _points_at_url(token: str) -> bool:
+    """True when a token names a host, including ``--index-url=http://…``."""
+    return "://" in token.lower()
 
 
 @dataclass
