@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from pari.edit.exact import PatternNotFoundError
-from pari.tools.bash import BashTool
+from pari.tools.bash import MAX_TOOL_TIMEOUT, BashTool
 from pari.tools.registry import get_default_registry
 
 
@@ -204,6 +204,49 @@ async def test_grep_rejects_a_bad_regular_expression(tmp_path: Path):
     registry = get_default_registry(tmp_path)
     with pytest.raises(ValueError, match="Invalid regular expression"):
         await registry.execute("grep_search", {"query": "(", "is_regex": True})
+
+
+@pytest.mark.asyncio
+async def test_huge_timeout_is_capped(tmp_path: Path):
+    registry = get_default_registry(tmp_path)
+    started = time.monotonic()
+    result = await registry.execute("bash", {"command": "sleep 1000", "timeout": 99999})
+    elapsed = time.monotonic() - started
+    assert result["timed_out"] is True
+    assert result["timeout"] == MAX_TOOL_TIMEOUT
+    assert elapsed < MAX_TOOL_TIMEOUT
+
+
+@pytest.mark.asyncio
+async def test_string_timeout_runs(tmp_path: Path):
+    registry = get_default_registry(tmp_path)
+    result = await registry.execute("bash", {"command": "echo hi", "timeout": "5"})
+    assert result["exit_code"] == 0
+    assert "hi" in result["output"]
+    assert result["timed_out"] is False
+
+
+@pytest.mark.asyncio
+async def test_bad_timeout_is_an_argument_error(tmp_path: Path):
+    registry = get_default_registry(tmp_path)
+    result = await registry.execute("bash", {"command": "echo hi", "timeout": "nope"})
+    assert "timeout" in result["error"]
+    assert "must be a number" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_string_integer_and_boolean_are_coerced(tmp_path: Path):
+    (tmp_path / "a.txt").write_text("one\n", encoding="utf-8")
+    (tmp_path / "b.txt").write_text("two\n", encoding="utf-8")
+    (tmp_path / "notes.txt").write_text("use (parens)\n", encoding="utf-8")
+    registry = get_default_registry(tmp_path)
+    found = await registry.execute(
+        "find_files", {"pattern": "*.txt", "max_results": "1"}
+    )
+    assert len(found) == 1
+    matches = await registry.execute("grep_search", {"query": "(", "is_regex": "false"})
+    assert matches
+    assert matches[0]["content"] == "use (parens)"
 
 
 @pytest.mark.asyncio

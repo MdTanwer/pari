@@ -15,6 +15,10 @@ from pari.tools.output_reader import ReadToolOutputTool
 from pari.tools.search import FindFilesTool, GrepTool
 
 
+class ToolArgumentError(ValueError):
+    """Arguments do not match the tool's parameter schema."""
+
+
 class ToolRegistry:
     """Registry maintaining active agent tools."""
 
@@ -38,6 +42,10 @@ class ToolRegistry:
         tool = self._tools.get(name)
         if tool is None:
             raise KeyError(f"Unknown tool: {name}")
+        try:
+            arguments = coerce_arguments(tool.definition.parameters, arguments)
+        except ToolArgumentError as exc:
+            return {"error": f"{name}: {exc}"}
         return await tool.execute(**arguments)
 
 
@@ -69,3 +77,86 @@ def get_default_registry(
     ):
         registry.register(tool)
     return registry
+
+
+def coerce_arguments(
+    schema: dict[str, Any], arguments: dict[str, Any]
+) -> dict[str, Any]:
+    """Coerce number, integer, and boolean values. Other mismatches are errors."""
+    if not isinstance(arguments, dict):
+        raise ToolArgumentError("arguments must be an object")
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        properties = {}
+    required = schema.get("required")
+    if not isinstance(required, list):
+        required = []
+    errors: list[str] = []
+    unknown = sorted(set(arguments) - set(properties))
+    if unknown:
+        names = ", ".join(unknown)
+        errors.append(f"unknown arguments: {names}")
+    coerced: dict[str, Any] = {}
+    for name, spec in properties.items():
+        if name not in arguments or arguments[name] is None:
+            if name in required:
+                errors.append(f"{name} is required")
+            continue
+        kind = spec.get("type") if isinstance(spec, dict) else None
+        try:
+            coerced[name] = _coerce(kind, arguments[name], name)
+        except ToolArgumentError as exc:
+            errors.append(str(exc))
+    if errors:
+        raise ToolArgumentError("; ".join(errors))
+    return coerced
+
+
+def _coerce(kind: object, value: Any, name: str) -> Any:
+    if kind == "number":
+        return _number(value, name)
+    if kind == "integer":
+        return _integer(value, name)
+    if kind == "boolean":
+        return _boolean(value, name)
+    if kind == "string":
+        if isinstance(value, str):
+            return value
+        raise ToolArgumentError(f"{name} must be a string, got {value!r}")
+    return value
+
+
+def _number(value: Any, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float | str):
+        raise ToolArgumentError(f"{name} must be a number, got {value!r}")
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            raise ToolArgumentError(f"{name} must be a number, got {value!r}") from None
+    return float(value)
+
+
+def _integer(value: Any, name: str) -> int:
+    if isinstance(value, bool):
+        raise ToolArgumentError(f"{name} must be an integer, got {value!r}")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str):
+        try:
+            number = float(value)
+        except ValueError:
+            number = None
+        if number is not None and number.is_integer():
+            return int(number)
+    raise ToolArgumentError(f"{name} must be an integer, got {value!r}")
+
+
+def _boolean(value: Any, name: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.lower() in {"true", "false"}:
+        return value.lower() == "true"
+    raise ToolArgumentError(f"{name} must be a boolean, got {value!r}")

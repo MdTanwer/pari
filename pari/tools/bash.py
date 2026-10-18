@@ -17,6 +17,10 @@ from pari.sandbox.dispatcher import get_sandbox_runner
 from pari.tools.base import Tool, ToolDefinition
 
 
+# A model can ask for timeout=10**9. The sandbox wait never exceeds this.
+MAX_TOOL_TIMEOUT = 600.0
+
+
 class BashTool(Tool):
     """Executes a shell command inside the kernel sandbox."""
 
@@ -52,7 +56,9 @@ class BashTool(Tool):
                     },
                     "timeout": {
                         "type": "number",
-                        "description": "Timeout in seconds.",
+                        "description": (
+                            "Timeout in seconds. Values above 600 are capped."
+                        ),
                     },
                 },
                 "required": ["command"],
@@ -65,6 +71,7 @@ class BashTool(Tool):
         # is still initializing.
         from pari.agent.guards import DAEMON_IDLE_SECONDS
 
+        timeout = min(float(timeout), MAX_TOOL_TIMEOUT)
         # A requested timeout shorter than 10s is the whole wait.
         # A longer one still yields at 10s so a server cannot hold the turn.
         idle = DAEMON_IDLE_SECONDS if timeout > DAEMON_IDLE_SECONDS else None
