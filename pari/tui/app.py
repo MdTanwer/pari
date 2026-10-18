@@ -158,34 +158,43 @@ class TerminalApp:
             return f"{self.runtime.turn_warning}\n\n{text}"
         return text
 
+    def stop_sandbox(self) -> None:
+        """Kill a command left running by Ctrl-C or by leaving the REPL."""
+        bash = self.runtime.tools.get("bash")
+        if isinstance(bash, BashTool):
+            bash.cleanup()
+
     async def run_repl(self) -> None:
         """Read lines until the user exits or the terminal closes."""
-        if not self.runtime.session_id:
-            self.runtime.start_session()
-        self.print_welcome()
-        draft = ""
-        while True:
-            try:
-                user_input = await self.session.prompt_async(
-                    message=prompt_tokens,
-                    placeholder=placeholder_tokens,
-                    bottom_toolbar=self._toolbar,
-                    default=draft,
-                )
-                self.session.app.erase_when_done = False
-                draft = ""
-                if user_input == EXPAND:
-                    draft = self.session.default_buffer.text
-                    await self.show_activity()
-                    continue
-                text = user_input.strip()
-                if not text:
-                    continue
-                if not await self._turn(text):
+        try:
+            if not self.runtime.session_id:
+                self.runtime.start_session()
+            self.print_welcome()
+            draft = ""
+            while True:
+                try:
+                    user_input = await self.session.prompt_async(
+                        message=prompt_tokens,
+                        placeholder=placeholder_tokens,
+                        bottom_toolbar=self._toolbar,
+                        default=draft,
+                    )
+                    self.session.app.erase_when_done = False
+                    draft = ""
+                    if user_input == EXPAND:
+                        draft = self.session.default_buffer.text
+                        await self.show_activity()
+                        continue
+                    text = user_input.strip()
+                    if not text:
+                        continue
+                    if not await self._turn(text):
+                        break
+                except (KeyboardInterrupt, EOFError):
+                    self.console.print("\n" + self.farewell())
                     break
-            except (KeyboardInterrupt, EOFError):
-                self.console.print("\n" + self.farewell())
-                break
+        finally:
+            self.stop_sandbox()
 
     async def _turn(self, text: str) -> bool:
         """Handle one line. Return False when the session should stop."""

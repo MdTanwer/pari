@@ -121,7 +121,7 @@ class AgentRuntime:
     def resume(self, session_id: str | None = None) -> str:
         """Load a session DAG into ``messages``. Omit the id to use the latest."""
         path = self._resolve_dag(session_id)
-        logger = SessionLogger(path)
+        logger = self._open_logger(path)
         payloads, turns = restore_transcript(
             logger.read_events(), logger.session_file.parent
         )
@@ -136,6 +136,10 @@ class AgentRuntime:
             if message is not None
         ]
         return self.session_id
+
+    def _open_logger(self, path: Path) -> SessionLogger:
+        """Log into the workspace spool so tool output has one sidecar directory."""
+        return SessionLogger(path, spool_dir=self.workspace / ".pari" / "tool-outputs")
 
     def _dag_file(self, session_id: str | None = None) -> Path:
         sid = session_id or self.session_id or "default"
@@ -172,7 +176,7 @@ class AgentRuntime:
             self.start_session()
         logger = self._logger
         if logger is None:
-            logger = SessionLogger(self._dag_file())
+            logger = self._open_logger(self._dag_file())
             self._logger = logger
             self._checkpoints = CheckpointManager(logger)
         return logger
@@ -180,7 +184,7 @@ class AgentRuntime:
     def start_session(self) -> str:
         """Open a new checksummed session DAG. The plain session.jsonl is not used."""
         self.session_id = f"pari_sess_{uuid.uuid4().hex[:12]}"
-        self._logger = SessionLogger(self._dag_file())
+        self._logger = self._open_logger(self._dag_file())
         self._checkpoints = CheckpointManager(self._logger)
         self.session_file = self._logger.session_file
         self._logger.append_event(

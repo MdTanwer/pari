@@ -33,6 +33,18 @@ async def test_agent_runtime_turn_execution(tmp_path: Path):
     assert not (tmp_path / ".pari" / "session.jsonl").exists()
 
 
+def test_session_output_lands_in_the_workspace_spool(tmp_path: Path):
+    runtime = AgentRuntime(tmp_path, provider=MockOfflineProvider())
+    runtime.start_session()
+    runtime._ensure_logger().append_event("TOOL_RESULT", {"output": "z" * 700})
+    spool = tmp_path / ".pari" / "tool-outputs"
+    files = list(spool.glob("*.txt"))
+    assert len(files) == 1
+    assert files[0].read_text(encoding="utf-8") == "z" * 700
+    names = [path.name for path in runtime.session_dir.rglob("*")]
+    assert "tool-outputs" not in names
+
+
 @pytest.mark.asyncio
 async def test_tool_result_is_sent_back_before_the_answer(tmp_path: Path):
     (tmp_path / "app.py").write_text("def add(a, b):\n    return a + b\n")
