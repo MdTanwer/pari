@@ -3,7 +3,7 @@
 Coordinates prompt classification, architect plan generation, and editor execution.
 """
 
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable
 from typing import Any
 
 from pari.providers import get_provider
@@ -29,15 +29,7 @@ _ARCHITECT_MODEL = "claude-3-7-sonnet-20250219"
 class DualModelRouter:
     """Send a wide task through the architect, and a small edit to the editor."""
 
-    def __init__(
-        self,
-        architect_call: Callable[[str], Coroutine[Any, Any, str]] | None = None,
-        editor_call: (
-            Callable[[str, str | None], Coroutine[Any, Any, str]] | None
-        ) = None,
-    ):
-        self.architect_call = architect_call
-        self.editor_call = editor_call
+    def __init__(self) -> None:
         self.architect: LLMProvider | None = None
         self.editor: LLMProvider | None = None
         self.plan: str | None = None
@@ -56,17 +48,6 @@ class DualModelRouter:
     def begin_turn(self) -> None:
         """A new user prompt may need a new plan. Tool steps reuse this one."""
         self.plan = None
-
-    async def route_and_execute(self, prompt: str, active_files: list[str]) -> str:
-        """Classify, optionally plan, then ask the editor to apply the result."""
-        plan: str | None = None
-        if _is_wide(prompt, active_files):
-            if self.architect_call is None:
-                raise RuntimeError("No architect model is configured.")
-            plan = _bounded_plan(await self.architect_call(prompt))
-        if self.editor_call is None:
-            raise RuntimeError("No editor model is configured.")
-        return await self.editor_call(prompt, plan)
 
     async def complete(
         self,
