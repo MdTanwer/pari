@@ -11,6 +11,7 @@ from pari.session import (
     SessionLogger,
     default_session_dir,
 )
+from pari.session.checkpoint import restore_transcript
 
 
 def test_session_append_and_read(tmp_path: Path):
@@ -82,6 +83,30 @@ def test_checkpoint_records_ancestor_chain(tmp_path: Path):
     assert stored["id"] == checkpoint_id
     assert stored["data"]["ancestor_chain"] == [first, second]
     assert stored["parentId"] == second
+
+
+def test_restore_uses_the_latest_checkpoint_and_the_tail(tmp_path: Path):
+    logger = SessionLogger(tmp_path / "resume.jsonl")
+    logger.append_event("USER_TURN", {"prompt": "old"})
+    logger.append_event("ASSISTANT_TURN", {"text": "old answer"})
+    checkpoints = CheckpointManager(logger, interval_turns=1)
+    checkpoints.record_turn(
+        {"messages": [{"role": "user", "content": "from-checkpoint"}]}
+    )
+    logger.append_event("USER_TURN", {"prompt": "new"})
+    logger.append_event("TOOL_CALL", {"tool": "bash", "id": "c1", "arguments": {}})
+    logger.append_event("FILE_SNAPSHOT", {"path": "a.py"})
+    logger.append_event("TOOL_RESULT", {"tool": "bash", "output": "ok"})
+    logger.append_event("ASSISTANT_TURN", {"text": "new answer"})
+
+    messages, turns = restore_transcript(logger.read_events(), tmp_path)
+    contents = [message["content"] for message in messages]
+    assert "from-checkpoint" in contents
+    assert "old" not in contents
+    assert "new" in contents
+    assert "ok" in contents
+    assert "new answer" in contents
+    assert turns == 2
 
 
 def test_lineage_follows_parent_pointers(tmp_path: Path):

@@ -177,7 +177,8 @@ class AgentExecutionLoop:
             self.on_tool_call(call.name, call.arguments)
         if self.logger is not None:
             self.logger.append_event(
-                "TOOL_CALL", {"tool": call.name, "arguments": call.arguments}
+                "TOOL_CALL",
+                {"tool": call.name, "id": call.id, "arguments": call.arguments},
             )
         result = await self.registry.execute(call.name, call.arguments)
         text = _render_result(call, result)

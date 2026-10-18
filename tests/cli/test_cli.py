@@ -114,6 +114,14 @@ def test_dry_run_without_a_model_asks_for_sign_in(
     assert "pari-core" not in captured.err
 
 
+def test_resume_without_a_session_is_an_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    code = main(["--workspace", str(tmp_path), "--model", "pari-core", "--resume"])
+    assert code == 1
+    assert "No session to resume." in capsys.readouterr().err
+
+
 def test_dry_run_uses_the_signed_in_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
