@@ -12,7 +12,7 @@ Subsystems:
 """
 
 from pari.fs.atomic import BinaryFileError, atomic_write, read_file
-from pari.fs.path import resolve_safe_path
+from pari.fs.path import resolve_safe_path, resolve_writable_path
 from pari.fs.queue import FileMutationQueue
 
 
@@ -22,4 +22,5 @@ __all__ = [
     "atomic_write",
     "read_file",
     "resolve_safe_path",
+    "resolve_writable_path",
 ]

@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 
 from pari.fs.atomic import atomic_write
-from pari.fs.path import resolve_safe_path
+from pari.fs.path import resolve_safe_path, resolve_writable_path
 
 
 class FileMutationQueue:
@@ -40,6 +40,8 @@ class FileMutationQueue:
 
     async def write(self, file_path: Path, content: str) -> None:
         """Hold the file lock for the duration of the atomic replace."""
+        if self.workspace is not None:
+            file_path = resolve_writable_path(self.workspace, file_path)
         lock = await self.get_lock(file_path)
         async with lock:
             target = self._canonical(file_path)

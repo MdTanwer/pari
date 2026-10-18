@@ -9,7 +9,7 @@ from typing import Any
 from pari.edit.cascade import EditCascade
 from pari.edit.exact import apply_exact_edit
 from pari.fs.atomic import BinaryFileError, atomic_write, read_file
-from pari.fs.path import resolve_safe_path
+from pari.fs.path import resolve_safe_path, resolve_writable_path
 from pari.fs.queue import FileMutationQueue
 from pari.output.spooler import ManagedOutputSpooler
 from pari.permissions.policy import PermissionPolicy
@@ -126,7 +126,7 @@ class WriteFileTool(Tool):
 
     async def execute(self, path: str, content: str) -> str:
         """Atomically write file while holding its canonical lock."""
-        resolve_safe_path(self.workspace, path)
+        resolve_writable_path(self.workspace, path)
         if _session_read_only(self.workspace):
             return "This session is read-only."
         await self.queue.write(Path(path), content)
@@ -183,7 +183,7 @@ class EditFileTool(Tool):
         Exact mode also leaves it unchanged when the text is missing.
         Cascade mode may then align whitespace or a close window.
         """
-        target = resolve_safe_path(self.workspace, path)
+        target = resolve_writable_path(self.workspace, path)
         if _session_read_only(self.workspace):
             return {
                 "status": "denied",
