@@ -3,11 +3,22 @@ set -eo pipefail
 
 # PARI Installer for Linux and macOS
 # Usage: curl -fsSL https://pari-cli.in/install.sh | bash
-# (Alternative: curl -fsSL https://raw.githubusercontent.com/MdTanwer/pari/main/install.sh | bash)
+# Checksums for these scripts are published in SHA256SUMS beside this file.
+#
+# This script installs the release that published it. Set
+# PARI_INSTALL_FROM_SOURCE=1 to install that same tag from git instead of PyPI.
 
-REPO_URL="https://github.com/MdTanwer/pari.git"
+VERSION="0.1.7"
+PACKAGE="pari-cli==${VERSION}"
+SOURCE_URL="git+https://github.com/MdTanwer/pari.git@v${VERSION}"
 INSTALL_DIR="$HOME/.pari"
 BIN_DIR="$HOME/.local/bin"
+
+if [ "${PARI_INSTALL_FROM_SOURCE:-}" = "1" ]; then
+    SPEC="$SOURCE_URL"
+else
+    SPEC="$PACKAGE"
+fi
 
 BOLD="$(tput bold 2>/dev/null || echo '')"
 CYAN="$(tput setaf 6 2>/dev/null || echo '')"
@@ -16,13 +27,19 @@ YELLOW="$(tput setaf 3 2>/dev/null || echo '')"
 RED="$(tput setaf 1 2>/dev/null || echo '')"
 RESET="$(tput sgr0 2>/dev/null || echo '')"
 
+fail_install() {
+    echo "${RED}Error: failed to install ${SPEC}.${RESET}" >&2
+    if [ "${PARI_INSTALL_FROM_SOURCE:-}" != "1" ]; then
+        echo "PyPI did not provide pari-cli==${VERSION}." >&2
+        echo "Re-run with PARI_INSTALL_FROM_SOURCE=1 to install tag v${VERSION}." >&2
+    fi
+    exit 1
+}
+
 # 1. Prefer uv if installed (fastest)
 if command -v uv >/dev/null 2>&1; then
-    if ! uv tool upgrade pari-cli; then
-        if ! uv tool install pari-cli; then
-            echo "${YELLOW}PyPI package install failed; falling back to GitHub source...${RESET}" >&2
-            uv tool install --force "git+${REPO_URL}"
-        fi
+    if ! uv tool install --force "$SPEC"; then
+        fail_install
     fi
     pari-cli --version || echo "pari-cli installed"
     exit 0
@@ -30,11 +47,8 @@ fi
 
 # 2. Prefer pipx if installed (isolated)
 if command -v pipx >/dev/null 2>&1; then
-    if ! pipx upgrade pari-cli; then
-        if ! pipx install pari-cli; then
-            echo "${YELLOW}PyPI package install failed; falling back to GitHub source...${RESET}" >&2
-            pipx install --force "git+${REPO_URL}"
-        fi
+    if ! pipx install --force "$SPEC"; then
+        fail_install
     fi
     pari-cli --version || echo "pari-cli installed"
     exit 0
@@ -59,9 +73,8 @@ if command -v python3 >/dev/null 2>&1; then
     python3 -m venv "$INSTALL_DIR/venv"
 
     "$INSTALL_DIR/venv/bin/pip" install --upgrade pip --quiet
-    if ! "$INSTALL_DIR/venv/bin/pip" install --upgrade pari-cli --quiet; then
-        echo "${YELLOW}PyPI package install failed; falling back to GitHub source...${RESET}"
-        "$INSTALL_DIR/venv/bin/pip" install "git+${REPO_URL}" --quiet
+    if ! "$INSTALL_DIR/venv/bin/pip" install "$SPEC" --quiet; then
+        fail_install
     fi
 
     # Create symlink in ~/.local/bin
