@@ -25,11 +25,9 @@ def is_length_stop(stop_reason: str | None) -> bool:
 
 
 def format_daemon_notice(command: str, idle_seconds: int = DAEMON_IDLE_SECONDS) -> str:
-    """Notice for a command that kept streaming past the idle window."""
+    """Notice for a command killed because it did not exit."""
     shown = command.strip() or "command"
     return (
-        f"[DAEMON DETECTED]: Command '{shown}' did not exit after "
-        f"{idle_seconds}s. Process was backgrounded. "
-        "Stdout snapshot spooled to disk. "
-        "To manage background daemons, use background task APIs."
+        f"[DAEMON DETECTED]: Command '{shown}' was stopped after "
+        f"{idle_seconds}s. Run long-lived servers in a separate terminal."
     )

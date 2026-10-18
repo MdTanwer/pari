@@ -81,10 +81,12 @@ def test_unknown_mode_rejected(tmp_path: Path):
 def test_daemon_idle_stops_a_command_that_does_not_exit(tmp_path: Path):
     limits = SandboxLimits(timeout_seconds=30, daemon_idle_seconds=1)
     runner = get_sandbox_runner(tmp_path, limits=limits)
-    res = runner.run_command("sleep 30")
+    # sleep inherits the ignored SIGINT, so only the later SIGKILL can stop it.
+    res = runner.run_command("trap '' INT; sleep 30")
     assert res.daemon is True
     assert res.timed_out is True
     assert res.duration_seconds < 5
+    assert _pids_with_cmdline("sleep 30") == []
 
 
 def test_timeout_enforcement(tmp_path: Path):
@@ -92,3 +94,17 @@ def test_timeout_enforcement(tmp_path: Path):
     runner = get_sandbox_runner(tmp_path, limits=limits)
     res = runner.run_command("sleep 5")
     assert res.timed_out is True
+
+
+def _pids_with_cmdline(expected: str) -> list[int]:
+    found: list[int] = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            command = (entry / "cmdline").read_bytes().replace(b"\0", b" ")
+        except OSError:
+            continue
+        if command.decode(errors="replace").strip() == expected:
+            found.append(int(entry.name))
+    return found
