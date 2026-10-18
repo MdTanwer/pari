@@ -1,10 +1,14 @@
 """Unit tests for Standard Tool Suite."""
 
+import asyncio
+import threading
+import time
 from pathlib import Path
 
 import pytest
 
 from pari.edit.exact import PatternNotFoundError
+from pari.tools.bash import BashTool
 from pari.tools.registry import get_default_registry
 
 
@@ -215,6 +219,46 @@ async def test_bash_tool_sandboxed(tmp_path: Path):
     escape = tmp_path.parent / "pari_escape_probe.txt"
     await registry.execute("bash", {"command": f"echo x > {escape} 2>/dev/null; true"})
     assert not escape.exists()
+
+
+@pytest.mark.asyncio
+async def test_small_bash_calls_create_no_sidecars(tmp_path: Path):
+    registry = get_default_registry(tmp_path)
+    for _ in range(100):
+        result = await registry.execute("bash", {"command": "echo hi"})
+        assert result["exit_code"] == 0
+        assert result["sidecar_path"] == ""
+    spool = tmp_path / ".pari" / "tool-outputs"
+    assert list(spool.glob("*.txt")) == []
+
+
+def test_ctrl_c_during_sleep_leaves_no_sleep_process(tmp_path: Path):
+    tool = BashTool(tmp_path)
+    thread = threading.Thread(
+        target=lambda: asyncio.run(tool.execute("sleep 100", timeout=120))
+    )
+    thread.start()
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline and not _sleep_pids():
+        time.sleep(0.05)
+    assert _sleep_pids()
+    tool.cleanup()
+    thread.join(10)
+    assert _sleep_pids() == []
+
+
+def _sleep_pids() -> list[int]:
+    found: list[int] = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            command = (entry / "cmdline").read_bytes().replace(b"\0", b" ")
+        except OSError:
+            continue
+        if command.decode(errors="replace").strip() == "sleep 100":
+            found.append(int(entry.name))
+    return found
 
 
 def _sidecar_from_notice(content: str) -> Path:

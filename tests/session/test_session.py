@@ -166,6 +166,21 @@ def test_latest_checkpoint_reads_past_a_torn_tail(tmp_path: Path):
     assert stored["id"] == checkpoint_id
 
 
+def test_large_output_spills_only_into_the_spool_directory(tmp_path: Path):
+    spool = tmp_path / "spool"
+    logger = SessionLogger(tmp_path / "session.jsonl", spool_dir=spool)
+    logger.append_event("TOOL_RESULT", {"output": "hi"})
+    assert list(spool.glob("*.txt")) == []
+    logger.append_event("TOOL_RESULT", {"output": "x" * 600})
+    files = list(spool.glob("*.txt"))
+    assert len(files) == 1
+    assert files[0].read_text(encoding="utf-8") == "x" * 600
+    assert not (tmp_path / "tool-outputs").exists()
+    stored = logger.read_events()[-1]["data"]
+    assert stored["sidecar_path"] == str(files[0])
+    assert "output" not in stored
+
+
 def test_default_session_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("PARI_SESSION_DIR", raising=False)
     # Global default in ~/.pari/sessions

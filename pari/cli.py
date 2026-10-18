@@ -166,7 +166,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     try:
         asyncio.run(app.run_repl())
     except KeyboardInterrupt:
-        pass
+        app.stop_sandbox()
     return 0
 
 

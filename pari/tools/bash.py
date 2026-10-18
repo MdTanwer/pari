@@ -12,7 +12,7 @@ from typing import Any
 from pari.output.spooler import ManagedOutputSpooler
 from pari.permissions.credentials import granted_env
 from pari.permissions.policy import Decision, PermissionPolicy, normalize_choice
-from pari.sandbox.base import SandboxLimits
+from pari.sandbox.base import SandboxLimits, SandboxRunner
 from pari.sandbox.dispatcher import get_sandbox_runner
 from pari.tools.base import Tool, ToolDefinition
 
@@ -32,6 +32,7 @@ class BashTool(Tool):
         self.permission_home = permission_home
         spool_dir = workspace / ".pari" / "tool-outputs"
         self.spooler = spooler or ManagedOutputSpooler(spool_dir)
+        self._runner: SandboxRunner | None = None
         # The TUI sets this so command output prints while the process runs.
         self.on_output: Callable[[str, str], None] | None = None
         # The TUI sets this so a widening stops for once / this repo / no.
@@ -95,20 +96,43 @@ class BashTool(Tool):
             return "no"
         return normalize_choice(choice)
 
+    def cleanup(self) -> None:
+        """Kill a command still running in this tool and drop its cgroup."""
+        runner = self._runner
+        if runner is not None:
+            runner.cleanup()
+
+    def _command_runner(self, limits: SandboxLimits) -> SandboxRunner:
+        """One runner for the life of the tool, so cleanup can see its children."""
+        runner = self._runner
+        if runner is None:
+            runner = get_sandbox_runner(
+                self.workspace, limits=limits, force_mode=self.sandbox_mode
+            )
+            self._runner = runner
+        else:
+            runner.limits = limits
+        return runner
+
     def _run(
         self, command: str, timeout: float, limits: SandboxLimits
     ) -> dict[str, Any]:
         from pari.agent.guards import DAEMON_IDLE_SECONDS
 
-        runner = get_sandbox_runner(
-            self.workspace, limits=limits, force_mode=self.sandbox_mode
-        )
-        result = runner.run_command(command, timeout=timeout, on_output=self.on_output)
+        runner = self._command_runner(limits)
+        try:
+            result = runner.run_command(
+                command, timeout=timeout, on_output=self.on_output
+            )
+        except KeyboardInterrupt:
+            runner.cleanup()
+            raise
         raw = result.stdout
         if result.stderr:
             raw += result.stderr
-        # The prompt sees the bounded view. The full log stays in the sidecar.
+        # The prompt sees the bounded view. A sidecar exists only past the budget.
         spooled = self.spooler.spool(raw, command_tag="bash")
+        sidecar = "" if spooled.sidecar_path is None else str(spooled.sidecar_path)
         return {
             "exit_code": result.exit_code,
             "output": spooled.context_text,
@@ -116,7 +140,7 @@ class BashTool(Tool):
             "timeout": timeout,
             "idle_seconds": DAEMON_IDLE_SECONDS if result.daemon else timeout,
             "truncated": spooled.was_truncated,
-            "sidecar_path": str(spooled.sidecar_path),
+            "sidecar_path": sidecar,
         }
 
 

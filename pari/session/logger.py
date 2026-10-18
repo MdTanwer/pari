@@ -24,8 +24,9 @@ _SIDECAR_LIMIT = 512
 class SessionLogger:
     """Manages an append-only JSONL session log with CRC32 integrity verification."""
 
-    def __init__(self, session_file: Path):
+    def __init__(self, session_file: Path, spool_dir: Path | None = None):
         self.session_file = session_file
+        self.spool_dir = spool_dir
         self.last_record_id: str | None = None
         self._ids: list[str] = []
         self._recover_and_index()
@@ -72,7 +73,7 @@ class SessionLogger:
 
     def _write_record(self, event_type: str, data: dict[str, Any]) -> dict[str, Any]:
         event_id = new_event_id()
-        payload = _spill_output(self.session_file.parent, event_id, dict(data))
+        payload = _spill_output(event_id, dict(data), spool_dir=self.spool_dir)
         record = {
             "id": event_id,
             "parentId": self.last_record_id,
@@ -112,16 +113,23 @@ def _now() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
-def _spill_output(directory: Path, event_id: str, payload: dict[str, Any]) -> dict:
+def _spill_output(
+    event_id: str,
+    payload: dict[str, Any],
+    spool_dir: Path | None = None,
+) -> dict:
     output = payload.get("output")
     if not isinstance(output, str) or len(output.encode("utf-8")) <= _SIDECAR_LIMIT:
         return payload
-    sidecar_dir = directory / "tool-outputs"
-    sidecar_dir.mkdir(parents=True, exist_ok=True)
-    relative = f"tool-outputs/{event_id}.txt"
-    (directory / relative).write_text(output, encoding="utf-8")
+    # The workspace spool is the one sidecar directory. Without it, the log
+    # keeps the text instead of growing a second tree beside the session.
+    if spool_dir is None:
+        return payload
+    spool_dir.mkdir(parents=True, exist_ok=True)
+    path = spool_dir / f"{event_id}.txt"
+    path.write_text(output, encoding="utf-8")
     payload.pop("output")
-    payload["sidecar_path"] = relative
+    payload["sidecar_path"] = str(path)
     return payload
 
 

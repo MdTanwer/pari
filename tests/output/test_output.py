@@ -23,6 +23,16 @@ def test_head_tail_truncation():
     assert "OMITTED" in condensed
 
 
+def test_small_output_does_not_write_a_sidecar(tmp_path: Path):
+    spool_dir = tmp_path / "spool"
+    spooler = ManagedOutputSpooler(spool_dir=spool_dir)
+    res = spooler.spool("hi", command_tag="bash")
+    assert res.was_truncated is False
+    assert res.context_text == "hi"
+    assert res.sidecar_path is None
+    assert list(spool_dir.glob("*.txt")) == []
+
+
 def test_managed_output_spooler(tmp_path: Path):
     spooler = ManagedOutputSpooler(spool_dir=tmp_path / "spool", max_bytes=200)
     huge_text = "error dump\n" * 50
@@ -44,9 +54,14 @@ def test_spooler_drops_sidecars_older_than_seven_days(tmp_path: Path):
     os.utime(stale, (stale_time, stale_time))
 
     spooler = ManagedOutputSpooler(spool_dir=spool_dir)
-    assert spooler.purge_expired() == 1
     assert not stale.exists()
     assert fresh.read_text() == "keep"
+    later = spool_dir / "later.txt"
+    later.write_text("old")
+    later_time = later.stat().st_mtime - week - 5
+    os.utime(later, (later_time, later_time))
+    assert spooler.purge_expired() == 1
+    assert not later.exists()
 
 
 def test_read_tool_output_rejects_paths_outside_the_spool(tmp_path: Path):

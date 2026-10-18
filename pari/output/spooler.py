@@ -19,7 +19,7 @@ from pari.output.truncation import extract_head_tail
 @dataclass
 class SpoolResult:
     context_text: str
-    sidecar_path: Path
+    sidecar_path: Path | None
     total_bytes: int
     total_lines: int
     was_truncated: bool
@@ -41,30 +41,27 @@ class ManagedOutputSpooler:
         self.spool_dir = spool_dir
         self.max_bytes = max_bytes
         self.max_lines = max_lines
+        self.purge_expired()
 
     def spool(self, raw_output: str, command_tag: str = "cmd") -> SpoolResult:
-        """Write the full log, then return a bounded view for the prompt.
-
-        The sidecar is written before the size check so a later crash still
-        leaves the complete output on disk.
-        """
+        """Return the output, and keep a sidecar only when it exceeds the budget."""
         if self.spool_dir is None:
             raise ValueError("spool_dir is required")
-        self.spool_dir.mkdir(parents=True, exist_ok=True)
-        safe_tag = "".join(ch for ch in command_tag if ch.isalnum()) or "cmd"
-        sidecar = self.spool_dir / f"{safe_tag}-{uuid.uuid4().hex}.txt"
-        sidecar.write_text(raw_output, encoding="utf-8")
         total_bytes = len(raw_output.encode("utf-8"))
         total_lines = len(raw_output.splitlines())
         over_budget = total_bytes > self.max_bytes or total_lines > self.max_lines
         if not over_budget:
             return SpoolResult(
                 context_text=raw_output,
-                sidecar_path=sidecar,
+                sidecar_path=None,
                 total_bytes=total_bytes,
                 total_lines=total_lines,
                 was_truncated=False,
             )
+        self.spool_dir.mkdir(parents=True, exist_ok=True)
+        safe_tag = "".join(ch for ch in command_tag if ch.isalnum()) or "cmd"
+        sidecar = self.spool_dir / f"{safe_tag}-{uuid.uuid4().hex}.txt"
+        sidecar.write_text(raw_output, encoding="utf-8")
         context_text, _truncated = extract_head_tail(
             raw_output,
             head_lines=20,
