@@ -12,6 +12,7 @@ from rich.console import Console
 from pari.agent.loop import workspace_diff
 from pari.agent.runtime import AgentRuntime
 from pari.auth.login import sign_out, status_text
+from pari.session.undo import side_effect_note
 from pari.tui.commands import SlashCommandHandler
 from pari.tui.diff_view import display_diff
 from pari.tui.status import CostMeter
@@ -77,8 +78,10 @@ class SessionCommands:
     def _undo(self, _args: str) -> str:
         res = self.host.runtime.undo_manager.undo()
         if res.reverted_files:
-            return f"Reverted files: {', '.join(res.reverted_files)}"
-        return "No previous file modifications in session history to undo."
+            text = f"Reverted files: {', '.join(res.reverted_files)}"
+        else:
+            text = "No previous file modifications in session history to undo."
+        return text + side_effect_note(res)
 
     def _model(self, args: str) -> str:
         if args:

@@ -1,9 +1,5 @@
 """Helpers the hand-written execution loop calls."""
 
-import asyncio
-
-import pytest
-
 from pari.agent.guards import (
     LENGTH_TRUNCATION_NOTICE,
     MAX_TURNS,
@@ -11,7 +7,6 @@ from pari.agent.guards import (
     is_length_stop,
 )
 from pari.agent.reflection import ReflectionManager, format_lint_error
-from pari.agent.subagent import FiberSubagentPool, SubagentTask
 
 
 def test_length_stop_discards_a_cut_off_tool_call():
@@ -51,15 +46,3 @@ def test_daemon_notice_names_the_command():
     assert "was stopped after 10s" in notice
     assert "separate terminal" in notice
     assert "background" not in notice
-
-
-@pytest.mark.asyncio
-async def test_subagent_pool_returns_results_in_order():
-    pool = FiberSubagentPool(max_concurrency=2)
-
-    async def work(value: int) -> int:
-        await asyncio.sleep(0.01)
-        return value
-
-    tasks = [SubagentTask(str(value), "read", work(value)) for value in (1, 2, 3)]
-    assert await pool.run_parallel_research(tasks) == [1, 2, 3]

@@ -13,6 +13,7 @@ from pari.agent.runtime import AgentRuntime
 from pari.providers.base import LLMProvider
 from pari.providers.message import ProviderMessage, ToolCall
 from pari.providers.response import ModelResponse
+from pari.session.undo import GuardedUndoManager
 
 
 class ScriptedProvider(LLMProvider):
@@ -309,6 +310,79 @@ async def test_turn_limit_captures_the_git_diff(tmp_path: Path):
     assert "-before" in result.diff
     assert "+after" in result.diff
     assert seen and "-before" in seen[0]
+
+
+@pytest.mark.asyncio
+async def test_successful_package_install_is_disclosed_on_undo(tmp_path: Path):
+    undo = GuardedUndoManager(tmp_path)
+    command = "pip install requests"
+
+    async def step(_prompt: str, turn: int) -> ModelResponse:
+        if turn > 1:
+            return ModelResponse(text="installed", stop_reason="end_turn")
+        return ModelResponse(
+            text="installing",
+            tool_calls=[
+                ToolCall(id="1", name="bash", arguments={"command": command}),
+            ],
+            stop_reason="tool_use",
+        )
+
+    loop = AgentExecutionLoop(
+        registry=RecordingRegistry({"exit_code": 0, "stdout": ""}),
+        undo=undo,
+        workspace=tmp_path,
+    )
+    await loop.run_turn("install requests", step, _not_truncated)
+    result = undo.undo()
+    assert result.disclosed_side_effects == [command]
+    assert result.reverted_files == []
+
+
+@pytest.mark.asyncio
+async def test_failed_install_and_plain_bash_are_not_side_effects(tmp_path: Path):
+    undo = GuardedUndoManager(tmp_path)
+
+    async def step(_prompt: str, turn: int) -> ModelResponse:
+        if turn > 1:
+            return ModelResponse(text="done", stop_reason="end_turn")
+        return ModelResponse(
+            text="running",
+            tool_calls=[
+                ToolCall(
+                    id="1",
+                    name="bash",
+                    arguments={"command": "pip install requests"},
+                ),
+            ],
+            stop_reason="tool_use",
+        )
+
+    failed = AgentExecutionLoop(
+        registry=RecordingRegistry({"exit_code": 1, "stdout": ""}),
+        undo=undo,
+        workspace=tmp_path,
+    )
+    await failed.run_turn("install requests", step, _not_truncated)
+    plain = AgentExecutionLoop(
+        registry=RecordingRegistry({"exit_code": 0, "stdout": "hi"}),
+        undo=undo,
+        workspace=tmp_path,
+    )
+
+    async def echo(_prompt: str, turn: int) -> ModelResponse:
+        if turn > 1:
+            return ModelResponse(text="done", stop_reason="end_turn")
+        return ModelResponse(
+            text="running",
+            tool_calls=[
+                ToolCall(id="2", name="bash", arguments={"command": "echo hi"}),
+            ],
+            stop_reason="tool_use",
+        )
+
+    await plain.run_turn("say hi", echo, _not_truncated)
+    assert undo.undo().disclosed_side_effects == []
 
 
 def _git(workspace: Path, *args: str) -> None:

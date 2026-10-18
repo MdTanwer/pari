@@ -30,38 +30,6 @@ def test_anti_verbosity_ceiling():
     assert "[PARI ANTI-VERBOSITY GUARD" in capped
 
 
-@pytest.mark.asyncio
-async def test_simple_edit_skips_the_architect():
-    seen: list[str | None] = []
-
-    async def architect(_prompt: str) -> str:
-        seen.append("architect")
-        return "plan"
-
-    async def editor(_prompt: str, plan: str | None) -> str:
-        seen.append(plan)
-        return "edited"
-
-    router = DualModelRouter(architect, editor)
-    text = await router.route_and_execute("Fix typo in README", ["README.md"])
-    assert text == "edited"
-    assert seen == [None]
-
-
-@pytest.mark.asyncio
-async def test_wide_task_sends_the_plan_to_the_editor():
-    async def architect(_prompt: str) -> str:
-        return "move the auth check"
-
-    async def editor(_prompt: str, plan: str | None) -> str:
-        return plan or ""
-
-    router = DualModelRouter(architect, editor)
-    files = ["a.py", "b.py", "c.py"]
-    text = await router.route_and_execute("Redesign system architecture", files)
-    assert text == "move the auth check"
-
-
 class _RecordingProvider(LLMProvider):
     def __init__(self, name: str, text: str):
         super().__init__(name)

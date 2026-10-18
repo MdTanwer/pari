@@ -90,3 +90,11 @@ class GuardedUndoManager:
         )
         self.side_effects.clear()
         return result
+
+
+def side_effect_note(result: UndoResult) -> str:
+    """Text for installs and other changes that restoring files cannot undo."""
+    if not result.disclosed_side_effects:
+        return ""
+    effects = "; ".join(result.disclosed_side_effects)
+    return f" Not reverted: {effects}"

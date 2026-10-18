@@ -27,6 +27,8 @@ from pari.context.compaction import (
     DEFAULT_MAX_TOKENS,
     compact_messages,
 )
+from pari.context.epoch import ContextEpoch
+from pari.context.warmer import CacheWarmer
 from pari.intelligence.repomap import RepoMapGenerator
 from pari.providers import get_provider
 from pari.providers.base import LLMProvider
@@ -89,6 +91,8 @@ class AgentRuntime:
         self._logger: SessionLogger | None = None
         self._checkpoints: CheckpointManager | None = None
         self.messages: list[ProviderMessage] = []
+        self._epoch: ContextEpoch | None = None
+        self.warmer = CacheWarmer(warm_callback=self._warm_prefix)
         self.turn_warning = ""
         self.tokens_in = 0
         self.tokens_out = 0
@@ -112,6 +116,7 @@ class AgentRuntime:
     def reset_conversation(self) -> str:
         """Clear the chat and start a new DAG root. Pinned files stay."""
         self.messages.clear()
+        self._epoch = None
         self.turn_warning = ""
         self.session_id = None
         self._logger = None
@@ -336,16 +341,42 @@ class AgentRuntime:
             )
         return result.response_text
 
+    def keep_cache_warm(self) -> None:
+        """Start the idle ping. A later call leaves the running task."""
+        self.warmer.start()
+
+    def note_activity(self) -> None:
+        """The user sent a line. The idle window and token count start over."""
+        self.warmer.context_tokens = self.tokens_in
+        self.warmer.touch()
+
+    async def _warm_prefix(self) -> None:
+        """Resend the frozen system prefix so the provider cache does not expire."""
+        if not self.messages or self.messages[0].role != "system":
+            return
+        await self.provider.complete(
+            [self.messages[0], ProviderMessage(role="user", content=".")],
+            tools=None,
+        )
+
     def _build_system_prompt(self) -> str:
-        parts = [system_prompt(self.workspace)]
-        repo_map = self._repo_map()
-        if repo_map:
-            parts.append(repo_map)
+        prefix = self._stable_prefix()
         pinned = self._pinned_contents()
-        if pinned:
-            body = "\n".join(f"# {name}\n{content}" for name, content in pinned)
-            parts.append(body)
-        return "\n\n".join(parts)
+        if not pinned:
+            return prefix
+        body = "\n".join(f"# {name}\n{content}" for name, content in pinned)
+        return f"{prefix}\n\n{body}"
+
+    def _stable_prefix(self) -> str:
+        """Tiers 1-4 stay as they were on the first turn of this conversation."""
+        if self._epoch is None:
+            self._epoch = ContextEpoch(
+                epoch_id=self.session_id or "session",
+                system_prompt=system_prompt(self.workspace),
+                static_repo_map=self._repo_map(),
+            )
+            self._epoch.freeze()
+        return "\n\n".join(chunk.content for chunk in self._epoch.get_baseline_chunks())
 
     def _sync_system_message(self) -> None:
         content = self._build_system_prompt()

@@ -10,13 +10,11 @@ Subsystems:
     - bwrap: Linux & Windows WSL2 bubblewrap container isolation (<5ms startup)
     - seatbelt: macOS Apple Seatbelt (sandbox-exec + Scheme profile)
     - e2b: Cloud microVM execution using Firecracker KVM
-    - process: Process-group supervision, die-with-parent lifecycle, and zombie reaping
 """
 
 from pari.sandbox.base import SandboxLimits, SandboxResult, SandboxRunner
 from pari.sandbox.bwrap import BwrapSandboxRunner
 from pari.sandbox.dispatcher import get_sandbox_runner
-from pari.sandbox.process import SupervisedProcessRunner
 
 
 __all__ = [
@@ -24,6 +22,5 @@ __all__ = [
     "SandboxLimits",
     "SandboxResult",
     "SandboxRunner",
-    "SupervisedProcessRunner",
     "get_sandbox_runner",
 ]

@@ -1,3 +1,4 @@
+import asyncio
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -107,6 +108,72 @@ async def test_system_prompt_names_the_workspace_and_git(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_system_prefix_stays_frozen_when_the_workspace_changes(
+    tmp_path: Path,
+):
+    runtime = AgentRuntime(tmp_path, provider=MockOfflineProvider())
+    await runtime.execute_turn("hello")
+    first = runtime.messages[0].content
+    assert "not a git repository" in first
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "note.txt").write_text("remember this\n", encoding="utf-8")
+    await runtime.execute_turn("again")
+    assert runtime.messages[0].content == first
+    assert runtime.add_pinned_file("note.txt") is True
+    updated = runtime.messages[0].content
+    assert updated.startswith(first)
+    assert "remember this" in updated
+    runtime.reset_conversation()
+    await runtime.execute_turn("fresh")
+    assert "is a git repository" in runtime.messages[0].content
+
+
+@pytest.mark.asyncio
+async def test_repl_pings_the_frozen_system_prefix(tmp_path: Path):
+    app = TerminalApp(tmp_path)
+    await app.runtime.execute_turn("hello")
+    frozen = app.runtime.messages[0].content
+    provider = _PrefixRecorder()
+    app.runtime.provider = provider
+    app.runtime.warmer.interval_seconds = 0.01
+    app.runtime.warmer.context_tokens = 300_000
+    app.session = _IdlePrompt()
+    await app.run_repl()
+    assert frozen in provider.seen
+
+
+class _PrefixRecorder(LLMProvider):
+    def __init__(self) -> None:
+        super().__init__("recorder")
+        self.seen: list[str] = []
+
+    async def complete(
+        self,
+        messages: list[ProviderMessage],
+        tools: list[dict[str, Any]] | None = None,
+        temperature: float = 0.0,
+        on_delta: Callable[[str], None] | None = None,
+    ) -> ModelResponse:
+        _ = tools, temperature, on_delta
+        if messages and messages[0].role == "system":
+            self.seen.append(messages[0].content)
+        return ModelResponse(text=".", tokens_in=1, tokens_out=1)
+
+
+class _IdlePrompt:
+    def __init__(self) -> None:
+        self.app = _EraseFlag()
+
+    async def prompt_async(self, **_kwargs: object) -> str:
+        await asyncio.sleep(0.08)
+        return "/exit"
+
+
+class _EraseFlag:
+    erase_when_done = False
+
+
+@pytest.mark.asyncio
 async def test_slash_commands_in_terminal_app(tmp_path: Path):
     # Setup test file
     test_file = tmp_path / "hello.py"
@@ -133,6 +200,10 @@ async def test_slash_commands_in_terminal_app(tmp_path: Path):
     undo_res = app.commands.handle("/undo")
     assert "hello.py" in undo_res[1] and "Reverted files" in undo_res[1]
     assert read_file(test_file) == "val = 1\n"
+    app.runtime.undo_manager.record_side_effect("pip install requests")
+    note = app.commands.handle("/undo")
+    assert note is not None
+    assert "Not reverted: pip install requests" in note[1]
 
 
 @pytest.mark.asyncio

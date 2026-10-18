@@ -28,6 +28,7 @@ from pari.edit.diff import generate_unified_diff
 from pari.fs.path import resolve_safe_path
 from pari.providers.message import ToolCall
 from pari.providers.response import ModelResponse
+from pari.sandbox.base import is_package_install
 from pari.session.logger import SessionLogger
 from pari.session.undo import GuardedUndoManager
 
@@ -181,10 +182,21 @@ class AgentExecutionLoop:
                 {"tool": call.name, "id": call.id, "arguments": call.arguments},
             )
         result = await self.registry.execute(call.name, call.arguments)
+        self._note_package_install(call, result)
         text = _render_result(call, result)
         if self.logger is not None:
             self.logger.append_event("TOOL_RESULT", {"tool": call.name, "output": text})
         return text
+
+    def _note_package_install(self, call: ToolCall, result: Any) -> None:
+        """A successful install cannot be undone by restoring files."""
+        if self.undo is None or call.name != "bash":
+            return
+        if not isinstance(result, dict) or result.get("exit_code") != 0:
+            return
+        command = call.arguments.get("command")
+        if isinstance(command, str) and is_package_install(command):
+            self.undo.record_side_effect(command)
 
     def _report_result(self, call: ToolCall, text: str) -> None:
         if self.on_tool_result is not None:
