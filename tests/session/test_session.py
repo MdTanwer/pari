@@ -1,6 +1,7 @@
 """Unit tests for pari.session append-only JSONL log and torn-write recovery."""
 
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -126,6 +127,45 @@ def test_lineage_follows_parent_pointers(tmp_path: Path):
     assert labels == ["one", "bash"]
 
 
+def test_log_returns_the_record_it_wrote(tmp_path: Path):
+    logger = SessionLogger(tmp_path / "written.jsonl")
+    event = logger.log("USER_TURN", {"prompt": "hello"})
+    assert event.payload["prompt"] == "hello"
+    assert event.id == logger.last_record_id
+    assert event.crc32 == logger.read_events()[-1]["crc32"]
+
+
+def test_log_stays_linear(tmp_path: Path):
+    baseline = _log_seconds(tmp_path / "baseline.jsonl", 200)
+    elapsed = _log_seconds(tmp_path / "scaled.jsonl", 2_000)
+    assert elapsed < max(baseline * 30, 5)
+
+
+def test_append_event_ten_thousand_is_linear(tmp_path: Path):
+    baseline = _append_seconds(tmp_path / "baseline.jsonl", 1_000)
+    logger = SessionLogger(tmp_path / "many.jsonl")
+    started = time.perf_counter()
+    for index in range(10_000):
+        logger.append_event("USER_TURN", {"prompt": str(index)})
+    elapsed = time.perf_counter() - started
+    assert len(logger.record_ids) == 10_000
+    assert elapsed < max(baseline * 25, 10)
+
+
+def test_latest_checkpoint_reads_past_a_torn_tail(tmp_path: Path):
+    logger = SessionLogger(tmp_path / "tail.jsonl")
+    checkpoints = CheckpointManager(logger, interval_turns=1)
+    logger.append_event("USER_TURN", {"prompt": "one"})
+    checkpoint_id = checkpoints.record_turn({"n": 1})
+    logger.append_event("USER_TURN", {"prompt": "after"})
+    with logger.session_file.open("a", encoding="utf-8") as handle:
+        handle.write('{"id": "torn"')
+
+    stored = checkpoints.latest_checkpoint()
+    assert stored is not None
+    assert stored["id"] == checkpoint_id
+
+
 def test_default_session_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("PARI_SESSION_DIR", raising=False)
     # Global default in ~/.pari/sessions
@@ -145,3 +185,19 @@ def test_default_session_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("PARI_SESSION_DIR", str(custom))
     assert default_session_dir() == custom
     assert default_session_dir(tmp_path) == custom
+
+
+def _log_seconds(path: Path, count: int) -> float:
+    logger = SessionLogger(path)
+    started = time.perf_counter()
+    for index in range(count):
+        logger.log("USER_TURN", {"prompt": str(index)})
+    return time.perf_counter() - started
+
+
+def _append_seconds(path: Path, count: int) -> float:
+    logger = SessionLogger(path)
+    started = time.perf_counter()
+    for index in range(count):
+        logger.append_event("USER_TURN", {"prompt": str(index)})
+    return time.perf_counter() - started

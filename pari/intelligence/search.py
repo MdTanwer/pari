@@ -2,26 +2,20 @@
 
 Architectural Purpose:
     Provides fast, deterministic code search without requiring C-extension compilation.
-    Enforces ignore boundaries (.git, .venv, node_modules, build artifacts).
+    Enforces ignore boundaries (.git, .venv, node_modules, build artifacts, and
+    .gitignore) and does not read files larger than 1 MB.
 """
 
 import os
 import re
+from collections.abc import Iterator
 from pathlib import Path
 
+from pari.intelligence.ignore import IgnoreRules
 
-_IGNORED_DIRS = {
-    ".git",
-    ".hg",
-    ".svn",
-    ".venv",
-    "venv",
-    "node_modules",
-    "__pycache__",
-    "dist",
-    "build",
-    ".pari",
-}
+
+MAX_TEXT_BYTES = 1024 * 1024
+_BINARY_PROBE = 1024
 
 
 def find_files(
@@ -30,7 +24,7 @@ def find_files(
     """Find files in workspace matching a glob pattern, respecting ignore rules."""
     root = workspace_root.resolve()
     matches: list[str] = []
-    for path in _walk_files(root):
+    for path in walk_files(root):
         relative = path.relative_to(root).as_posix()
         if not _matches(relative, pattern):
             continue
@@ -52,11 +46,11 @@ def grep_search(
     pattern = re.compile(query) if is_regex else None
     matches: list[dict[str, str | int]] = []
     root = workspace_root.resolve()
-    for relative in find_files(root, path_filter, max_results=10**9):
-        text = _read_text(root / relative)
-        if text is None:
+    for path in walk_files(root):
+        relative = path.relative_to(root).as_posix()
+        if not _matches(relative, path_filter):
             continue
-        for line_number, line in enumerate(text.splitlines(), start=1):
+        for line_number, line in _iter_lines(path):
             hit = pattern.search(line) if pattern is not None else query in line
             if not hit:
                 continue
@@ -66,11 +60,32 @@ def grep_search(
     return matches
 
 
-def _walk_files(root: Path):
+def walk_files(workspace_root: Path) -> Iterator[Path]:
+    """Yield workspace files that ignore rules do not hide."""
+    root = workspace_root.resolve()
+    rules = IgnoreRules(root)
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(name for name in dirnames if name not in _IGNORED_DIRS)
+        current = Path(dirpath)
+        rules.enter(current)
+        kept: list[str] = []
+        for name in sorted(dirnames):
+            if not rules.ignored(current / name, is_dir=True):
+                kept.append(name)
+        dirnames[:] = kept
         for name in sorted(filenames):
-            yield Path(dirpath) / name
+            path = current / name
+            if rules.ignored(path, is_dir=False):
+                continue
+            yield path
+
+
+def is_binary(path: Path) -> bool:
+    """A NUL in the first 1 KB marks a binary file."""
+    try:
+        with path.open("rb") as handle:
+            return b"\0" in handle.read(_BINARY_PROBE)
+    except OSError:
+        return True
 
 
 def _matches(relative: str, pattern: str) -> bool:
@@ -80,11 +95,22 @@ def _matches(relative: str, pattern: str) -> bool:
     return path.match(pattern)
 
 
-def _read_text(path: Path) -> str | None:
+def _iter_lines(path: Path) -> Iterator[tuple[int, str]]:
+    """Stream text lines. Skip binaries and files over 1 MB."""
     try:
-        data = path.read_bytes()
+        if path.stat().st_size > MAX_TEXT_BYTES:
+            return
+        handle = path.open("rb")
     except OSError:
-        return None
-    if b"\0" in data[:1024]:
-        return None
-    return data.decode("utf-8", errors="replace")
+        return
+    with handle:
+        if b"\0" in handle.read(_BINARY_PROBE):
+            return
+        handle.seek(0)
+        for number, raw in enumerate(handle, start=1):
+            text = raw.decode("utf-8", errors="replace")
+            if text.endswith("\n"):
+                text = text[:-1]
+            if text.endswith("\r"):
+                text = text[:-1]
+            yield number, text

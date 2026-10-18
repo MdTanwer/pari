@@ -56,10 +56,7 @@ class CheckpointManager:
 
     def latest_checkpoint(self) -> dict[str, Any] | None:
         """Return the newest checkpoint record, scanning from the end of the log."""
-        for record in reversed(self.logger.read_events()):
-            if record["type"] == "CHECKPOINT_INDEX":
-                return record
-        return None
+        return self.logger.last_of_type("CHECKPOINT_INDEX")
 
 
 def restore_transcript(

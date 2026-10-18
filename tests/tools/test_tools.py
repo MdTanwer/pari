@@ -213,9 +213,7 @@ async def test_bash_tool_sandboxed(tmp_path: Path):
     # The workspace is the only writable mount: a write outside it must not
     # reach the host filesystem.
     escape = tmp_path.parent / "pari_escape_probe.txt"
-    await registry.execute(
-        "bash", {"command": f"echo x > {escape} 2>/dev/null; true"}
-    )
+    await registry.execute("bash", {"command": f"echo x > {escape} 2>/dev/null; true"})
     assert not escape.exists()
 
 

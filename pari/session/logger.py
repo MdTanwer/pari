@@ -56,12 +56,21 @@ class SessionLogger:
             name = event_type.value
         else:
             name = event_type
-        event_id = self.append_event(name, payload)
-        stored = self.read_events()[-1]
-        return SessionEvent.from_dict(stored | {"id": event_id})
+        record = self._write_record(name, payload)
+        return SessionEvent.from_dict(record)
 
     def append_event(self, event_type: str, data: dict[str, Any]) -> str:
         """Append one JSONL record and return its id."""
+        return self._write_record(event_type, data)["id"]
+
+    def last_of_type(self, event_type: str) -> dict[str, Any] | None:
+        """Return the newest valid record of this type, reading from the end."""
+        for record in _records_from_end(self.session_file):
+            if record.get("type") == event_type:
+                return record
+        return None
+
+    def _write_record(self, event_type: str, data: dict[str, Any]) -> dict[str, Any]:
         event_id = new_event_id()
         payload = _spill_output(self.session_file.parent, event_id, dict(data))
         record = {
@@ -85,7 +94,7 @@ class SessionLogger:
             os.close(fd)
         self._ids.append(event_id)
         self.last_record_id = event_id
-        return event_id
+        return record
 
     def read_events(self) -> list[dict[str, Any]]:
         """Read all verified records from the session file."""
@@ -114,6 +123,32 @@ def _spill_output(directory: Path, event_id: str, payload: dict[str, Any]) -> di
     payload.pop("output")
     payload["sidecar_path"] = relative
     return payload
+
+
+def _records_from_end(path: Path) -> Iterator[dict[str, Any]]:
+    """Yield checksum-valid records from the end of the file."""
+    try:
+        handle = path.open("rb")
+    except OSError:
+        return
+    with handle:
+        handle.seek(0, os.SEEK_END)
+        position = handle.tell()
+        pending = b""
+        while position > 0:
+            step = min(65536, position)
+            position -= step
+            handle.seek(position)
+            pending = handle.read(step) + pending
+            lines = pending.split(b"\n")
+            pending = lines[0]
+            for line in reversed(lines[1:]):
+                record = _parse_line(line)
+                if record is not None:
+                    yield record
+        record = _parse_line(pending)
+        if record is not None:
+            yield record
 
 
 def _valid_records(raw: bytes) -> tuple[bytes, list[dict[str, Any]]]:
