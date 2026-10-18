@@ -155,6 +155,14 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 1
     for rel in args.add:
         app.runtime.add_pinned_file(rel)
+    if args.resume is not None:
+        session_id = None if args.resume == "" else args.resume
+        try:
+            resumed = app.runtime.resume(session_id)
+        except FileNotFoundError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        print(f"Resumed session {resumed}")
     try:
         asyncio.run(app.run_repl())
     except KeyboardInterrupt:
@@ -255,6 +263,14 @@ def main(argv: list | None = None) -> int:
         "--dry-run",
         action="store_true",
         help="Validate environment and exit without starting the loop",
+    )
+    parser.add_argument(
+        "--resume",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="ID",
+        help="Resume a session by id, or the latest session when the id is omitted",
     )
 
     subparsers = parser.add_subparsers(dest="subcommand", help="Subcommands")

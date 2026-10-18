@@ -10,6 +10,7 @@ from pari.providers.base import LLMProvider
 from pari.providers.message import ProviderMessage, ToolCall
 from pari.providers.mock import MockOfflineProvider
 from pari.providers.response import ModelResponse
+from pari.session.logger import SessionLogger
 from pari.tui.app import TerminalApp
 
 
@@ -23,9 +24,11 @@ async def test_agent_runtime_turn_execution(tmp_path: Path):
     response = await runtime.execute_turn("Please find python files")
     assert "find_files" in response or "matches" in response or "PARI Agent" in response
 
-    # Verify session log was written in system dir, not in workspace root
+    # The checksummed DAG is the session log. The plain file is not written.
     assert runtime.session_file.exists()
-    assert runtime.session_file.stat().st_size > 0
+    assert runtime.session_file.parent.name == "dags"
+    assert "crc32" in runtime.session_file.read_text(encoding="utf-8")
+    assert not (runtime.session_dir / "session.jsonl").exists()
     assert not (tmp_path / ".pari" / "session.jsonl").exists()
 
 
@@ -198,3 +201,43 @@ async def test_pinned_file_content_appears_once_not_per_turn(tmp_path: Path):
         assert secret_marker in req[0].content
         for user_msg in req[1:]:
             assert secret_marker not in user_msg.content
+
+
+@pytest.mark.asyncio
+async def test_resume_restores_turns_after_a_torn_write(tmp_path: Path):
+    runtime = AgentRuntime(tmp_path, provider=MockOfflineProvider())
+    await runtime.execute_turn("remember the codename bluebird")
+    session_id = runtime.session_id
+    assert session_id is not None
+    with runtime.session_file.open("a", encoding="utf-8") as handle:
+        handle.write('{"id": "killed-mid-write", "parentId": "')
+
+    resumed = AgentRuntime(tmp_path, provider=MockOfflineProvider())
+    assert resumed.resume(session_id) == session_id
+    contents = [message.content for message in resumed.messages]
+    assert any("remember the codename bluebird" == text for text in contents)
+    assert any("bluebird" in text and "PARI Agent" in text for text in contents)
+
+    latest = AgentRuntime(tmp_path, provider=MockOfflineProvider())
+    assert latest.resume(None) == session_id
+
+
+@pytest.mark.asyncio
+async def test_one_hundred_twenty_turns_write_two_checkpoints(tmp_path: Path):
+    runtime = AgentRuntime(tmp_path, provider=MockOfflineProvider())
+    for index in range(120):
+        await runtime.execute_turn(f"turn {index} marker")
+
+    events = SessionLogger(runtime.session_file).read_events()
+    checkpoints = [event for event in events if event["type"] == "CHECKPOINT_INDEX"]
+    assert len(checkpoints) == 2
+    first_chain = checkpoints[0]["data"]["ancestor_chain"]
+    second_chain = checkpoints[1]["data"]["ancestor_chain"]
+    assert checkpoints[0]["id"] in second_chain
+    assert len(second_chain) > len(first_chain)
+
+    resumed = AgentRuntime(tmp_path, provider=MockOfflineProvider())
+    resumed.resume(runtime.session_id)
+    contents = [message.content for message in resumed.messages]
+    assert any(text == "turn 0 marker" for text in contents)
+    assert any(text == "turn 119 marker" for text in contents)

@@ -7,8 +7,6 @@ Executes the full turn lifecycle:
     Review -> Response
 """
 
-import json
-import time
 import uuid
 from collections.abc import Callable
 from pathlib import Path
@@ -35,6 +33,7 @@ from pari.providers.exceptions import ProviderError
 from pari.providers.message import ProviderMessage, ToolCall
 from pari.providers.response import ModelResponse
 from pari.routing.router import DualModelRouter, router_for
+from pari.session.checkpoint import CheckpointManager, restore_transcript
 from pari.session.events import SessionEventType
 from pari.session.logger import SessionLogger
 from pari.session.paths import default_session_dir
@@ -86,6 +85,8 @@ class AgentRuntime:
         self._tool_followup = False
         self.pinned_files: list[str] = []
         self.session_id: str | None = None
+        self._logger: SessionLogger | None = None
+        self._checkpoints: CheckpointManager | None = None
         self.messages: list[ProviderMessage] = []
         self.turn_warning = ""
         self.tokens_in = 0
@@ -103,11 +104,8 @@ class AgentRuntime:
     def save_snapshot(self, name: str) -> str:
         """Write a named restore tag on the session DAG. Files are not copied."""
         label = name.strip() or "manual"
-        if not self.session_id:
-            self.start_session()
-        self._dag_logger().append_event(
-            SessionEventType.SNAPSHOT.value, {"name": label}
-        )
+        logger = self._ensure_logger()
+        logger.append_event(SessionEventType.SNAPSHOT.value, {"name": label})
         return label
 
     def reset_conversation(self) -> str:
@@ -115,31 +113,67 @@ class AgentRuntime:
         self.messages.clear()
         self.turn_warning = ""
         self.session_id = None
-        session_id = self.start_session()
-        self._dag_logger().append_event(
-            SessionEventType.SESSION_START.value, {"session_id": session_id}
+        self._logger = None
+        self._checkpoints = None
+        return self.start_session()
+
+    def resume(self, session_id: str | None = None) -> str:
+        """Load a session DAG into ``messages``. Omit the id to use the latest."""
+        path = self._resolve_dag(session_id)
+        logger = SessionLogger(path)
+        payloads, turns = restore_transcript(
+            logger.read_events(), logger.session_file.parent
         )
-        return session_id
+        self.session_id = path.stem
+        self.session_file = path
+        self._logger = logger
+        self._checkpoints = CheckpointManager(logger)
+        self._checkpoints.restore_turns(turns)
+        self.messages = [
+            message
+            for message in (_message_from_payload(item) for item in payloads)
+            if message is not None
+        ]
+        return self.session_id
 
     def _dag_file(self, session_id: str | None = None) -> Path:
         sid = session_id or self.session_id or "default"
         return self.session_dir / "dags" / f"{sid}.jsonl"
 
-    def _dag_logger(self) -> SessionLogger:
-        return SessionLogger(self._dag_file(self.session_id))
+    def _resolve_dag(self, session_id: str | None) -> Path:
+        directory = self.session_dir / "dags"
+        if session_id:
+            path = directory / f"{session_id}.jsonl"
+            if not path.is_file():
+                raise FileNotFoundError(f"Session not found: {session_id}")
+            return path
+        if not directory.is_dir():
+            raise FileNotFoundError("No session to resume.")
+        files = [path for path in directory.glob("*.jsonl") if path.is_file()]
+        if not files:
+            raise FileNotFoundError("No session to resume.")
+        return max(files, key=lambda path: path.stat().st_mtime)
+
+    def _ensure_logger(self) -> SessionLogger:
+        if not self.session_id:
+            self.start_session()
+        logger = self._logger
+        if logger is None:
+            logger = SessionLogger(self._dag_file())
+            self._logger = logger
+            self._checkpoints = CheckpointManager(logger)
+        return logger
 
     def start_session(self) -> str:
-        """Initialize session and emit start event to session.jsonl."""
+        """Open a new checksummed session DAG. The plain session.jsonl is not used."""
         self.session_id = f"pari_sess_{uuid.uuid4().hex[:12]}"
-        self.session_file.parent.mkdir(parents=True, exist_ok=True)
-        start_record = {
-            "event": "session_start",
-            "session_id": self.session_id,
-            "workspace": str(self.workspace),
-            "timestamp": time.time(),
-        }
-        with open(self.session_file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(start_record) + "\n")
+        self._logger = SessionLogger(self._dag_file())
+        self._checkpoints = CheckpointManager(self._logger)
+        self.session_file = self._logger.session_file
+        self._logger.append_event(
+            SessionEventType.SESSION_START.value,
+            {"session_id": self.session_id, "workspace": str(self.workspace)},
+        )
         return self.session_id
 
     def add_pinned_file(self, rel_path: str) -> bool:
@@ -242,7 +276,7 @@ class AgentRuntime:
             if on_tool_result is not None:
                 on_tool_result(call, text)
 
-        dag = self._dag_file(self.session_id)
+        logger = self._ensure_logger()
 
         def remember_warning(text: str) -> None:
             self.turn_warning = text
@@ -251,7 +285,7 @@ class AgentRuntime:
             max_turns if max_turns is not None else MAX_TURNS,
             registry=self.tools,
             reflection=ReflectionManager(),
-            logger=SessionLogger(dag),
+            logger=logger,
             undo=self.undo_manager,
             workspace=self.workspace,
             on_tool_call=on_tool_call,
@@ -272,23 +306,17 @@ class AgentRuntime:
             if added and all(item.role in {"system", "user"} for item in added):
                 del self.messages[sent:]
             raise
-        turn_record = {
-            "event": "turn_complete",
-            "session_id": self.session_id,
-            "user_prompt": prompt,
-            "response": result.response_text,
-            "tokens": result.tokens_used,
-            "tool_calls": result.tool_calls_executed,
-            "timestamp": time.time(),
-        }
-        with open(self.session_file, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(turn_record) + "\n")
         self.tokens_in = result.tokens_in
         self.tokens_out = result.tokens_out
         self.cached_tokens = result.cached_tokens
         self.last_result = result
         self.awaiting_limit = result.response_text == TURN_LIMIT_PROMPT
         self._maybe_compact()
+        checkpoints = self._checkpoints
+        if checkpoints is not None:
+            checkpoints.record_turn(
+                {"messages": [_message_payload(item) for item in self.messages]}
+            )
         return result.response_text
 
     def _build_system_prompt(self) -> str:
@@ -348,3 +376,43 @@ class AgentRuntime:
             except (OSError, UnicodeDecodeError):
                 continue
         return files
+
+
+def _message_payload(message: ProviderMessage) -> dict[str, Any]:
+    payload: dict[str, Any] = {"role": message.role, "content": message.content}
+    if message.tool_calls:
+        payload["tool_calls"] = [
+            {"id": call.id, "name": call.name, "arguments": call.arguments}
+            for call in message.tool_calls
+        ]
+    if message.tool_call_id:
+        payload["tool_call_id"] = message.tool_call_id
+    return payload
+
+
+def _message_from_payload(payload: dict[str, Any]) -> ProviderMessage | None:
+    role = payload.get("role")
+    if role not in {"system", "user", "assistant", "tool"}:
+        return None
+    raw_calls = payload.get("tool_calls")
+    calls = None
+    if isinstance(raw_calls, list):
+        calls = []
+        for item in raw_calls:
+            if not isinstance(item, dict):
+                continue
+            arguments = item.get("arguments")
+            calls.append(
+                ToolCall(
+                    id=str(item.get("id", "")),
+                    name=str(item.get("name", "")),
+                    arguments=arguments if isinstance(arguments, dict) else {},
+                )
+            )
+    tool_call_id = payload.get("tool_call_id")
+    return ProviderMessage(
+        role=role,
+        content=str(payload.get("content", "")),
+        tool_calls=calls or None,
+        tool_call_id=tool_call_id if isinstance(tool_call_id, str) else None,
+    )
