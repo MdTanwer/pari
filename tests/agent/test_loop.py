@@ -216,7 +216,7 @@ async def test_runtime_applies_a_tool_then_answers(tmp_path: Path):
     assert response == "wrote the file"
     assert (tmp_path / "hello.txt").read_text(encoding="utf-8") == "Hello loop"
     runtime.undo_manager.undo()
-    assert (tmp_path / "hello.txt").read_text(encoding="utf-8") == ""
+    assert not (tmp_path / "hello.txt").exists()
 
 
 @pytest.mark.asyncio
@@ -383,6 +383,92 @@ async def test_failed_install_and_plain_bash_are_not_side_effects(tmp_path: Path
 
     await plain.run_turn("say hi", echo, _not_truncated)
     assert undo.undo().disclosed_side_effects == []
+
+
+def _write(path: str, content: str) -> ModelResponse:
+    return ModelResponse(
+        text="writing",
+        tool_calls=[
+            ToolCall(
+                id="1",
+                name="write_file",
+                arguments={"path": path, "content": content},
+            )
+        ],
+        stop_reason="end_turn",
+    )
+
+
+def _done(text: str) -> ModelResponse:
+    return ModelResponse(text=text, stop_reason="end_turn")
+
+
+@pytest.mark.asyncio
+async def test_undo_removes_a_file_the_turn_created(tmp_path: Path):
+    runtime = AgentRuntime(
+        tmp_path,
+        provider=ScriptedProvider([_write("new.txt", "hi\n"), _done("created")]),
+    )
+    await runtime.execute_turn("create new.txt")
+    assert (tmp_path / "new.txt").read_text(encoding="utf-8") == "hi\n"
+    runtime.undo_manager.undo()
+    assert not (tmp_path / "new.txt").exists()
+
+
+@pytest.mark.asyncio
+async def test_undo_restores_the_original_after_two_edits(tmp_path: Path):
+    target = tmp_path / "a.py"
+    target.write_text("original\n", encoding="utf-8")
+    runtime = AgentRuntime(
+        tmp_path,
+        provider=ScriptedProvider(
+            [
+                ModelResponse(
+                    text="editing",
+                    tool_calls=[
+                        ToolCall(
+                            id="1",
+                            name="write_file",
+                            arguments={"path": "a.py", "content": "middle\n"},
+                        ),
+                        ToolCall(
+                            id="2",
+                            name="write_file",
+                            arguments={"path": "a.py", "content": "final\n"},
+                        ),
+                    ],
+                    stop_reason="end_turn",
+                ),
+                _done("edited"),
+            ]
+        ),
+    )
+    await runtime.execute_turn("edit a.py twice")
+    assert target.read_text(encoding="utf-8") == "final\n"
+    runtime.undo_manager.undo()
+    assert target.read_text(encoding="utf-8") == "original\n"
+
+
+@pytest.mark.asyncio
+async def test_undo_reverts_only_the_latest_turn(tmp_path: Path):
+    runtime = AgentRuntime(
+        tmp_path,
+        provider=ScriptedProvider(
+            [
+                _write("a.py", "from a\n"),
+                _done("wrote a"),
+                _write("b.py", "from b\n"),
+                _done("wrote b"),
+            ]
+        ),
+    )
+    await runtime.execute_turn("create a.py")
+    await runtime.execute_turn("create b.py")
+    runtime.undo_manager.undo()
+    assert not (tmp_path / "b.py").exists()
+    assert (tmp_path / "a.py").read_text(encoding="utf-8") == "from a\n"
+    runtime.undo_manager.undo()
+    assert not (tmp_path / "a.py").exists()
 
 
 def _git(workspace: Path, *args: str) -> None:

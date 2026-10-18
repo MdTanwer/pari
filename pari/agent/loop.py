@@ -96,6 +96,8 @@ class AgentExecutionLoop:
         A length stop is not executed: the tool payload may be cut off.
         """
         self.reflection.reset("turn")
+        if self.undo is not None:
+            self.undo.begin_turn()
         if self.logger is not None:
             self.logger.append_event("USER_TURN", {"prompt": prompt})
         pending = prompt
@@ -151,7 +153,8 @@ class AgentExecutionLoop:
         notes: list[str] = []
         for index, call in enumerate(calls):
             path = _file_path(call)
-            before = self._read_rel(path) if path is not None else ""
+            existed = self._is_file(path) if path is not None else False
+            before = self._read_rel(path) if existed else ""
             try:
                 text = await self._execute_call(call)
             except Exception as exc:
@@ -161,7 +164,7 @@ class AgentExecutionLoop:
             executed += 1
             if path is not None:
                 after = self._read_rel(path)
-                self._snapshot(path, before, after)
+                self._snapshot(path, before, after, existed_before=existed)
                 lint = lint_python(path, after)
                 if lint is not None:
                     self._report_result(call, lint)
@@ -263,6 +266,15 @@ class AgentExecutionLoop:
             cached_tokens,
         )
 
+    def _is_file(self, rel: str) -> bool:
+        if self.workspace is None:
+            return False
+        try:
+            path = resolve_safe_path(self.workspace, rel)
+        except PermissionError:
+            return False
+        return path.is_file()
+
     def _read_rel(self, rel: str) -> str:
         if self.workspace is None:
             return ""
@@ -277,11 +289,15 @@ class AgentExecutionLoop:
         except (OSError, UnicodeDecodeError):
             return ""
 
-    def _snapshot(self, rel: str, before: str, after: str) -> None:
-        if before == after:
+    def _snapshot(
+        self, rel: str, before: str, after: str, *, existed_before: bool
+    ) -> None:
+        if existed_before and before == after:
+            return
+        if not existed_before and not self._is_file(rel):
             return
         if self.undo is not None:
-            self.undo.record_snapshot(rel, before, after)
+            self.undo.record_snapshot(rel, before, after, existed_before=existed_before)
         if self.logger is not None:
             self.logger.append_event("FILE_SNAPSHOT", {"path": rel})
         if self.on_diff is not None:
