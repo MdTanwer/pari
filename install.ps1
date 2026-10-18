@@ -1,6 +1,8 @@
 # PARI Installer for Windows (PowerShell)
 # Usage: irm https://www.pari-cli.in/install.ps1 | iex
-# (Alternative: irm https://raw.githubusercontent.com/MdTanwer/pari/main/install.ps1 | iex)
+#
+# This script installs the release that published it. Set
+# $env:PARI_INSTALL_FROM_SOURCE = '1' to install that same tag from git.
 #
 # If running this script directly from a local file and encountering ExecutionPolicy errors:
 #   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
@@ -10,6 +12,23 @@
 #   (and remove ~/.pari\venv\Scripts from your User Environment PATH)
 
 $ErrorActionPreference = "Stop"
+
+$Version = "0.1.7"
+$Package = "pari-cli==$Version"
+$SourceUrl = "git+https://github.com/MdTanwer/pari.git@v$Version"
+if ($env:PARI_INSTALL_FROM_SOURCE -eq "1") {
+    $Spec = $SourceUrl
+} else {
+    $Spec = $Package
+}
+
+function Show-InstallFailure {
+    Write-Host "Error: failed to install $Spec." -ForegroundColor Red
+    if ($env:PARI_INSTALL_FROM_SOURCE -ne "1") {
+        Write-Host "PyPI did not provide pari-cli==$Version." -ForegroundColor Yellow
+        Write-Host "Re-run with `$env:PARI_INSTALL_FROM_SOURCE = '1' to install tag v$Version." -ForegroundColor Yellow
+    }
+}
 
 $InstallDir = Join-Path $env:USERPROFILE ".pari"
 $VenvDir = Join-Path $InstallDir "venv"
@@ -51,15 +70,11 @@ function Show-InstalledPari {
     }
 }
 
-# 1. Prefer uv if available (fastest). upgrade moves an existing install
-# to the latest PyPI release. install --force does not.
+# 1. Prefer uv if available (fastest). --force installs this script's pin.
 if (Get-Command uv -ErrorAction SilentlyContinue) {
-    & uv tool upgrade pari-cli
+    & uv tool install --force $Spec
     if ($LASTEXITCODE -ne 0) {
-        & uv tool install pari-cli
-    }
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Installation via uv failed." -ForegroundColor Red
+        Show-InstallFailure
         return
     }
     $binDir = (& uv tool dir --bin 2>$null | Select-Object -Last 1)
@@ -70,12 +85,9 @@ if (Get-Command uv -ErrorAction SilentlyContinue) {
 
 # 2. Prefer pipx if available (isolated)
 if (Get-Command pipx -ErrorAction SilentlyContinue) {
-    & pipx upgrade pari-cli
+    & pipx install --force $Spec
     if ($LASTEXITCODE -ne 0) {
-        & pipx install pari-cli
-    }
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Installation via pipx failed." -ForegroundColor Red
+        Show-InstallFailure
         return
     }
     Show-InstalledPari
@@ -129,9 +141,9 @@ if ($LASTEXITCODE -ne 0) {
 $VenvPip = Join-Path $ScriptsDir "pip.exe"
 & $VenvPip install --upgrade pip --quiet
 
-& $VenvPip install --upgrade pari-cli
+& $VenvPip install $Spec
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[-] Error: Failed to install PARI via pip." -ForegroundColor Red
+    Show-InstallFailure
     return
 }
 
