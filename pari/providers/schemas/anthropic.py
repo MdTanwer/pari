@@ -61,6 +61,9 @@ class AnthropicUsage(BaseModel):
     cache_read_input_tokens: TokenCount = Field(
         default=0, description="Prompt tokens read from the cache"
     )
+    cache_creation_input_tokens: TokenCount = Field(
+        default=0, description="Prompt tokens written to the cache"
+    )
 
 
 class AnthropicMessage(BaseModel):
@@ -127,12 +130,44 @@ class AnthropicChatMessage(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     role: Literal["user", "assistant"]
-    content: str = Field(..., description="Message text")
+    content: str | list[dict[str, Any]] = Field(
+        ..., description="Message text or content blocks"
+    )
 
     @classmethod
     def from_provider_message(cls, message: ProviderMessage) -> "AnthropicChatMessage":
         role = "assistant" if message.role == "assistant" else "user"
-        return cls(role=role, content=_visible_text(message))
+        if message.role == "assistant":
+            blocks: list[dict[str, Any]] = []
+            if message.content:
+                blocks.append({"type": "text", "text": message.content})
+            if message.tool_calls:
+                for call in message.tool_calls:
+                    blocks.append(
+                        {
+                            "type": "tool_use",
+                            "id": call.id,
+                            "name": call.name,
+                            "input": call.arguments,
+                        }
+                    )
+            if not blocks:
+                blocks.append({"type": "text", "text": message.content or "."})
+            return cls(role="assistant", content=blocks)
+        if message.role == "tool":
+            return cls(
+                role="user",
+                content=[
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": message.tool_call_id or "",
+                        "content": message.content,
+                    }
+                ],
+            )
+        return cls(
+            role=role, content=[{"type": "text", "text": message.content or "."}]
+        )
 
 
 class AnthropicTool(BaseModel):
@@ -152,6 +187,80 @@ class AnthropicTool(BaseModel):
         )
 
 
+def _split_messages(
+    messages: list[ProviderMessage],
+) -> tuple[list[dict[str, Any]] | None, list[AnthropicChatMessage]]:
+    """Pull system text out with cache_control. Convert chat messages to blocks."""
+    system_parts = [m.content for m in messages if m.role == "system" and m.content]
+    system: list[dict[str, Any]] | None = None
+    if system_parts:
+        system = [
+            {
+                "type": "text",
+                "text": "\n".join(system_parts),
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+
+    chat_messages = [m for m in messages if m.role != "system"]
+    if not chat_messages:
+        chat_messages = [ProviderMessage(role="user", content="Continue.")]
+
+    last_stable_idx = None
+    for idx, msg in enumerate(chat_messages):
+        if msg.cache_control:
+            last_stable_idx = idx
+
+    if last_stable_idx is None:
+        last_stable_idx = len(chat_messages) - 1
+
+    chat: list[AnthropicChatMessage] = []
+
+    for idx, msg in enumerate(chat_messages):
+        is_stable = idx == last_stable_idx
+        if msg.role == "assistant":
+            blocks: list[dict[str, Any]] = []
+            if msg.content:
+                blocks.append({"type": "text", "text": msg.content})
+            if msg.tool_calls:
+                for call in msg.tool_calls:
+                    blocks.append(
+                        {
+                            "type": "tool_use",
+                            "id": call.id,
+                            "name": call.name,
+                            "input": call.arguments,
+                        }
+                    )
+            if not blocks:
+                blocks.append({"type": "text", "text": msg.content or "."})
+            if is_stable:
+                blocks[-1]["cache_control"] = {"type": "ephemeral"}
+            chat.append(AnthropicChatMessage(role="assistant", content=blocks))
+
+        elif msg.role == "tool":
+            tool_block: dict[str, Any] = {
+                "type": "tool_result",
+                "tool_use_id": msg.tool_call_id or "",
+                "content": msg.content,
+            }
+            if is_stable:
+                tool_block["cache_control"] = {"type": "ephemeral"}
+
+            if chat and chat[-1].role == "user" and isinstance(chat[-1].content, list):
+                chat[-1].content.append(tool_block)
+            else:
+                chat.append(AnthropicChatMessage(role="user", content=[tool_block]))
+
+        else:  # role == "user"
+            user_blocks = [{"type": "text", "text": msg.content or "."}]
+            if is_stable:
+                user_blocks[-1]["cache_control"] = {"type": "ephemeral"}
+            chat.append(AnthropicChatMessage(role="user", content=user_blocks))
+
+    return system, chat
+
+
 class AnthropicRequest(BaseModel):
     """The body posted to the Messages API."""
 
@@ -161,7 +270,9 @@ class AnthropicRequest(BaseModel):
     max_tokens: int = Field(..., gt=0, description="Output token ceiling")
     temperature: float = Field(..., ge=0.0, description="Sampling temperature")
     messages: list[AnthropicChatMessage] = Field(..., min_length=1)
-    system: str | None = Field(default=None, description="Top-level system text")
+    system: list[dict[str, Any]] | str | None = Field(
+        default=None, description="Top-level system text"
+    )
     tools: list[AnthropicTool] | None = Field(default=None, description="Tools")
 
     @classmethod
@@ -173,23 +284,13 @@ class AnthropicRequest(BaseModel):
         temperature: float,
         max_tokens: int,
     ) -> "AnthropicRequest":
-        """System text is a top-level field. Anthropic rejects a system role."""
-        system = "\n".join(
-            m.content for m in messages if m.role == "system" and m.content
-        )
-        chat = [
-            AnthropicChatMessage.from_provider_message(m)
-            for m in messages
-            if m.role != "system"
-        ]
-        if not chat:
-            chat = [AnthropicChatMessage(role="user", content="Continue.")]
+        system, chat = _split_messages(messages)
         return cls(
             model=model,
             max_tokens=max_tokens,
             temperature=temperature,
             messages=chat,
-            system=system or None,
+            system=system,
             tools=[AnthropicTool.from_schema(t) for t in tools] if tools else None,
         )
 
@@ -198,7 +299,7 @@ class AnthropicRequest(BaseModel):
 
 
 def _visible_text(message: ProviderMessage) -> str:
-    """Tool results already come back as the next user message from the loop."""
+    """Format message text and tool call summaries for display."""
     if not message.tool_calls:
         return message.content or "."
     names = ", ".join(call.name for call in message.tool_calls)

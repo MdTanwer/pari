@@ -8,7 +8,7 @@ import pytest
 from pari.providers import get_provider
 from pari.providers.anthropic import AnthropicProvider
 from pari.providers.exceptions import ProviderError
-from pari.providers.message import ProviderMessage
+from pari.providers.message import ProviderMessage, ToolCall
 from pari.providers.mock import MockOfflineProvider
 
 
@@ -62,7 +62,9 @@ async def test_complete_parses_text_and_tool_use():
     body = seen["body"]
     assert isinstance(body, dict)
     assert body["model"] == "claude-test"
-    assert body["system"] == "be brief"
+    assert body["system"] == [
+        {"type": "text", "text": "be brief", "cache_control": {"type": "ephemeral"}}
+    ]
     assert body["messages"][0]["role"] == "user"
     assert body["tools"][0]["input_schema"]["type"] == "object"
     assert seen["key"] == "test-key"
@@ -153,3 +155,96 @@ async def test_a_200_error_body_is_the_providers_message():
         await provider.complete([ProviderMessage(role="user", content="hi")])
     assert caught.value.detail == "Overloaded"
     assert caught.value.error_type == "overloaded_error"
+
+
+@pytest.mark.asyncio
+async def test_tool_round_trip_and_prompt_caching():
+    request_bodies: list[dict[str, object]] = []
+    request_headers: list[httpx.Headers] = []
+    cache_store: set[str] = set()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode())
+        request_bodies.append(body)
+        request_headers.append(request.headers)
+
+        cache_key = json.dumps(
+            {"system": body.get("system"), "messages": body.get("messages")}
+        )
+        is_cached = cache_key in cache_store
+        cache_store.add(cache_key)
+
+        cache_read = 50 if is_cached else 0
+        tokens_in = 10 if is_cached else 60
+
+        return httpx.Response(
+            200,
+            json={
+                "stop_reason": "end_turn",
+                "usage": {
+                    "input_tokens": tokens_in,
+                    "output_tokens": 10,
+                    "cache_read_input_tokens": cache_read,
+                },
+                "content": [{"type": "text", "text": "result processed"}],
+            },
+        )
+
+    provider = AnthropicProvider(
+        "claude-3-7-sonnet-20250219", "test-key", httpx.MockTransport(handler)
+    )
+
+    messages = [
+        ProviderMessage(role="system", content="You are a helpful assistant."),
+        ProviderMessage(role="user", content="check directory"),
+        ProviderMessage(
+            role="assistant",
+            content="checking",
+            tool_calls=[
+                ToolCall(id="toolu_123", name="bash", arguments={"command": "ls"})
+            ],
+        ),
+        ProviderMessage(
+            role="tool",
+            content="file1.txt\nfile2.txt",
+            tool_call_id="toolu_123",
+        ),
+    ]
+
+    resp1 = await provider.complete(messages)
+    assert resp1.cached_tokens == 0
+    assert resp1.tokens_in == 60
+
+    body1 = request_bodies[0]
+    assert request_headers[0].get("anthropic-beta") == "prompt-caching-2024-07-31"
+    assert body1["system"] == [
+        {
+            "type": "text",
+            "text": "You are a helpful assistant.",
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
+
+    chat = body1["messages"]
+    assert len(chat) == 3
+    assert chat[0]["role"] == "user"
+    assert chat[1]["role"] == "assistant"
+    asst_blocks = chat[1]["content"]
+    assert asst_blocks[0] == {"type": "text", "text": "checking"}
+    assert asst_blocks[1] == {
+        "type": "tool_use",
+        "id": "toolu_123",
+        "name": "bash",
+        "input": {"command": "ls"},
+    }
+
+    assert chat[2]["role"] == "user"
+    tool_blocks = chat[2]["content"]
+    assert tool_blocks[0]["type"] == "tool_result"
+    assert tool_blocks[0]["tool_use_id"] == "toolu_123"
+    assert tool_blocks[0]["content"] == "file1.txt\nfile2.txt"
+    assert tool_blocks[0]["cache_control"] == {"type": "ephemeral"}
+
+    resp2 = await provider.complete(messages)
+    assert resp2.cached_tokens > 0
+    assert resp2.cached_tokens == 50
