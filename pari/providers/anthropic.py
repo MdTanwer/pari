@@ -14,12 +14,18 @@ from pari.providers.exceptions import decode_body
 from pari.providers.http import checked_post, iter_sse
 from pari.providers.message import ProviderMessage
 from pari.providers.response import ModelResponse
-from pari.providers.schemas.anthropic import AnthropicMessage, AnthropicRequest
+from pari.providers.schemas.anthropic import (
+    AnthropicMessage,
+    AnthropicRequest,
+    _split_messages,
+    _visible_text,
+)
 from pari.providers.stream import StreamBuild, feed_anthropic_line
 
 
 _API_URL = "https://api.anthropic.com/v1/messages"
 _API_VERSION = "2023-06-01"
+_BETA_HEADER = "prompt-caching-2024-07-31"
 _MAX_TOKENS = 4096
 _LABEL = "Anthropic"
 
@@ -79,5 +85,9 @@ def _headers(api_key: str) -> dict[str, str]:
     return {
         "x-api-key": api_key,
         "anthropic-version": _API_VERSION,
+        "anthropic-beta": _BETA_HEADER,
         "content-type": "application/json",
     }
+
+
+__all__ = ["AnthropicProvider", "_headers", "_split_messages", "_visible_text"]
