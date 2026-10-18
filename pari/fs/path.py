@@ -10,6 +10,11 @@ Architectural Purpose:
 from pathlib import Path
 
 
+# File tools run on the host. `.git/hooks` runs on the next commit, and
+# `.pari` holds the session audit log. Reads of these trees stay allowed.
+_WRITE_RESERVED = frozenset({".git", ".pari"})
+
+
 def resolve_safe_path(workspace_root: str | Path, target_path: str | Path) -> Path:
     """Resolve a target path safely relative to the workspace root."""
     root = Path(workspace_root).resolve()
@@ -27,4 +32,22 @@ def resolve_safe_path(workspace_root: str | Path, target_path: str | Path) -> Pa
             f"is outside workspace '{workspace_root}'"
         )
 
+    return resolved
+
+
+def resolve_writable_path(workspace_root: str | Path, target_path: str | Path) -> Path:
+    """Resolve a path the file tools may create or overwrite.
+
+    The resolved path must stay inside the workspace. Its first component
+    must not be .git or .pari, including when a symlink or ``..`` lands there.
+    read_file keeps using resolve_safe_path, so a read of .git stays allowed.
+    """
+    resolved = resolve_safe_path(workspace_root, target_path)
+    root = Path(workspace_root).resolve()
+    relative = resolved.relative_to(root)
+    reserved = relative.parts[0] if relative.parts else ""
+    if reserved in _WRITE_RESERVED:
+        raise PermissionError(
+            f"Write refused: '{target_path}' is inside reserved directory '{reserved}'"
+        )
     return resolved

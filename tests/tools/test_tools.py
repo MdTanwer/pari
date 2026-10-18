@@ -49,6 +49,69 @@ async def test_tool_registry_and_fs_tools(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_write_file_refuses_git_and_pari(tmp_path: Path):
+    registry = get_default_registry(tmp_path)
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+    with pytest.raises(PermissionError, match="reserved"):
+        await registry.execute(
+            "write_file",
+            {"path": ".git/hooks/pre-commit", "content": "#!/bin/sh\n"},
+        )
+    assert not hook.exists()
+    assert not (tmp_path / ".git").exists()
+
+    log = tmp_path / ".pari" / "sessions" / "log.jsonl"
+    with pytest.raises(PermissionError, match="reserved"):
+        await registry.execute(
+            "write_file",
+            {"path": ".pari/sessions/log.jsonl", "content": "tampered\n"},
+        )
+    assert not log.exists()
+    assert not (tmp_path / ".pari").exists()
+
+
+@pytest.mark.asyncio
+async def test_edit_file_refuses_pari_and_git(tmp_path: Path):
+    log = tmp_path / ".pari" / "session.jsonl"
+    log.parent.mkdir(parents=True)
+    original = '{"event":"turn"}\n'
+    log.write_text(original)
+    head = tmp_path / ".git" / "HEAD"
+    head.parent.mkdir()
+    head_text = "ref: refs/heads/main\n"
+    head.write_text(head_text)
+    registry = get_default_registry(tmp_path)
+
+    with pytest.raises(PermissionError, match="reserved"):
+        await registry.execute(
+            "edit_file",
+            {
+                "path": ".pari/session.jsonl",
+                "search": "turn",
+                "replace": "tampered",
+            },
+        )
+    assert log.read_text() == original
+
+    with pytest.raises(PermissionError, match="reserved"):
+        await registry.execute(
+            "edit_file",
+            {"path": ".git/HEAD", "search": "main", "replace": "evil"},
+        )
+    assert head.read_text() == head_text
+
+
+@pytest.mark.asyncio
+async def test_read_file_can_read_git(tmp_path: Path):
+    head = tmp_path / ".git" / "HEAD"
+    head.parent.mkdir()
+    head.write_text("ref: refs/heads/main\n")
+    registry = get_default_registry(tmp_path)
+    content = await registry.execute("read_file", {"path": ".git/HEAD"})
+    assert content == "ref: refs/heads/main\n"
+
+
+@pytest.mark.asyncio
 async def test_edit_fallback_none_refuses_indent_drift(tmp_path: Path):
     path = tmp_path / "app.py"
     original = "def greet():\n    return 'hi'\n"

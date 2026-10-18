@@ -13,6 +13,7 @@ from pari.fs import (
     atomic_write,
     read_file,
     resolve_safe_path,
+    resolve_writable_path,
 )
 
 
@@ -46,6 +47,42 @@ def test_resolve_safe_path_prefix_collision_rejected(tmp_path: Path):
 
     with pytest.raises(PermissionError, match="Path traversal rejected"):
         resolve_safe_path(workspace, "../workspace_evil/payload.py")
+
+
+def test_resolve_writable_path_rejects_git_and_pari(tmp_path: Path):
+    with pytest.raises(PermissionError, match="reserved"):
+        resolve_writable_path(tmp_path, ".git/hooks/pre-commit")
+    with pytest.raises(PermissionError, match="reserved"):
+        resolve_writable_path(tmp_path, ".pari/sessions/abc.jsonl")
+
+
+def test_resolve_writable_path_rejects_dotdot_and_symlink(tmp_path: Path):
+    (tmp_path / "src").mkdir()
+    with pytest.raises(PermissionError, match="reserved"):
+        resolve_writable_path(tmp_path, "src/../.git/hooks/pre-commit")
+
+    git = tmp_path / ".git"
+    git.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(git, target_is_directory=True)
+    with pytest.raises(PermissionError, match="reserved"):
+        resolve_writable_path(tmp_path, "alias/hooks/pre-commit")
+
+
+def test_resolve_writable_path_allows_a_normal_file_and_gitignore(tmp_path: Path):
+    safe = resolve_writable_path(tmp_path, "src/app.py")
+    assert safe == (tmp_path / "src" / "app.py").resolve()
+    gitignore = resolve_writable_path(tmp_path, ".gitignore")
+    assert gitignore == (tmp_path / ".gitignore").resolve()
+    workflows = resolve_writable_path(tmp_path, ".github/workflows/ci.yml")
+    assert workflows == (tmp_path / ".github" / "workflows" / "ci.yml").resolve()
+
+
+def test_resolve_safe_path_still_allows_a_git_read(tmp_path: Path):
+    target = tmp_path / ".git" / "HEAD"
+    target.parent.mkdir()
+    target.write_text("ref: refs/heads/main\n")
+    assert resolve_safe_path(tmp_path, ".git/HEAD") == target.resolve()
 
 
 def test_read_file_rejects_nul_in_the_first_kilobyte(tmp_path: Path):
@@ -123,3 +160,13 @@ async def test_writes_to_one_file_do_not_interleave(tmp_path: Path):
         ["start-b", "end-b", "start-a", "end-a"],
     )
     assert read_file(target) in {"A\n", "B\n"}
+
+
+@pytest.mark.asyncio
+async def test_queue_write_refuses_a_git_hook(tmp_path: Path):
+    queue = FileMutationQueue(tmp_path)
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+    with pytest.raises(PermissionError, match="reserved"):
+        await queue.write(Path(".git/hooks/pre-commit"), "#!/bin/sh\n")
+    assert not hook.exists()
+    assert not (tmp_path / ".git").exists()
