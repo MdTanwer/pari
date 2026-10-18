@@ -1,13 +1,13 @@
-"""Integration tests for AgentRuntime and Interactive REPL commands."""
-
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from pari.agent.runtime import AgentRuntime
 from pari.fs.atomic import atomic_write, read_file
 from pari.providers.base import LLMProvider
-from pari.providers.message import ToolCall
+from pari.providers.message import ProviderMessage, ToolCall
 from pari.providers.mock import MockOfflineProvider
 from pari.providers.response import ModelResponse
 from pari.tui.app import TerminalApp
@@ -23,10 +23,10 @@ async def test_agent_runtime_turn_execution(tmp_path: Path):
     response = await runtime.execute_turn("Please find python files")
     assert "find_files" in response or "matches" in response or "PARI Agent" in response
 
-    # Verify session log was written
-    session_log = tmp_path / ".pari" / "session.jsonl"
-    assert session_log.exists()
-    assert session_log.stat().st_size > 0
+    # Verify session log was written in system dir, not in workspace root
+    assert runtime.session_file.exists()
+    assert runtime.session_file.stat().st_size > 0
+    assert not (tmp_path / ".pari" / "session.jsonl").exists()
 
 
 @pytest.mark.asyncio
@@ -117,3 +117,84 @@ async def test_slash_commands_in_terminal_app(tmp_path: Path):
     undo_res = app.commands.handle("/undo")
     assert "hello.py" in undo_res[1] and "Reverted files" in undo_res[1]
     assert read_file(test_file) == "val = 1\n"
+
+
+@pytest.mark.asyncio
+async def test_compaction_bounds_messages_over_100_turns(tmp_path: Path):
+    class SyntheticMockProvider(LLMProvider):
+        def __init__(self):
+            super().__init__("mock", "key")
+            self.sent_messages: list[list[ProviderMessage]] = []
+
+        async def complete(
+            self,
+            messages: list[ProviderMessage],
+            tools: list[dict[str, Any]] | None = None,
+            temperature: float = 0.0,
+            on_delta: Callable[[str], None] | None = None,
+        ) -> ModelResponse:
+            _ = tools, temperature, on_delta
+            self.sent_messages.append([m.model_copy() for m in messages])
+            tokens_in = sum(max(1, len(m.content) // 4) for m in messages)
+            return ModelResponse(
+                text=f"Ack turn {len(self.sent_messages)}",
+                tool_calls=[],
+                tokens_in=tokens_in,
+                tokens_out=20,
+                stop_reason="stop",
+            )
+
+    provider = SyntheticMockProvider()
+    runtime = AgentRuntime(tmp_path, provider=provider, max_tokens=500)
+    for i in range(100):
+        await runtime.execute_turn(f"Synthetic prompt {i}")
+
+    turn_100_messages = provider.sent_messages[99]
+    # Without compaction, 100 turns would produce 201 messages.
+    # With compaction, the message list sent on turn 100 is bounded.
+    assert len(turn_100_messages) <= 25
+    assert len(runtime.messages) <= 25
+
+
+@pytest.mark.asyncio
+async def test_pinned_file_content_appears_once_not_per_turn(tmp_path: Path):
+    pinned_path = tmp_path / "pinned_spec.md"
+    secret_marker = "UNIQUE_PINNED_CONTENT_ABC123"
+    pinned_path.write_text(f"# Spec\n{secret_marker}\n")
+
+    class CapturingProvider(LLMProvider):
+        def __init__(self):
+            super().__init__("mock", "key")
+            self.sent_requests: list[list[ProviderMessage]] = []
+
+        async def complete(
+            self,
+            messages: list[ProviderMessage],
+            tools: list[dict[str, Any]] | None = None,
+            temperature: float = 0.0,
+            on_delta: Callable[[str], None] | None = None,
+        ) -> ModelResponse:
+            _ = tools, temperature, on_delta
+            self.sent_requests.append([m.model_copy() for m in messages])
+            return ModelResponse(
+                text="ok",
+                tool_calls=[],
+                tokens_in=100,
+                tokens_out=10,
+                stop_reason="stop",
+            )
+
+    provider = CapturingProvider()
+    runtime = AgentRuntime(tmp_path, provider=provider)
+    assert runtime.add_pinned_file("pinned_spec.md") is True
+
+    await runtime.execute_turn("first question")
+    await runtime.execute_turn("second question")
+    await runtime.execute_turn("third question")
+
+    for req in provider.sent_requests:
+        occurrences = sum(m.content.count(secret_marker) for m in req)
+        assert occurrences == 1
+        assert secret_marker in req[0].content
+        for user_msg in req[1:]:
+            assert secret_marker not in user_msg.content

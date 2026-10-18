@@ -19,6 +19,7 @@ from pari.session.checkpoint import CheckpointManager
 from pari.session.dag import SessionDAG
 from pari.session.events import SessionEvent, SessionEventType
 from pari.session.logger import SessionLogger
+from pari.session.paths import default_session_dir
 from pari.session.undo import GuardedUndoManager
 
 
@@ -29,4 +30,5 @@ __all__ = [
     "SessionEvent",
     "SessionEventType",
     "SessionLogger",
+    "default_session_dir",
 ]

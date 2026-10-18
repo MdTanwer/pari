@@ -24,8 +24,6 @@ from pari.agent.guards import (
 )
 from pari.agent.lint import lint_python
 from pari.agent.reflection import ReflectionManager
-from pari.context.chunks import ContextChunk, ContextTier, assemble_context
-from pari.context.compaction import compact_context
 from pari.edit.diff import generate_unified_diff
 from pari.fs.path import resolve_safe_path
 from pari.providers.message import ToolCall
@@ -279,21 +277,16 @@ class AgentExecutionLoop:
 
 def _render_context(
     prompt: str,
-    history: str,
-    active_files: list[tuple[str, str]],
+    history: str = "",
+    active_files: list[tuple[str, str]] | None = None,
     repo_map: str = "",
 ) -> str:
-    chunks: list[ContextChunk] = []
-    if repo_map:
-        chunks.append(ContextChunk(ContextTier.STATIC_REPO_MAP, repo_map, "repomap"))
-    if active_files:
-        body = "\n".join(f"# {name}\n{content}" for name, content in active_files)
-        chunks.append(ContextChunk(ContextTier.ACTIVE_FILES, body, "files"))
-    if history:
-        chunks.append(ContextChunk(ContextTier.TURN_HISTORY, history, "history"))
-    chunks.append(ContextChunk(ContextTier.CURRENT_TURN, prompt, "turn"))
-    packed = assemble_context(compact_context(chunks))
-    return "\n".join(str(item["content"]) for item in packed)
+    """Return the turn prompt.
+
+    Repo map and pinned files live in the stable system prefix.
+    """
+    _ = history, active_files, repo_map
+    return prompt
 
 
 def _append(history: str, text: str) -> str:
