@@ -111,7 +111,16 @@ class TerminalApp:
         )
 
     def print_welcome(self) -> None:
-        self.console.print(welcome_panel(self.workspace, self.model_name))
+        self.console.print(
+            welcome_panel(self.workspace, self.model_name, self.runtime.session_id)
+        )
+
+    def farewell(self) -> str:
+        """Name this session so the next launch can resume it."""
+        session_id = self.runtime.session_id
+        if not session_id:
+            return "[dim]Exiting PARI session.[/dim]"
+        return f"[dim]To resume this session:[/dim] pari-cli --resume {session_id}"
 
     def process_message(self, user_msg: str) -> str | None:
         """Return a local answer, or None when the line should run a model turn."""
@@ -151,6 +160,8 @@ class TerminalApp:
 
     async def run_repl(self) -> None:
         """Read lines until the user exits or the terminal closes."""
+        if not self.runtime.session_id:
+            self.runtime.start_session()
         self.print_welcome()
         draft = ""
         while True:
@@ -173,13 +184,13 @@ class TerminalApp:
                 if not await self._turn(text):
                     break
             except (KeyboardInterrupt, EOFError):
-                self.console.print("\n[dim]Session interrupted. Goodbye![/dim]")
+                self.console.print("\n" + self.farewell())
                 break
 
     async def _turn(self, text: str) -> bool:
         """Handle one line. Return False when the session should stop."""
         if text in ("/exit", "/quit", "exit", "quit"):
-            self.console.print("[dim]Exiting PARI session. Goodbye![/dim]")
+            self.console.print(self.farewell())
             return False
         # These menus draw on the raw terminal, so they stay outside the panel.
         if text == "/login":

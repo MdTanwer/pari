@@ -183,6 +183,25 @@ def test_tui_process_message_help(tmp_path: Path):
     res = app.process_message("/help")
     assert "/help" in res
     assert "/exit" in res
+    assert "/resume" in res
+
+
+@pytest.mark.asyncio
+async def test_exit_names_the_session_to_resume(tmp_path: Path):
+    app = TerminalApp(workspace=tmp_path)
+    await app.respond("remember the codename bluebird")
+    session_id = app.runtime.session_id
+    assert session_id is not None
+    assert await app._turn("/exit") is False
+    assert f"pari-cli --resume {session_id}" in app.farewell()
+    listed = app.process_message("/resume")
+    assert session_id in listed
+    assert "remember the codename bluebird" in listed
+
+    resumed = app.process_message(f"/resume {session_id}")
+    assert session_id in resumed
+    contents = [message.content for message in app.runtime.messages]
+    assert any(text == "remember the codename bluebird" for text in contents)
 
 
 def test_tui_slash_commands(tmp_path: Path):
@@ -585,6 +604,7 @@ def test_slash_command_completer():
         "/snapshot",
         "/cost",
         "/reset",
+        "/resume",
         "/login",
         "/logout",
         "/exit",

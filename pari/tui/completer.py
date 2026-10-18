@@ -21,6 +21,7 @@ COMMAND_METADATA = [
     ("/snapshot", "Save a named restore point"),
     ("/cost", "Show token and cost totals"),
     ("/reset", "Clear the conversation"),
+    ("/resume", "List previous sessions or resume one"),
     ("/login", "Sign in with an account or an API key"),
     ("/logout", "Remove a saved sign-in"),
     ("/exit", "End interactive session"),

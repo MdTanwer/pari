@@ -41,6 +41,7 @@ class SessionCommands:
         self.handler.register("/snapshot", self._snapshot)
         self.handler.register("/cost", self._cost)
         self.handler.register("/reset", self._reset)
+        self.handler.register("/resume", self._resume)
         self.handler.register("/login", self._login)
         self.handler.register("/logout", self._logout)
 
@@ -58,6 +59,7 @@ class SessionCommands:
             "- `/snapshot [name]` - Save a named restore point\n"
             "- `/cost` - Show token and cost totals\n"
             "- `/reset` - Clear the conversation\n"
+            "- `/resume [id]` - List previous sessions or resume one\n"
             "- `/login` - Sign in with an account or an API key\n"
             "- `/logout` - Remove a saved sign-in\n"
             "- `/clear` - Clear terminal screen\n"
@@ -113,6 +115,24 @@ class SessionCommands:
     def _reset(self, _args: str) -> str:
         session_id = self.host.runtime.reset_conversation()
         return f"Conversation cleared. Session `{session_id}`."
+
+    def _resume(self, args: str) -> str:
+        choice = args.strip()
+        if choice:
+            try:
+                session_id = self.host.runtime.resume(choice)
+            except FileNotFoundError as exc:
+                return str(exc)
+            return f"Resumed session `{session_id}`."
+        rows = self.host.runtime.list_sessions()
+        if not rows:
+            return "No previous sessions."
+        lines = ["**Previous sessions:**"]
+        for session_id, prompt in rows:
+            title = prompt or "(no messages yet)"
+            lines.append(f"- `{session_id}` — {title}")
+        lines.append("Resume one with `/resume <id>`.")
+        return "\n".join(lines)
 
     def _add(self, args: str) -> str:
         if not args:
