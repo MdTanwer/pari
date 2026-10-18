@@ -44,3 +44,24 @@ def test_repo_map_prefers_the_focused_file(tmp_path: Path):
     text = RepoMapGenerator(tmp_path, max_tokens=8).generate(["auth.py"])
     assert "verify_jwt" in text
     assert "other" not in text
+
+
+def test_repo_map_skips_ignored_lockfiles_and_huge_files(tmp_path: Path):
+    (tmp_path / ".gitignore").write_text("skip/\n")
+    skipped = tmp_path / "skip"
+    skipped.mkdir()
+    (skipped / "secret.py").write_text("def hidden_secret():\n    return 1\n")
+    (tmp_path / "package-lock.json").write_text("def lock_symbol():\n    return 1\n")
+    (tmp_path / "blob.bin").write_bytes(b"\0def binary_symbol():\n")
+    huge = tmp_path / "huge.py"
+    huge.write_text("def huge_symbol():\n    return 1\n")
+    with huge.open("ab") as handle:
+        handle.truncate(1024 * 1024 + 1)
+    (tmp_path / "auth.py").write_text("def verify_jwt():\n    return 1\n")
+
+    text = RepoMapGenerator(tmp_path, max_tokens=2048).generate()
+    assert "verify_jwt" in text
+    assert "hidden_secret" not in text
+    assert "lock_symbol" not in text
+    assert "binary_symbol" not in text
+    assert "huge_symbol" not in text

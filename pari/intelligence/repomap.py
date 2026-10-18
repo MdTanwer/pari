@@ -10,7 +10,7 @@ from pathlib import Path
 from pari.intelligence.ast import SymbolInfo, extract_symbols
 from pari.intelligence.cache import WorktreeSymbolCache
 from pari.intelligence.ppr import compute_personalized_pagerank
-from pari.intelligence.search import _IGNORED_DIRS
+from pari.intelligence.search import MAX_TEXT_BYTES, is_binary, walk_files
 
 
 class RepoMapGenerator:
@@ -79,12 +79,32 @@ def _pack(symbols: list[SymbolInfo], max_tokens: int) -> str:
     return "\n".join(blocks)
 
 
+_LOCKFILES = frozenset(
+    {
+        "package-lock.json",
+        "yarn.lock",
+        "pnpm-lock.yaml",
+        "cargo.lock",
+        "poetry.lock",
+        "gemfile.lock",
+        "composer.lock",
+        "bun.lock",
+        "pipfile.lock",
+    }
+)
+
+
 def _source_files(workspace: Path) -> list[Path]:
     found: list[Path] = []
-    for path in sorted(workspace.rglob("*")):
-        if not path.is_file():
+    for path in walk_files(workspace):
+        if path.name.casefold() in _LOCKFILES:
             continue
-        if any(part in _IGNORED_DIRS for part in path.relative_to(workspace).parts):
+        try:
+            if path.stat().st_size > MAX_TEXT_BYTES:
+                continue
+        except OSError:
+            continue
+        if is_binary(path):
             continue
         found.append(path)
     return found
