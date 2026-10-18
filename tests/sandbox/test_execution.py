@@ -7,7 +7,6 @@ import pytest
 
 from pari.sandbox.base import SandboxLimits
 from pari.sandbox.dispatcher import get_sandbox_runner
-from pari.sandbox.process import SupervisedProcessRunner
 
 
 def test_granted_env_reaches_the_command_and_host_tokens_do_not(
@@ -26,7 +25,7 @@ def test_granted_env_reaches_the_command_and_host_tokens_do_not(
 
 
 def test_output_arrives_before_the_command_exits(tmp_path: Path):
-    runner = SupervisedProcessRunner(tmp_path)
+    runner = get_sandbox_runner(tmp_path)
     seen: list[tuple[float, str]] = []
 
     def on_output(_stream: str, text: str) -> None:
@@ -44,7 +43,7 @@ def test_output_arrives_before_the_command_exits(tmp_path: Path):
 
 def test_command_runs_when_the_host_has_no_pty(tmp_path: Path, monkeypatch):
     monkeypatch.setattr("pari.sandbox.base.pty", None)
-    runner = SupervisedProcessRunner(tmp_path)
+    runner = get_sandbox_runner(tmp_path)
     seen: list[str] = []
 
     def on_output(_stream: str, text: str) -> None:

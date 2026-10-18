@@ -32,7 +32,7 @@ from pari.providers.base import LLMProvider
 from pari.providers.exceptions import ProviderError
 from pari.providers.message import ToolCall
 from pari.providers.mock import MockOfflineProvider
-from pari.session.undo import UndoResult
+from pari.session.undo import UndoResult, side_effect_note
 from pari.tools.bash import BashTool
 from pari.tui.activity import Action, Elapsed, TurnLog, running_label
 from pari.tui.completer import LimitChoiceCompleter, SlashCommandCompleter
@@ -169,6 +169,7 @@ class TerminalApp:
         try:
             if not self.runtime.session_id:
                 self.runtime.start_session()
+            self.runtime.keep_cache_warm()
             self.print_welcome()
             draft = ""
             while True:
@@ -188,6 +189,7 @@ class TerminalApp:
                     text = user_input.strip()
                     if not text:
                         continue
+                    self.runtime.note_activity()
                     if not await self._turn(text):
                         break
                 except (KeyboardInterrupt, EOFError):
@@ -195,6 +197,7 @@ class TerminalApp:
                     break
         finally:
             self.stop_sandbox()
+            await self.runtime.warmer.stop()
 
     async def _turn(self, text: str) -> bool:
         """Handle one line. Return False when the session should stop."""
@@ -526,7 +529,9 @@ def _limit_action(choice: str) -> str | None:
 def _revert_message(result: UndoResult) -> str:
     if result.conflicted_files:
         names = ", ".join(result.conflicted_files)
-        return f"Could not revert {names}. Those files changed after the edit."
-    if result.reverted_files:
-        return f"Reverted files: {', '.join(result.reverted_files)}"
-    return "Stopped. No file changes to revert."
+        text = f"Could not revert {names}. Those files changed after the edit."
+    elif result.reverted_files:
+        text = f"Reverted files: {', '.join(result.reverted_files)}"
+    else:
+        text = "Stopped. No file changes to revert."
+    return text + side_effect_note(result)
