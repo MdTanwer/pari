@@ -7,6 +7,7 @@ Executes the full turn lifecycle:
     Review -> Response
 """
 
+import json
 import uuid
 from collections.abc import Callable
 from pathlib import Path
@@ -147,12 +148,24 @@ class AgentRuntime:
             if not path.is_file():
                 raise FileNotFoundError(f"Session not found: {session_id}")
             return path
-        if not directory.is_dir():
-            raise FileNotFoundError("No session to resume.")
-        files = [path for path in directory.glob("*.jsonl") if path.is_file()]
+        files = self._dag_files()
         if not files:
             raise FileNotFoundError("No session to resume.")
-        return max(files, key=lambda path: path.stat().st_mtime)
+        with_turns = [path for path in files if _has_user_turn(path)]
+        pool = with_turns or files
+        return max(pool, key=lambda path: path.stat().st_mtime)
+
+    def list_sessions(self) -> list[tuple[str, str]]:
+        """Newest session first. The second item is the first user prompt."""
+        files = self._dag_files()
+        files.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+        return [(path.stem, _first_prompt(path)) for path in files]
+
+    def _dag_files(self) -> list[Path]:
+        directory = self.session_dir / "dags"
+        if not directory.is_dir():
+            return []
+        return [path for path in directory.glob("*.jsonl") if path.is_file()]
 
     def _ensure_logger(self) -> SessionLogger:
         if not self.session_id:
@@ -376,6 +389,32 @@ class AgentRuntime:
             except (OSError, UnicodeDecodeError):
                 continue
         return files
+
+
+def _has_user_turn(path: Path) -> bool:
+    return _first_prompt(path) != ""
+
+
+def _first_prompt(path: Path) -> str:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return ""
+    for line in lines:
+        if '"USER_TURN"' not in line:
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(record, dict) or record.get("type") != "USER_TURN":
+            continue
+        data = record.get("data")
+        prompt = ""
+        if isinstance(data, dict):
+            prompt = str(data.get("prompt", ""))
+        return " ".join(prompt.split())[:80]
+    return ""
 
 
 def _message_payload(message: ProviderMessage) -> dict[str, Any]:

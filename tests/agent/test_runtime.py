@@ -1,3 +1,4 @@
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -220,6 +221,24 @@ async def test_resume_restores_turns_after_a_torn_write(tmp_path: Path):
 
     latest = AgentRuntime(tmp_path, provider=MockOfflineProvider())
     assert latest.resume(None) == session_id
+
+
+@pytest.mark.asyncio
+async def test_resume_without_id_skips_a_newer_empty_session(tmp_path: Path):
+    runtime = AgentRuntime(tmp_path, provider=MockOfflineProvider())
+    await runtime.execute_turn("remember the codename bluebird")
+    real_id = runtime.session_id
+    assert real_id is not None
+    empty = AgentRuntime(tmp_path, provider=MockOfflineProvider())
+    empty.start_session()
+    os.utime(runtime.session_file, (1_000, 1_000))
+    os.utime(empty.session_file, (2_000, 2_000))
+
+    resumed = AgentRuntime(tmp_path, provider=MockOfflineProvider())
+    assert resumed.resume(None) == real_id
+    assert empty.session_id in {
+        session_id for session_id, _prompt in resumed.list_sessions()
+    }
 
 
 @pytest.mark.asyncio

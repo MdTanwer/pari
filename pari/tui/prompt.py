@@ -9,7 +9,9 @@ from pari import __version__
 from pari.tui.status import CostMeter
 
 
-def welcome_panel(workspace: Path, model_name: str) -> Panel:
+def welcome_panel(
+    workspace: Path, model_name: str, session_id: str | None = None
+) -> Panel:
     offline = ""
     if model_name == "pari-core":
         offline = (
@@ -17,11 +19,15 @@ def welcome_panel(workspace: Path, model_name: str) -> Panel:
             "[dim], then [/dim][bold cyan]/model <name>[/bold cyan]"
             "[dim] to call a provider.[/dim]"
         )
+    session = ""
+    if session_id:
+        session = f"\n[dim]Session   :[/dim] [green]{session_id}[/green]"
     welcome_text = (
         f"[bold cyan]PARI v{__version__}[/bold cyan] — Coding Agent\n"
         f"[dim]Website   :[/dim] [cyan]https://pari-cli.in[/cyan]\n"
         f"[dim]Workspace :[/dim] [yellow]{workspace}[/yellow]\n"
         f"[dim]Model     :[/dim] [green]{model_name}[/green]"
+        f"{session}"
         f"{offline}\n\n"
         "[dim]Type your message, [/dim][bold cyan]/help[/bold cyan]"
         "[dim] for commands, [/dim][bold cyan]/exit[/bold cyan]"
