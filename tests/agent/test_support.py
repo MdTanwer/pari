@@ -48,7 +48,9 @@ def test_lint_block_names_the_enclosing_function():
 def test_daemon_notice_names_the_command():
     notice = format_daemon_notice("npm run dev")
     assert "npm run dev" in notice
-    assert "10s" in notice
+    assert "was stopped after 10s" in notice
+    assert "separate terminal" in notice
+    assert "background" not in notice
 
 
 @pytest.mark.asyncio

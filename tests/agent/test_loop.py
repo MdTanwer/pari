@@ -157,9 +157,10 @@ async def test_timed_out_command_is_reported_as_a_daemon():
     loop = AgentExecutionLoop(registry=registry)
     result = await loop.run_turn("start the server", step, _not_truncated)
     assert "DAEMON DETECTED" in seen[1]
-    assert "10s" in seen[1]
+    assert "was stopped after 10s" in seen[1]
     assert "npm run dev" in seen[1]
-    assert "background task APIs" in seen[1]
+    assert "separate terminal" in seen[1]
+    assert "background" not in seen[1]
     assert result.response_text == "noted"
     assert result.tool_calls_executed == 1
 
